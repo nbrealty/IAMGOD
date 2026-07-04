@@ -1,0 +1,807 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>I AM GOD — Hollywood &amp; Highland (Day 1 Greybox)</title>
+<style>
+  :root {
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #0c0e14;
+    color: #f0ead6;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    height: 100%;
+    overflow-x: hidden;
+    touch-action: manipulation;
+  }
+  #app {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+  }
+
+  /* ---------- HUD ---------- */
+  #hud {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    padding: 8px 14px;
+    background: linear-gradient(180deg, #1a1410, #100c09);
+    border-bottom: 2px solid #4a3a22;
+    font-size: 13px;
+    flex-wrap: wrap;
+  }
+  #hud .breadcrumb {
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+  #hud .breadcrumb .dim { color: #a9967a; font-weight: 400; }
+  #hud .clock {
+    color: #cbb98f;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  #hud .faith {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 200px;
+    flex-shrink: 0;
+  }
+  .gauge-row { display: flex; align-items: center; gap: 6px; }
+  .gauge-label { font-size: 9.5px; width: 58px; flex-shrink: 0; text-align: right; color: #b9ab8c; letter-spacing: 0.03em; white-space: nowrap; }
+  .gauge-track {
+    flex: 1;
+    height: 7px;
+    background: #241d14;
+    border: 1px solid #4a3a22;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .gauge-fill { height: 100%; }
+  .gauge-fill.presence { background: linear-gradient(90deg, #3a7bd5, #63a9ff); }
+  .gauge-fill.trust { background: linear-gradient(90deg, #c9962c, #f4d06f); }
+
+  /* ---------- Stage ---------- */
+  #stage {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+    position: relative;
+  }
+  #scene {
+    width: 100%;
+    max-width: 1400px;
+    height: auto;
+    display: block;
+    background: #6b8fae;
+    border-radius: 6px;
+    box-shadow: 0 0 0 1px #33291b, 0 10px 30px rgba(0,0,0,0.5);
+    cursor: pointer;
+  }
+
+  /* ---------- Soul Profile Panel ---------- */
+  #panel {
+    position: fixed;
+    inset: 0;
+    background: rgba(6, 5, 4, 0.72);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 20;
+    padding: 16px;
+  }
+  #panel.open { display: flex; }
+  #panelCard {
+    width: 100%;
+    max-width: 420px;
+    max-height: 88vh;
+    overflow-y: auto;
+    background: linear-gradient(180deg, #1c1712, #100d09);
+    border: 1px solid #5a4a2e;
+    border-radius: 10px;
+    padding: 18px 20px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+  }
+  #panelCard h2 {
+    margin: 0 0 2px 0;
+    font-size: 18px;
+    color: #f4e6c1;
+  }
+  #panelCard .occ {
+    margin: 0 0 14px 0;
+    font-size: 12.5px;
+    color: #b7a67f;
+    font-style: italic;
+  }
+  .statRow {
+    display: flex;
+    justify-content: space-between;
+    padding: 5px 0;
+    border-bottom: 1px dashed #372c1c;
+    font-size: 13px;
+  }
+  .statRow span:first-child { color: #9c8c6c; }
+  .statRow span:last-child { color: #f0ead6; text-align: right; max-width: 62%; }
+  .narrative {
+    margin-top: 12px;
+    padding: 10px 12px;
+    background: #14110c;
+    border-left: 3px solid #7a5c2a;
+    border-radius: 4px;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: #d8c8a4;
+    font-style: italic;
+  }
+  .chakraRow {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 12px;
+    padding: 10px 4px 2px 4px;
+  }
+  .chakra {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    font-size: 8.5px;
+    color: #a99d80;
+    width: 13%;
+  }
+  .chakra .dot {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2px solid #55492f;
+  }
+  .chakra .dot.blocked { background: #3a2020; border-color: #7a3030; }
+  .chakra .dot.imbalanced { background: #6b5a1e; border-color: #a68a2e; }
+  .chakra .dot.open { background: #2f6b3f; border-color: #4fae6a; box-shadow: 0 0 6px #4fae6a88; }
+  #closeBtn {
+    display: block;
+    margin: 16px auto 0 auto;
+    background: #2c2418;
+    border: 1px solid #5a4a2e;
+    color: #e8d9ae;
+    padding: 7px 22px;
+    border-radius: 20px;
+    font-size: 12.5px;
+    cursor: pointer;
+  }
+  #closeBtn:active { background: #3a2f1e; }
+
+  #footnote {
+    text-align: center;
+    font-size: 10.5px;
+    color: #5c5442;
+    padding: 6px 10px 12px 10px;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div id="hud">
+    <div class="breadcrumb">Hollywood, CA <span class="dim">&gt;</span> Hollywood &amp; Highland</div>
+    <div class="clock" id="clock">Day 1 | 2:34 PM</div>
+    <div class="faith">
+      <div class="gauge-row"><span class="gauge-label">PRESENCE</span><div class="gauge-track"><div class="gauge-fill presence" style="width:82%"></div></div></div>
+      <div class="gauge-row"><span class="gauge-label">TRUST</span><div class="gauge-track"><div class="gauge-fill trust" style="width:47%"></div></div></div>
+    </div>
+  </div>
+
+  <div id="stage">
+    <canvas id="scene" width="1600" height="900"></canvas>
+  </div>
+
+  <div id="footnote">Tap a person on the street to read their Soul Profile. Day 1 greybox — code-drawn, no image assets.</div>
+
+</div>
+
+<div id="panel">
+  <div id="panelCard">
+    <h2 id="pName">—</h2>
+    <p class="occ" id="pOcc">—</p>
+    <div class="statRow"><span>Maslow Position</span><span id="pMaslow">—</span></div>
+    <div class="statRow"><span>Emotional State</span><span id="pEmotion">—</span></div>
+    <div class="statRow"><span>Age</span><span id="pAge">—</span></div>
+    <div class="narrative" id="pNarrative">—</div>
+    <div class="chakraRow" id="pChakras"></div>
+    <button id="closeBtn">Close</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var W = 1600, H = 900;
+  var canvas = document.getElementById("scene");
+  var ctx = canvas.getContext("2d");
+
+  var ROAD_TOP = 420, ROAD_BOTTOM = 520;
+  var NORTH_SIDEWALK_TOP = 380, NORTH_SIDEWALK_BOTTOM = ROAD_TOP;
+  var SOUTH_SIDEWALK_TOP = ROAD_BOTTOM, SOUTH_SIDEWALK_BOTTOM = 560;
+  var NORTH_BASELINE = NORTH_SIDEWALK_TOP;
+  var SOUTH_BASELINE = SOUTH_SIDEWALK_BOTTOM;
+  var HIGHLAND_LEFT = 480, HIGHLAND_RIGHT = 560;
+
+  var CHAKRA_ORDER = ["Root", "Sacral", "Solar Plexus", "Heart", "Throat", "Third Eye", "Crown"];
+
+  // ---------------------------------------------------------------
+  // Building & prop drawing helpers
+  // ---------------------------------------------------------------
+
+  function drawHills() {
+    var grd = ctx.createLinearGradient(0, 0, 0, 140);
+    grd.addColorStop(0, "#8fb4cf");
+    grd.addColorStop(1, "#b9c9a8");
+    ctx.fillStyle = grd;
+    ctx.fillRect(0, 0, W, 150);
+
+    ctx.fillStyle = "#7c9a6d";
+    ctx.beginPath();
+    ctx.moveTo(0, 150);
+    ctx.quadraticCurveTo(220, 60, 480, 120);
+    ctx.quadraticCurveTo(760, 40, 1040, 110);
+    ctx.quadraticCurveTo(1320, 55, 1600, 120);
+    ctx.lineTo(1600, 150);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = "#6a8a5c";
+    ctx.beginPath();
+    ctx.moveTo(0, 150);
+    ctx.quadraticCurveTo(300, 100, 620, 140);
+    ctx.quadraticCurveTo(950, 95, 1250, 135);
+    ctx.quadraticCurveTo(1450, 105, 1600, 140);
+    ctx.lineTo(1600, 150);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = "#efe9de";
+    ctx.font = "bold 9px sans-serif";
+    ctx.textAlign = "center";
+    var letters = "HOLLYWOOD".split("");
+    var startX = 560, gap = 20;
+    for (var i = 0; i < letters.length; i++) {
+      ctx.fillRect(startX + i * gap, 78, 4, 12);
+    }
+  }
+
+  function drawRoad() {
+    ctx.fillStyle = "#33322f";
+    ctx.fillRect(0, ROAD_TOP, W, ROAD_BOTTOM - ROAD_TOP);
+
+    ctx.strokeStyle = "#d8c96a";
+    ctx.setLineDash([26, 20]);
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(0, (ROAD_TOP + ROAD_BOTTOM) / 2);
+    ctx.lineTo(W, (ROAD_TOP + ROAD_BOTTOM) / 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.strokeStyle = "#c9c4b6";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, ROAD_TOP + 4); ctx.lineTo(W, ROAD_TOP + 4);
+    ctx.moveTo(0, ROAD_BOTTOM - 4); ctx.lineTo(W, ROAD_BOTTOM - 4);
+    ctx.stroke();
+
+    // Highland Ave vertical
+    ctx.fillStyle = "#33322f";
+    ctx.fillRect(HIGHLAND_LEFT, 0, HIGHLAND_RIGHT - HIGHLAND_LEFT, H);
+    ctx.strokeStyle = "#d8c96a";
+    ctx.setLineDash([22, 18]);
+    ctx.beginPath();
+    ctx.moveTo((HIGHLAND_LEFT + HIGHLAND_RIGHT) / 2, 0);
+    ctx.lineTo((HIGHLAND_LEFT + HIGHLAND_RIGHT) / 2, H);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Crosswalks at the intersection
+    ctx.fillStyle = "#e7e2d2";
+    for (var cx = HIGHLAND_LEFT - 6; cx < HIGHLAND_RIGHT + 6; cx += 14) {
+      ctx.fillRect(cx, ROAD_TOP + 6, 8, ROAD_BOTTOM - ROAD_TOP - 12);
+    }
+    for (var cy = ROAD_TOP - 6; cy < ROAD_BOTTOM + 6; cy += 14) {
+      ctx.fillRect(HIGHLAND_LEFT + 6, cy, HIGHLAND_RIGHT - HIGHLAND_LEFT - 12, 8);
+    }
+
+    ctx.fillStyle = "#efe4bd";
+    ctx.font = "bold 13px sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText("HOLLYWOOD BLVD", 30, ROAD_TOP + (ROAD_BOTTOM - ROAD_TOP) / 2 + 5);
+    ctx.save();
+    ctx.translate(HIGHLAND_LEFT + (HIGHLAND_RIGHT - HIGHLAND_LEFT) / 2 + 5, 300);
+    ctx.rotate(Math.PI / 2);
+    ctx.fillText("HIGHLAND AVE", 0, 0);
+    ctx.restore();
+  }
+
+  function drawStar(cx, cy, outerR, innerR, color) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.beginPath();
+    for (var i = 0; i < 10; i++) {
+      var r = (i % 2 === 0) ? outerR : innerR;
+      var a = (Math.PI / 5) * i - Math.PI / 2;
+      var px = Math.cos(a) * r, py = Math.sin(a) * r;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawWalkOfFame(y) {
+    for (var x = 70; x < W - 70; x += 78) {
+      if (x > HIGHLAND_LEFT - 40 && x < HIGHLAND_RIGHT + 40) continue;
+      ctx.fillStyle = "#6b4a86";
+      ctx.beginPath();
+      ctx.ellipse(x, y, 20, 9, 0, 0, Math.PI * 2);
+      ctx.fill();
+      drawStar(x, y, 8, 3.6, "#e9c96b");
+    }
+  }
+
+  function drawSidewalks() {
+    ctx.fillStyle = "#9a9488";
+    ctx.fillRect(0, NORTH_SIDEWALK_TOP, W, NORTH_SIDEWALK_BOTTOM - NORTH_SIDEWALK_TOP);
+    ctx.fillRect(0, SOUTH_SIDEWALK_TOP, W, SOUTH_SIDEWALK_BOTTOM - SOUTH_SIDEWALK_TOP);
+    ctx.strokeStyle = "#847e70";
+    ctx.lineWidth = 1;
+    for (var x = 0; x < W; x += 40) {
+      ctx.beginPath(); ctx.moveTo(x, NORTH_SIDEWALK_TOP); ctx.lineTo(x, NORTH_SIDEWALK_BOTTOM); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x, SOUTH_SIDEWALK_TOP); ctx.lineTo(x, SOUTH_SIDEWALK_BOTTOM); ctx.stroke();
+    }
+    drawWalkOfFame(NORTH_SIDEWALK_TOP + 20);
+    drawWalkOfFame(SOUTH_SIDEWALK_TOP + 20);
+  }
+
+  // Generic dimetric building. side = "north" (facade rises up from baseline) or "south" (facade drops down).
+  function drawBuilding(opts) {
+    var x = opts.x, width = opts.width, height = opts.height;
+    var side = opts.side, depth = opts.depth || 34, skew = opts.skew || width * 0.14;
+    var facadeColor = opts.facadeColor, roofColor = opts.roofColor || shade(facadeColor, -28);
+    var sideColor = shade(facadeColor, -42);
+    var label = opts.label, marquee = opts.marquee, marqueeColor = opts.marqueeColor || "#e64444";
+
+    var baseY = side === "north" ? NORTH_BASELINE : SOUTH_BASELINE;
+    var dir = side === "north" ? -1 : 1;
+    var facadeTopY = baseY + dir * height;
+
+    // side sliver (implies thickness)
+    ctx.fillStyle = sideColor;
+    ctx.beginPath();
+    ctx.moveTo(x + width, baseY);
+    ctx.lineTo(x + width, facadeTopY);
+    ctx.lineTo(x + width - skew, facadeTopY + dir * depth);
+    ctx.lineTo(x + width - skew, baseY + dir * depth);
+    ctx.closePath();
+    ctx.fill();
+
+    // roof (recedes away from the street)
+    ctx.fillStyle = roofColor;
+    ctx.beginPath();
+    ctx.moveTo(x, facadeTopY);
+    ctx.lineTo(x + width, facadeTopY);
+    ctx.lineTo(x + width - skew, facadeTopY + dir * depth);
+    ctx.lineTo(x - skew, facadeTopY + dir * depth);
+    ctx.closePath();
+    ctx.fill();
+
+    // facade
+    ctx.fillStyle = facadeColor;
+    ctx.fillRect(x, Math.min(baseY, facadeTopY), width, height);
+
+    // windows
+    ctx.fillStyle = shade(facadeColor, 22);
+    var rows = Math.max(1, Math.floor(height / 34) - 1);
+    var cols = Math.max(2, Math.floor(width / 46));
+    for (var r = 0; r < rows; r++) {
+      for (var c = 0; c < cols; c++) {
+        var wx = x + 12 + c * (width - 24) / cols;
+        var wy = (side === "north" ? facadeTopY + 14 : baseY + 14) + r * 30;
+        ctx.fillRect(wx, wy, 16, 18);
+      }
+    }
+
+    if (marquee) {
+      ctx.fillStyle = marqueeColor;
+      var my = side === "north" ? facadeTopY + 6 : baseY - 24;
+      ctx.fillRect(x + 6, my, width - 12, 22);
+      ctx.fillStyle = "#fff8e2";
+      ctx.font = "bold 11px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(marquee, x + width / 2, my + 15);
+    }
+
+    ctx.fillStyle = "#f3ecd8";
+    ctx.font = "bold 12px sans-serif";
+    ctx.textAlign = "center";
+    var labelY = side === "north" ? baseY - 6 : baseY + 14;
+    ctx.fillText(label, x + width / 2, labelY);
+  }
+
+  function drawTCLChineseTheatre(x) {
+    var width = 260, baseY = NORTH_BASELINE, facadeH = 130;
+    var topFacade = baseY - facadeH;
+
+    ctx.fillStyle = "#7a1f1f";
+    ctx.fillRect(x, topFacade, width, facadeH);
+    ctx.fillStyle = "#2d1a12";
+    ctx.fillRect(x + width * 0.32, baseY - 74, width * 0.36, 74);
+
+    ctx.fillStyle = "#9c2a2a";
+    ctx.fillRect(x + width * 0.22, topFacade - 6, 14, 90);
+    ctx.fillRect(x + width * 0.78 - 14, topFacade - 6, 14, 90);
+
+    var tiers = [
+      { y: topFacade - 6, w: width + 30, h: 16 },
+      { y: topFacade - 34, w: width - 10, h: 16 },
+      { y: topFacade - 62, w: width - 60, h: 16 },
+      { y: topFacade - 88, w: width - 110, h: 14 }
+    ];
+    for (var i = 0; i < tiers.length; i++) {
+      var t = tiers[i];
+      var tx = x + (width - t.w) / 2;
+      ctx.fillStyle = "#1f5c47";
+      ctx.beginPath();
+      ctx.moveTo(tx, t.y + t.h);
+      ctx.lineTo(tx + t.w, t.y + t.h);
+      ctx.lineTo(tx + t.w - 20, t.y);
+      ctx.lineTo(tx + 20, t.y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "#c99a3f";
+      ctx.fillRect(tx - 6, t.y + t.h - 4, 10, 4);
+      ctx.fillRect(tx + t.w - 4, t.y + t.h - 4, 10, 4);
+    }
+
+    ctx.fillStyle = "#c9a34a";
+    ctx.beginPath();
+    ctx.arc(x + width / 2, baseY + 34, 30, Math.PI, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "#5a86c9";
+    ctx.beginPath();
+    ctx.ellipse(x + width / 2, baseY + 30, 16, 8, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#111";
+    ctx.font = "bold 12px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("CHINESE", x + width / 2, topFacade + 40);
+    ctx.fillText("THEATRE", x + width / 2, topFacade + 56);
+
+    ctx.fillStyle = "#f3ecd8";
+    ctx.font = "bold 13px sans-serif";
+    ctx.fillText("TCL CHINESE THEATRE", x + width / 2, baseY - 6);
+  }
+
+  function drawCars() {
+    var colors = ["#b23b3b", "#3b5fb2", "#c9c9c9", "#e0a733"];
+    for (var i = 0; i < carState.length; i++) {
+      var car = carState[i];
+      ctx.fillStyle = colors[i % colors.length];
+      ctx.fillRect(car.x, car.y - 10, 46, 20);
+      ctx.fillStyle = "#dff0ff";
+      ctx.fillRect(car.x + 8, car.y - 7, 12, 8);
+      ctx.fillRect(car.x + 26, car.y - 7, 12, 8);
+    }
+  }
+
+  function shade(hex, amt) {
+    var c = hex.replace("#", "");
+    var num = parseInt(c, 16);
+    var r = clamp((num >> 16) + amt), g = clamp(((num >> 8) & 0xff) + amt), b = clamp((num & 0xff) + amt);
+    return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+  }
+  function clamp(v) { return Math.max(0, Math.min(255, v)); }
+
+  // ---------------------------------------------------------------
+  // Buildings roster
+  // ---------------------------------------------------------------
+
+  var northBuildings = [
+    { special: "tcl", x: 60 },
+    { x: 350, width: 100, height: 74, side: "north", facadeColor: "#8a6a44", label: "SOUVENIRS" },
+    { x: 600, width: 250, height: 150, side: "north", facadeColor: "#5b6b7a", label: "OVATION HOLLYWOOD",
+      marquee: "DOLBY THEATRE", marqueeColor: "#c9962c" },
+    { x: 900, width: 90, height: 80, side: "north", facadeColor: "#7a5b6a", label: "CANDY CO." },
+    { x: 1030, width: 210, height: 140, side: "north", facadeColor: "#7a3b2e", label: "EL CAPITAN",
+      marquee: "NOW PLAYING", marqueeColor: "#2e8f6b" },
+    { x: 1290, width: 240, height: 110, side: "north", facadeColor: "#3c3c46", label: "MADAME TUSSAUDS",
+      marquee: "WAX MUSEUM", marqueeColor: "#c9962c" }
+  ];
+
+  var southBuildings = [
+    { x: 60, width: 130, height: 90, side: "south", facadeColor: "#6a5a44", label: "T-SHIRTS" },
+    { x: 220, width: 120, height: 80, side: "south", facadeColor: "#4a5a6a", label: "PIZZA" },
+    { x: 600, width: 170, height: 100, side: "south", facadeColor: "#5c4a63", label: "TOUR TICKETS" },
+    { x: 810, width: 130, height: 82, side: "south", facadeColor: "#6a4a4a", label: "GIFT SHOP" },
+    { x: 1000, width: 150, height: 92, side: "south", facadeColor: "#4a6a52", label: "CAFE" },
+    { x: 1220, width: 250, height: 100, side: "south", facadeColor: "#5a5040", label: "PARKING STRUCTURE" }
+  ];
+
+  // ---------------------------------------------------------------
+  // NPC roster
+  // ---------------------------------------------------------------
+
+  function chakraSet(pattern) {
+    // pattern: array of 7 states in CHAKRA_ORDER order
+    var out = {};
+    for (var i = 0; i < CHAKRA_ORDER.length; i++) out[CHAKRA_ORDER[i]] = pattern[i];
+    return out;
+  }
+
+  var npcs = [
+    {
+      id: "danny", name: "Danny Rios", occupation: "Costumed Character Performer (\"Robo-Hero\")",
+      archetype: "Costumed Street Performer", age: 34, maslow: "Level 1 — Physiological (fighting for basic survival)",
+      emotion: "Grim determination behind a painted-on smile", aura: "#d98a3a",
+      narrative: "Three failed auditions this year. The suit pays the rent the way the craft never did. He tells himself it's temporary, the way he has for six years.",
+      chakras: chakraSet(["blocked", "imbalanced", "blocked", "imbalanced", "blocked", "imbalanced", "blocked"]),
+      row: "north", xMin: 100, xMax: 320, speed: 26
+    },
+    {
+      id: "trish", name: "Trish Anderson", occupation: "Tourist, Dayton, Ohio",
+      archetype: "Tourist", age: 29, maslow: "Level 3 — Belonging (craving connection, on the trip of a lifetime)",
+      emotion: "Wide-eyed wonder, edging toward a peak experience", aura: "#eaf3ff",
+      narrative: "She has wanted to stand on this sidewalk since she was eleven. For a few seconds outside the Chinese Theatre, her whole chest went quiet.",
+      chakras: chakraSet(["open", "open", "imbalanced", "open", "imbalanced", "imbalanced", "imbalanced"]),
+      row: "north", xMin: 640, xMax: 1050, speed: 18
+    },
+    {
+      id: "frank", name: "Frank Castellano", occupation: "Freelance Photographer",
+      archetype: "Paparazzi", age: 47, maslow: "Level 4 — Esteem (chasing recognition through someone else's fame)",
+      emotion: "Predatory anticipation", aura: "#c94d2c",
+      narrative: "He hasn't sold a real cover shot in eight months. He's stopped calling it stalking, even in his own head.",
+      chakras: chakraSet(["imbalanced", "blocked", "imbalanced", "blocked", "imbalanced", "open", "blocked"]),
+      row: "south", xMin: 250, xMax: 560, speed: 22
+    },
+    {
+      id: "vivian", name: "Vivian Laurent", occupation: "Former Screen Actress (credits: 1990s)",
+      archetype: "Faded Star", age: 61, maslow: "Level 2 — Safety (stable, but consumed by fear of being forgotten)",
+      emotion: "Grief wearing a practiced smile", aura: "#8a8a8a",
+      narrative: "People still recognize her, less every year. She still walks this block every afternoon, in case someone does.",
+      chakras: chakraSet(["open", "imbalanced", "imbalanced", "blocked", "imbalanced", "imbalanced", "blocked"]),
+      row: "north", xMin: 1080, xMax: 1500, speed: 14
+    },
+    {
+      id: "bailey", name: "Bailey Okafor", occupation: "Server, Auditioning Nights",
+      archetype: "Industry Aspirant", age: 24, maslow: "Level 4 — Esteem (esteem-starved, performing confidence she doesn't feel)",
+      emotion: "Anxious optimism", aura: "#d9762e",
+      narrative: "Her agent hasn't called back in nine days. She rehearses the callback she hasn't gotten yet, out loud, on her walk to work.",
+      chakras: chakraSet(["open", "open", "imbalanced", "open", "blocked", "imbalanced", "imbalanced"]),
+      row: "south", xMin: 650, xMax: 980, speed: 24
+    },
+    {
+      id: "marcus", name: "Marcus Webb", occupation: "Rideshare Driver",
+      archetype: "Local Commuter", age: 39, maslow: "Level 2 — Safety",
+      emotion: "Tired, steady", aura: "#a9c7e8",
+      narrative: "Just passing through this block on the way to the next fare. Nothing dramatic today.",
+      chakras: chakraSet(["open", "open", "open", "imbalanced", "open", "open", "imbalanced"]),
+      row: "south", xMin: 60, xMax: 240, speed: 30
+    },
+    {
+      id: "priya", name: "Priya Chandra", occupation: "Souvenir Shop Clerk",
+      archetype: "Local Worker", age: 21, maslow: "Level 3 — Belonging",
+      emotion: "Bored contentment", aura: "#b7d8c2",
+      narrative: "Another shift, another thousand tourists asking where the stars are. She still likes the job, mostly.",
+      chakras: chakraSet(["open", "open", "open", "open", "imbalanced", "open", "imbalanced"]),
+      row: "north", xMin: 360, xMax: 560, speed: 16
+    },
+    {
+      id: "hank", name: "Hank Torres", occupation: "Walking Tour Guide",
+      archetype: "Local Worker", age: 52, maslow: "Level 4 — Esteem",
+      emotion: "Performing enthusiasm on autopilot", aura: "#e0c96a",
+      narrative: "Twelve tours a week, same jokes, same facts. He still means it when he points out the stars, mostly.",
+      chakras: chakraSet(["open", "open", "imbalanced", "open", "open", "imbalanced", "imbalanced"]),
+      row: "north", xMin: 1120, xMax: 1480, speed: 20
+    }
+  ];
+
+  var npcState = npcs.map(function (n) {
+    return {
+      def: n,
+      x: n.xMin + Math.random() * (n.xMax - n.xMin),
+      dir: Math.random() > 0.5 ? 1 : -1,
+      y: n.row === "north" ? NORTH_SIDEWALK_TOP + 20 : SOUTH_SIDEWALK_TOP + 20
+    };
+  });
+
+  var carState = [
+    { x: 40, y: ROAD_TOP + 25, dir: 1, speed: 90 },
+    { x: 900, y: ROAD_TOP + 25, dir: 1, speed: 70 },
+    { x: 700, y: ROAD_BOTTOM - 25, dir: -1, speed: 80 }
+  ];
+
+  // ---------------------------------------------------------------
+  // NPC rendering
+  // ---------------------------------------------------------------
+
+  function drawNPC(state, t) {
+    var bob = Math.sin(t / 180 + state.x) * 2;
+    var pulse = 0.75 + 0.25 * Math.sin(t / 400 + state.x * 0.05);
+    var y = state.y + bob;
+
+    var grad = ctx.createRadialGradient(state.x, y, 2, state.x, y, 26);
+    grad.addColorStop(0, hexAlpha(state.def.aura, 0.55 * pulse));
+    grad.addColorStop(1, hexAlpha(state.def.aura, 0));
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(state.x, y, 26, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#3a2f26";
+    ctx.beginPath();
+    ctx.ellipse(state.x, y + 9, 5, 8, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#e7c9a3";
+    ctx.beginPath();
+    ctx.arc(state.x, y - 2, 7, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = "#2a2018";
+    ctx.lineWidth = 2;
+    var legSwing = Math.sin(t / 120 + state.x) * 3;
+    ctx.beginPath();
+    ctx.moveTo(state.x - 2, y + 15); ctx.lineTo(state.x - 2 + legSwing, y + 22);
+    ctx.moveTo(state.x + 2, y + 15); ctx.lineTo(state.x + 2 - legSwing, y + 22);
+    ctx.stroke();
+  }
+
+  function hexAlpha(hex, alpha) {
+    var c = hex.replace("#", "");
+    var num = parseInt(c, 16);
+    var r = (num >> 16) & 0xff, g = (num >> 8) & 0xff, b = num & 0xff;
+    return "rgba(" + r + "," + g + "," + b + "," + alpha + ")";
+  }
+
+  // ---------------------------------------------------------------
+  // Main draw loop
+  // ---------------------------------------------------------------
+
+  var lastTime = null;
+
+  function step(t) {
+    if (lastTime === null) lastTime = t;
+    var dt = Math.min(0.05, (t - lastTime) / 1000);
+    lastTime = t;
+
+    for (var i = 0; i < npcState.length; i++) {
+      var s = npcState[i];
+      s.x += s.dir * s.def.speed * dt;
+      if (s.x > s.def.xMax) { s.x = s.def.xMax; s.dir = -1; }
+      if (s.x < s.def.xMin) { s.x = s.def.xMin; s.dir = 1; }
+    }
+    for (var j = 0; j < carState.length; j++) {
+      var car = carState[j];
+      car.x += car.dir * car.speed * dt;
+      if (car.x > W + 60) car.x = -60;
+      if (car.x < -60) car.x = W + 60;
+    }
+
+    render(t);
+    requestAnimationFrame(step);
+  }
+
+  function render(t) {
+    ctx.clearRect(0, 0, W, H);
+
+    drawHills();
+    ctx.fillStyle = "#3a3226";
+    ctx.fillRect(0, 150, W, H - 150);
+
+    drawRoad();
+    drawSidewalks();
+    drawCars();
+
+    for (var i = 0; i < northBuildings.length; i++) {
+      var b = northBuildings[i];
+      if (b.special === "tcl") drawTCLChineseTheatre(b.x);
+      else drawBuilding(b);
+    }
+    for (var j = 0; j < southBuildings.length; j++) drawBuilding(southBuildings[j]);
+
+    for (var k = 0; k < npcState.length; k++) drawNPC(npcState[k], t);
+
+    // warm daytime tint
+    var tint = ctx.createLinearGradient(0, 0, 0, H);
+    tint.addColorStop(0, "rgba(255, 214, 140, 0.06)");
+    tint.addColorStop(1, "rgba(255, 170, 90, 0.1)");
+    ctx.fillStyle = tint;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  requestAnimationFrame(step);
+
+  // ---------------------------------------------------------------
+  // Interaction — tap/click an NPC to open Soul Profile
+  // ---------------------------------------------------------------
+
+  var panel = document.getElementById("panel");
+
+  function openPanel(state) {
+    var d = state.def;
+    document.getElementById("pName").textContent = d.name;
+    document.getElementById("pOcc").textContent = d.occupation + "  ·  " + d.archetype;
+    document.getElementById("pMaslow").textContent = d.maslow;
+    document.getElementById("pEmotion").textContent = d.emotion;
+    document.getElementById("pAge").textContent = d.age;
+    document.getElementById("pNarrative").textContent = d.narrative;
+
+    var row = document.getElementById("pChakras");
+    row.innerHTML = "";
+    for (var i = 0; i < CHAKRA_ORDER.length; i++) {
+      var name = CHAKRA_ORDER[i];
+      var stateName = d.chakras[name];
+      var cell = document.createElement("div");
+      cell.className = "chakra";
+      cell.innerHTML = '<div class="dot ' + stateName + '"></div><span>' + name + "</span>";
+      row.appendChild(cell);
+    }
+    panel.classList.add("open");
+  }
+
+  function closePanel() { panel.classList.remove("open"); }
+
+  function canvasPoint(evt) {
+    var rect = canvas.getBoundingClientRect();
+    var cx = (evt.touches ? evt.changedTouches[0].clientX : evt.clientX) - rect.left;
+    var cy = (evt.touches ? evt.changedTouches[0].clientY : evt.clientY) - rect.top;
+    return { x: cx * (W / rect.width), y: cy * (H / rect.height) };
+  }
+
+  canvas.addEventListener("click", function (evt) {
+    var p = canvasPoint(evt);
+    var hit = null, bestDist = 30 * 30;
+    for (var i = 0; i < npcState.length; i++) {
+      var s = npcState[i];
+      var dx = s.x - p.x, dy = s.y - p.y;
+      var dist = dx * dx + dy * dy;
+      if (dist < bestDist) { bestDist = dist; hit = s; }
+    }
+    if (hit) openPanel(hit);
+  });
+
+  document.getElementById("closeBtn").addEventListener("click", closePanel);
+  panel.addEventListener("click", function (evt) {
+    if (evt.target === panel) closePanel();
+  });
+
+  // ---------------------------------------------------------------
+  // HUD clock — ticks forward for a sense of a living world
+  // ---------------------------------------------------------------
+
+  var clockMinutes = 14 * 60 + 34;
+  var clockDay = 1;
+  setInterval(function () {
+    clockMinutes += 1;
+    if (clockMinutes >= 24 * 60) { clockMinutes -= 24 * 60; clockDay += 1; }
+    var h24 = Math.floor(clockMinutes / 60), m = clockMinutes % 60;
+    var ampm = h24 >= 12 ? "PM" : "AM";
+    var h12 = h24 % 12; if (h12 === 0) h12 = 12;
+    var mStr = (m < 10 ? "0" : "") + m;
+    document.getElementById("clock").textContent = "Day " + clockDay + " | " + h12 + ":" + mStr + " " + ampm;
+  }, 2000);
+
+})();
+</script>
+</body>
+</html>
