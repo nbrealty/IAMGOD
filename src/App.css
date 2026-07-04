@@ -1,0 +1,248 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+/* ---------- HUD ---------- */
+.hud {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 14px;
+  background: linear-gradient(180deg, #1a1410, #100c09);
+  border-bottom: 2px solid #4a3a22;
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+.hud-breadcrumb {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.hud-breadcrumb .dim {
+  color: #a9967a;
+  font-weight: 400;
+}
+.hud-clock {
+  color: #cbb98f;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.hud-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.faith {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 200px;
+  flex-shrink: 0;
+}
+.gauge-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.gauge-label {
+  font-size: 9.5px;
+  width: 58px;
+  flex-shrink: 0;
+  text-align: right;
+  color: #b9ab8c;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+.gauge-track {
+  flex: 1;
+  height: 7px;
+  background: #241d14;
+  border: 1px solid #4a3a22;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.gauge-fill {
+  height: 100%;
+}
+.gauge-fill.presence {
+  background: linear-gradient(90deg, #3a7bd5, #63a9ff);
+}
+.gauge-fill.trust {
+  background: linear-gradient(90deg, #c9962c, #f4d06f);
+}
+
+/* ---------- Supabase status badge ---------- */
+.db-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  color: #b9ab8c;
+  padding: 3px 8px;
+  border: 1px solid #4a3a22;
+  border-radius: 20px;
+  background: #14110c;
+  white-space: nowrap;
+}
+.db-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #6b6252;
+}
+.db-badge.checking .db-dot {
+  background: #c9962c;
+}
+.db-badge.connected .db-dot {
+  background: #4fae6a;
+  box-shadow: 0 0 6px #4fae6a99;
+}
+.db-badge.error .db-dot {
+  background: #c94d4d;
+}
+.db-badge.unconfigured .db-dot {
+  background: #6b6252;
+}
+
+/* ---------- Stage / canvas ---------- */
+.stage {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+}
+.scene-stage {
+  width: 100%;
+  max-width: 1400px;
+}
+.scene-canvas {
+  width: 100%;
+  height: auto;
+  display: block;
+  background: #6b8fae;
+  border-radius: 6px;
+  box-shadow:
+    0 0 0 1px #33291b,
+    0 10px 30px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+}
+
+.footnote {
+  text-align: center;
+  font-size: 10.5px;
+  color: #5c5442;
+  padding: 6px 10px 12px 10px;
+}
+
+/* ---------- Soul Profile panel ---------- */
+.panel-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 5, 4, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+  padding: 16px;
+}
+.panel-card {
+  width: 100%;
+  max-width: 420px;
+  max-height: 88vh;
+  overflow-y: auto;
+  background: linear-gradient(180deg, #1c1712, #100d09);
+  border: 1px solid #5a4a2e;
+  border-radius: 10px;
+  padding: 18px 20px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+}
+.panel-card h2 {
+  margin: 0 0 2px 0;
+  font-size: 18px;
+  color: #f4e6c1;
+}
+.panel-occ {
+  margin: 0 0 14px 0;
+  font-size: 12.5px;
+  color: #b7a67f;
+  font-style: italic;
+}
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 0;
+  border-bottom: 1px dashed #372c1c;
+  font-size: 13px;
+}
+.stat-row span:first-child {
+  color: #9c8c6c;
+}
+.stat-row span:last-child {
+  color: #f0ead6;
+  text-align: right;
+  max-width: 62%;
+}
+.panel-narrative {
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: #14110c;
+  border-left: 3px solid #7a5c2a;
+  border-radius: 4px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #d8c8a4;
+  font-style: italic;
+}
+.chakra-row {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 12px;
+  padding: 10px 4px 2px 4px;
+}
+.chakra {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-size: 8.5px;
+  color: #a99d80;
+  width: 13%;
+}
+.chakra-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid #55492f;
+}
+.chakra-dot.blocked {
+  background: #3a2020;
+  border-color: #7a3030;
+}
+.chakra-dot.imbalanced {
+  background: #6b5a1e;
+  border-color: #a68a2e;
+}
+.chakra-dot.open {
+  background: #2f6b3f;
+  border-color: #4fae6a;
+  box-shadow: 0 0 6px #4fae6a88;
+}
+.panel-close {
+  display: block;
+  margin: 16px auto 0 auto;
+  background: #2c2418;
+  border: 1px solid #5a4a2e;
+  color: #e8d9ae;
+  padding: 7px 22px;
+  border-radius: 20px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.panel-close:active {
+  background: #3a2f1e;
+}

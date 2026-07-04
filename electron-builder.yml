@@ -1,0 +1,17 @@
+appId: com.iamgod.app
+productName: I AM GOD
+directories:
+  output: release
+files:
+  - dist/**/*
+  - electron/**/*
+  - package.json
+win:
+  target: nsis
+  # icon: build/icon.ico   # add a 256x256 .ico when you have final art
+mac:
+  target: dmg
+  category: public.app-category.games
+  # icon: build/icon.icns
+linux:
+  target: AppImage
