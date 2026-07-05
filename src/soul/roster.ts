@@ -438,4 +438,39 @@ export const ROSTER: Soul[] = [
     xMax: 1000,
     baseSpeed: 13,
   }),
+
+  // Lori Castellano — "The Quiet Broker". Not the Ivar Ave crew's register: an
+  // industry/nightlife-adjacent supplier who built real agency and status in a
+  // marginalizing economy (grounded in the "queenpin"/psychological-empowerment
+  // literature, not the corner-dealer cliché). Kohlberg 5 — a genuinely self-
+  // constructed ethical code (harm reduction, hard boundaries), independent of
+  // and sometimes in conflict with the law. Her low Belonging locks her Maslow
+  // level at "starved for connection" no matter how high her Esteem climbs —
+  // the model enforces the same irony the backstory is built on.
+  soul({
+    id: "lori",
+    name: "Lori Castellano",
+    occupation: "Independent Supplier, Industry & Nightlife Circuit",
+    archetype: "The Quiet Broker",
+    age: 37,
+    narrative:
+      "She spent her twenties as the talent coordinator everyone relied on and nobody promoted — invisible the way competent women in service roles always are. A joke question at a wrap party turned into a supply line into the industry's afterparties and unphotographed dinners. She works relationships and discretion now, not corners, and she's made more than any boss who once passed her over. Everyone in her life needs something from her; she's forgotten how to let anyone need nothing at all.",
+    needs: { survival: 78, safety: 45, belonging: 28, esteem: 71, actualization: 26 },
+    traits: traits({ negativeAffectivity: 55, detachment: 62, antagonism: 38, disinhibition: 18, psychoticism: 14 }),
+    aceScore: 4,
+    resilience: 74,
+    kohlberg: 5,
+    soulAge: "Mature",
+    initiationLevel: 2,
+    chakras: chakras([55, 45, 76, 24, 58, 34, 12]),
+    consciousAspiration:
+      "Get enough of a cushion to walk away clean — buy the building, go legitimate, be undeniable on paper the way I already am in practice",
+    soulPurpose:
+      "See the young women passing through this world the way almost no one else here can — and let that gift protect them, not just herself",
+    affinities: { hustle: 1.6, socialize: 1.4, work: 1.2, gaze: 1.1, rest: 1.0 },
+    row: "south",
+    xMin: 900,
+    xMax: 1180,
+    baseSpeed: 18,
+  }),
 ];
