@@ -17,15 +17,16 @@ import {
   SOUTH_BASELINE,
   HIGHLAND_LEFT,
   HIGHLAND_RIGHT,
-  NPCS,
   NORTH_BUILDINGS,
   SOUTH_BUILDINGS,
   type Building,
-  type SoulProfile,
 } from "./sceneData";
+import type { Soul } from "../soul/types";
+import { auraColor } from "../soul/appearance";
+import { SoulEngine, activityIsStationary } from "../soul/engine";
 
 interface NpcRuntime {
-  def: SoulProfile;
+  soul: Soul;
   x: number;
   y: number;
   dir: number;
@@ -66,19 +67,21 @@ export class HollywoodRenderer {
   private lastTime: number | null = null;
   private npcs: NpcRuntime[];
   private cars: CarRuntime[];
+  private engine: SoulEngine;
 
-  constructor(canvas: HTMLCanvasElement) {
+  constructor(canvas: HTMLCanvasElement, engine: SoulEngine) {
     canvas.width = SCENE_W;
     canvas.height = SCENE_H;
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("2D canvas context unavailable");
     this.ctx = ctx;
+    this.engine = engine;
 
-    this.npcs = NPCS.map((n) => ({
-      def: n,
-      x: n.xMin + Math.random() * (n.xMax - n.xMin),
+    this.npcs = engine.souls.map((soul) => ({
+      soul,
+      x: soul.xMin + Math.random() * (soul.xMax - soul.xMin),
       dir: Math.random() > 0.5 ? 1 : -1,
-      y: n.row === "north" ? NORTH_SIDEWALK_TOP + 20 : SOUTH_SIDEWALK_TOP + 20,
+      y: soul.row === "north" ? NORTH_SIDEWALK_TOP + 20 : SOUTH_SIDEWALK_TOP + 20,
     }));
 
     this.cars = [
@@ -94,19 +97,28 @@ export class HollywoodRenderer {
       const dt = Math.min(0.05, (t - this.lastTime) / 1000);
       this.lastTime = t;
 
+      // Advance the soul simulation (the engine scales dt by its own speed and ticks
+      // needs / emotion / chakras). The visible world reads the results below.
+      this.engine.advance(dt);
+
+      // Movement scales with sim speed (0 = paused → frozen), capped so 20× doesn't
+      // teleport sprites. A soul doing a stationary activity slows to a shuffle.
+      const moveScale = Math.min(this.engine.speed, 3);
       for (const s of this.npcs) {
-        s.x += s.dir * s.def.speed * dt;
-        if (s.x > s.def.xMax) {
-          s.x = s.def.xMax;
+        const stationary = activityIsStationary(s.soul.activity);
+        const spd = s.soul.baseSpeed * (stationary ? 0.2 : 1) * moveScale;
+        s.x += s.dir * spd * dt;
+        if (s.x > s.soul.xMax) {
+          s.x = s.soul.xMax;
           s.dir = -1;
         }
-        if (s.x < s.def.xMin) {
-          s.x = s.def.xMin;
+        if (s.x < s.soul.xMin) {
+          s.x = s.soul.xMin;
           s.dir = 1;
         }
       }
       for (const car of this.cars) {
-        car.x += car.dir * car.speed * dt;
+        car.x += car.dir * car.speed * dt * moveScale;
         if (car.x > SCENE_W + 60) car.x = -60;
         if (car.x < -60) car.x = SCENE_W + 60;
       }
@@ -123,8 +135,9 @@ export class HollywoodRenderer {
   }
 
   // Returns the NPC nearest to (vx, vy) in virtual coords within a tap radius, or null.
-  hitTest(vx: number, vy: number): SoulProfile | null {
-    let hit: SoulProfile | null = null;
+  // Returns the id of the NPC nearest to (vx, vy) within a tap radius, or null.
+  hitTest(vx: number, vy: number): string | null {
+    let hit: string | null = null;
     let best = 30 * 30;
     for (const s of this.npcs) {
       const dx = s.x - vx;
@@ -132,7 +145,7 @@ export class HollywoodRenderer {
       const dist = dx * dx + dy * dy;
       if (dist < best) {
         best = dist;
-        hit = s.def;
+        hit = s.soul.id;
       }
     }
     return hit;
@@ -446,9 +459,10 @@ export class HollywoodRenderer {
     const pulse = 0.75 + 0.25 * Math.sin(t / 400 + s.x * 0.05);
     const y = s.y + bob;
 
+    const aura = auraColor(s.soul);
     const grad = ctx.createRadialGradient(s.x, y, 2, s.x, y, 26);
-    grad.addColorStop(0, hexAlpha(s.def.aura, 0.55 * pulse));
-    grad.addColorStop(1, hexAlpha(s.def.aura, 0));
+    grad.addColorStop(0, hexAlpha(aura, 0.55 * pulse));
+    grad.addColorStop(1, hexAlpha(aura, 0));
     ctx.fillStyle = grad;
     ctx.beginPath();
     ctx.arc(s.x, y, 26, 0, Math.PI * 2);
