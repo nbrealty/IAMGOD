@@ -720,7 +720,7 @@ export class HollywoodRenderer {
       // dissolve into a soft "boat" — a smear that curves UP at the ends. Each foot
       // copy is fanned out horizontally and lifted by offset^2 (edges rise), so the
       // union forms a concave-up crescent. Feet render ONLY as this smear while moving.
-      const footTop = top + targetH * 0.8;
+      const footTop = top + targetH * 0.83;
       if (s.moving) {
         ctx.save();
         ctx.beginPath();
@@ -733,30 +733,26 @@ export class HollywoodRenderer {
         const lift = 7;
         const footBaseY = y + 12;
 
-        // Fused darker "boat": one filled concave-up crescent that unifies the smear
-        // into a single dark-grey shadow (curves up at the ends).
-        const hw = spread + w * 0.32;
+        // ONE motion blur spanning BOTH feet: a single soft dark crescent (concave-up),
+        // built from a few stacked translucent layers so it reads as one fused blur
+        // instead of two feet. Its width/curve pulse with the step.
+        const hw = w * 0.5 + spread;
         ctx.save();
-        ctx.fillStyle = "rgba(16, 14, 11, 0.5)";
-        ctx.beginPath();
-        ctx.moveTo(s.x - hw, footBaseY - lift);
-        ctx.quadraticCurveTo(s.x, footBaseY + 6, s.x + hw, footBaseY - lift);
-        ctx.quadraticCurveTo(s.x, footBaseY - lift - 3, s.x - hw, footBaseY - lift);
-        ctx.closePath();
-        ctx.fill();
-        ctx.restore();
-
-        // Faint feet texture fused on top (many low-alpha copies blend smoothly).
-        for (let i = -8; i <= 8; i++) {
-          const u = i / 8;
-          ctx.save();
-          ctx.translate(u * spread, -lift * u * u);
+        for (const layer of [
+          { s: 1, a: 0.24 },
+          { s: 0.72, a: 0.24 },
+          { s: 0.46, a: 0.24 },
+        ]) {
+          const h = hw * layer.s;
+          ctx.fillStyle = `rgba(14, 12, 9, ${layer.a})`;
           ctx.beginPath();
-          ctx.rect(s.x - w, footTop, w * 2, footBaseY + 4 - footTop);
-          ctx.clip();
-          drawAt(s.x, 0.07);
-          ctx.restore();
+          ctx.moveTo(s.x - h, footBaseY - lift);
+          ctx.quadraticCurveTo(s.x, footBaseY + 6, s.x + h, footBaseY - lift);
+          ctx.quadraticCurveTo(s.x, footBaseY - lift - 5, s.x - h, footBaseY - lift);
+          ctx.closePath();
+          ctx.fill();
         }
+        ctx.restore();
       } else {
         drawAt(s.x, 1);
       }
