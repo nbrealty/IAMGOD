@@ -716,27 +716,31 @@ export class HollywoodRenderer {
         ctx.restore();
       };
 
-      // Gaia-style walk: sharp upper body, but the legs/feet dissolve into a soft
-      // horizontal crescent smear (many low-alpha copies fanned symmetrically, the
-      // spread pulsing with the step). Legs are drawn ONLY as the smear while moving.
-      const legTop = top + targetH * 0.56;
+      // Gaia-style walk: the body stays crisp down to the ankles, and the FEET
+      // dissolve into a soft "boat" — a smear that curves UP at the ends. Each foot
+      // copy is fanned out horizontally and lifted by offset^2 (edges rise), so the
+      // union forms a concave-up crescent. Feet render ONLY as this smear while moving.
+      const footTop = top + targetH * 0.8;
       if (s.moving) {
         ctx.save();
         ctx.beginPath();
-        ctx.rect(s.x - w, top - 2, w * 2, legTop - top + 2);
+        ctx.rect(s.x - w, top - 2, w * 2, footTop - top + 2);
         ctx.clip();
-        drawAt(s.x, 1); // crisp torso + head
+        drawAt(s.x, 1); // crisp head-to-ankles
         ctx.restore();
 
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(s.x - w, legTop, w * 2, y + 14 - legTop);
-        ctx.clip();
-        const spread = 7 + 4 * Math.abs(Math.sin(t / 80));
+        const spread = 8 + 4 * Math.abs(Math.sin(t / 80));
+        const lift = 7;
         for (let i = -5; i <= 5; i++) {
-          drawAt(s.x + (i / 5) * spread, 0.12);
+          const u = i / 5;
+          ctx.save();
+          ctx.translate(u * spread, -lift * u * u); // fan out + lift the ends
+          ctx.beginPath();
+          ctx.rect(s.x - w, footTop, w * 2, y + 16 - footTop);
+          ctx.clip();
+          drawAt(s.x, 0.13);
+          ctx.restore();
         }
-        ctx.restore();
       } else {
         drawAt(s.x, 1);
       }
