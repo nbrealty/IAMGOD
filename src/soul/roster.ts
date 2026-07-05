@@ -579,4 +579,42 @@ export const ROSTER: Soul[] = [
     xMax: 1250,
     baseSpeed: 14,
   }),
+
+  // Jordyn Hale — "The Curated Ease". Fourth of the friend crew. Grounded in the
+  // real "soft life" movement (Black women deliberately trading the "strong
+  // Black woman" trope for rest as reclaimed dignity, not just materialism —
+  // sources in conversation) and its documented critique — the well-known
+  // "labor of leisure" tension where presenting effortless calm online requires
+  // real, invisible work. Distinct from Sasha (grandiose, parasocial-chasing
+  // "Reality-TV Influencer") — Jordyn's whole brand is calm, not spectacle. Low
+  // `rest` affinity is deliberate, same device as Maya: she sells peace without
+  // actually landing on "resting" much herself. Kohlberg 3 (not the crew's
+  // stage-5 tier) on purpose — she's still fundamentally living for how she's
+  // perceived, a textbook conventional/social-approval orientation.
+  soul({
+    id: "jordyn",
+    name: "Jordyn Hale",
+    occupation: '"Soft Life" Content Creator',
+    archetype: "The Curated Ease (Soft Life Influencer)",
+    age: 26,
+    narrative:
+      "She posts a slow morning, a cup of tea, gold hoops catching the light — soft, unbothered, at peace. What she doesn't post: the three hours of editing before sunrise, the brand emails at midnight, the deadline calendar behind every 'day off.' She built the ease she sells because she never had it growing up, and some mornings she can't tell anymore if she's finally living it or just still performing it for the camera.",
+    needs: { survival: 68, safety: 62, belonging: 42, esteem: 52, actualization: 38 },
+    traits: traits({ negativeAffectivity: 46, detachment: 35, antagonism: 22, disinhibition: 20, psychoticism: 12 }),
+    aceScore: 4,
+    resilience: 72,
+    kohlberg: 3,
+    soulAge: "Young",
+    initiationLevel: 1,
+    chakras: chakras([60, 34, 54, 44, 60, 42, 16]),
+    consciousAspiration:
+      "Build the life that LOOKS as peaceful as I need people to believe it is — proof I made it out soft instead of hard",
+    soulPurpose:
+      "Stop performing rest long enough to actually feel it — let the peace be real instead of just well-lit",
+    affinities: { perform: 1.6, work: 1.3, gaze: 1.1, socialize: 1.0, hustle: 0.9, rest: 0.7 },
+    row: "north",
+    xMin: 1150,
+    xMax: 1350,
+    baseSpeed: 13,
+  }),
 ];
