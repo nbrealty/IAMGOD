@@ -542,4 +542,41 @@ export const ROSTER: Soul[] = [
     xMax: 1200,
     baseSpeed: 17,
   }),
+
+  // Maya Fields — "The Anchor". Third of the friend crew. Grounded in real
+  // parentification research (Jurkovic, 1997) and the well-documented
+  // "grandfamilies" pattern — kids raised by a grandparent when a parent can't
+  // cope. Her moral reasoning is really Gilligan's "ethic of care" (a mature,
+  // principled orientation Kohlberg's ladder under-recognizes because it wasn't
+  // normed on it) more than textbook Kohlberg-5, encoded here as 5 anyway for
+  // model consistency. Chronologically the youngest of the new crew but
+  // authored as an "Old" soul on purpose — she matured on a schedule she didn't
+  // choose. Low `rest` affinity is deliberate: she under-prioritizes her own
+  // recovery, mechanically enacting the caretaker-neglects-self pattern.
+  soul({
+    id: "maya",
+    name: "Maya Fields",
+    occupation: "Home Health Aide",
+    archetype: "The Anchor (Parentified Caretaker)",
+    age: 23,
+    narrative:
+      "Her grandmother Rose raised her while her mom tried to get steady, and by ten Maya was the one keeping the lights paid and everyone fed. Rose passed two years ago; the tattoo up her arm says her name so she's never really gone. Now Maya works home health during the day and holds the group chat together at night — everyone's first call when it's bad, the one who never seems to need calling back.",
+    needs: { survival: 52, safety: 50, belonging: 44, esteem: 40, actualization: 34 },
+    traits: traits({ negativeAffectivity: 50, detachment: 18, antagonism: 20, disinhibition: 16, psychoticism: 10 }),
+    aceScore: 5,
+    resilience: 80,
+    kohlberg: 5,
+    soulAge: "Old",
+    initiationLevel: 3,
+    chakras: chakras([48, 30, 46, 48, 56, 46, 40]),
+    consciousAspiration:
+      "Keep everyone around me okay — don't let anyone else fall through the cracks I fell through",
+    soulPurpose:
+      "Learn that she's allowed to need someone too — love was never supposed to be a one-way job",
+    affinities: { socialize: 1.6, work: 1.2, gaze: 1.0, hustle: 0.9, rest: 0.8 },
+    row: "north",
+    xMin: 1050,
+    xMax: 1250,
+    baseSpeed: 14,
+  }),
 ];
