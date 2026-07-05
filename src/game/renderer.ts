@@ -1,13 +1,12 @@
-// The Hollywood & Highland renderer. Draws the dimetric street scene to a canvas
-// and runs the walk-cycle animation. Ported from the Day 1 greybox prototype into
-// a self-contained class the React layer can start/stop and hit-test against.
-//
-// Deliberately still hand-drawn canvas (no image assets, no Phaser). Phaser and
-// real pixel-art sprites arrive in a later phase; this proves the deploy/test loop.
+// The Hollywood & Highland renderer. Draws the dimetric city block to a canvas and
+// runs the walk-cycle animation. Phase 2: a full pannable/zoomable block (camera
+// transform, DPR-aware, fills the viewport) with a receding backdrop skyline and a
+// residential band — no sky. NPCs draw a real chibi "spirit" sprite from
+// /spirits/<id>.png when present, else a code-drawn fallback figure.
 
 import {
-  SCENE_W,
-  SCENE_H,
+  WORLD_W,
+  WORLD_H,
   ROAD_TOP,
   ROAD_BOTTOM,
   NORTH_SIDEWALK_TOP,
@@ -19,11 +18,14 @@ import {
   HIGHLAND_RIGHT,
   NORTH_BUILDINGS,
   SOUTH_BUILDINGS,
+  BACKDROP_BUILDINGS,
+  RESIDENTIAL_BUILDINGS,
   type Building,
 } from "./sceneData";
 import type { Soul } from "../soul/types";
 import { auraColor } from "../soul/appearance";
 import { SoulEngine, activityIsStationary } from "../soul/engine";
+import { type Camera, clampCamera, minZoomFor, screenToWorld, zoomAbout } from "./camera";
 
 interface NpcRuntime {
   soul: Soul;
@@ -40,16 +42,17 @@ interface CarRuntime {
 }
 
 const NORTH_SIDEWALK_BOTTOM = ROAD_TOP;
+const TAP_THRESHOLD = 7; // css px of movement below which a pointer-up counts as a tap
 
-function clamp(v: number): number {
+function clamp255(v: number): number {
   return Math.max(0, Math.min(255, v));
 }
 
 function shade(hex: string, amt: number): string {
   const num = parseInt(hex.replace("#", ""), 16);
-  const r = clamp((num >> 16) + amt);
-  const g = clamp(((num >> 8) & 0xff) + amt);
-  const b = clamp((num & 0xff) + amt);
+  const r = clamp255((num >> 16) + amt);
+  const g = clamp255(((num >> 8) & 0xff) + amt);
+  const b = clamp255((num & 0xff) + amt);
   return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
 }
 
@@ -62,6 +65,7 @@ function hexAlpha(hex: string, alpha: number): string {
 }
 
 export class HollywoodRenderer {
+  private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private raf = 0;
   private lastTime: number | null = null;
@@ -69,9 +73,24 @@ export class HollywoodRenderer {
   private cars: CarRuntime[];
   private engine: SoulEngine;
 
+  private cam: Camera = { x: 0, y: 0, zoom: 0.1 };
+  private cssW = 0;
+  private cssH = 0;
+  private dpr = 1;
+  private centered = false;
+
+  private sprites = new Map<string, HTMLImageElement | null>();
+  private tapHandler: ((cssX: number, cssY: number) => void) | null = null;
+
+  // input state
+  private pointers = new Map<number, { x: number; y: number }>();
+  private downPos: { x: number; y: number } | null = null;
+  private moved = false;
+  private pinchDist = 0;
+  private cleanupInput: (() => void) | null = null;
+
   constructor(canvas: HTMLCanvasElement, engine: SoulEngine) {
-    canvas.width = SCENE_W;
-    canvas.height = SCENE_H;
+    this.canvas = canvas;
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("2D canvas context unavailable");
     this.ctx = ctx;
@@ -91,18 +110,16 @@ export class HollywoodRenderer {
     ];
   }
 
+  // ---- lifecycle ----
+
   start() {
     const step = (t: number) => {
       if (this.lastTime === null) this.lastTime = t;
       const dt = Math.min(0.05, (t - this.lastTime) / 1000);
       this.lastTime = t;
 
-      // Advance the soul simulation (the engine scales dt by its own speed and ticks
-      // needs / emotion / chakras). The visible world reads the results below.
       this.engine.advance(dt);
 
-      // Movement scales with sim speed (0 = paused → frozen), capped so 20× doesn't
-      // teleport sprites. A soul doing a stationary activity slows to a shuffle.
       const moveScale = Math.min(this.engine.speed, 3);
       for (const s of this.npcs) {
         const stationary = activityIsStationary(s.soul.activity);
@@ -119,8 +136,8 @@ export class HollywoodRenderer {
       }
       for (const car of this.cars) {
         car.x += car.dir * car.speed * dt * moveScale;
-        if (car.x > SCENE_W + 60) car.x = -60;
-        if (car.x < -60) car.x = SCENE_W + 60;
+        if (car.x > WORLD_W + 60) car.x = -60;
+        if (car.x < -60) car.x = WORLD_W + 60;
       }
 
       this.render(t);
@@ -132,16 +149,62 @@ export class HollywoodRenderer {
   stop() {
     if (this.raf) cancelAnimationFrame(this.raf);
     this.raf = 0;
+    this.cleanupInput?.();
+    this.cleanupInput = null;
   }
 
-  // Returns the NPC nearest to (vx, vy) in virtual coords within a tap radius, or null.
-  // Returns the id of the NPC nearest to (vx, vy) within a tap radius, or null.
-  hitTest(vx: number, vy: number): string | null {
+  // Match the backing store to the on-screen size (CSS px × device pixel ratio) and
+  // keep the camera valid. Call on mount and whenever the container resizes.
+  resize(cssW: number, cssH: number, dpr: number) {
+    this.cssW = cssW;
+    this.cssH = cssH;
+    this.dpr = dpr;
+    this.canvas.width = Math.max(1, Math.round(cssW * dpr));
+    this.canvas.height = Math.max(1, Math.round(cssH * dpr));
+
+    if (!this.centered && cssW > 0 && cssH > 0) {
+      // Default view: fit-to-world zoom, framed on the boulevard + storefronts.
+      this.cam.zoom = minZoomFor(cssW, cssH, WORLD_W, WORLD_H);
+      const cx = WORLD_W * 0.34;
+      const cy = 660;
+      this.cam.x = cx - cssW / this.cam.zoom / 2;
+      this.cam.y = cy - cssH / this.cam.zoom / 2;
+      this.centered = true;
+    }
+    clampCamera(this.cam, this.cssW, this.cssH, WORLD_W, WORLD_H);
+  }
+
+  // ---- camera controls (called by input + zoom buttons) ----
+
+  private panBy(dxCss: number, dyCss: number) {
+    this.cam.x -= dxCss / this.cam.zoom;
+    this.cam.y -= dyCss / this.cam.zoom;
+    clampCamera(this.cam, this.cssW, this.cssH, WORLD_W, WORLD_H);
+  }
+
+  private zoomAt(factor: number, cssX: number, cssY: number) {
+    zoomAbout(this.cam, factor, cssX, cssY, this.cssW, this.cssH, WORLD_W, WORLD_H);
+  }
+
+  // Zoom about the viewport center — for on-screen +/- buttons.
+  zoomButton(factor: number) {
+    this.zoomAt(factor, this.cssW / 2, this.cssH / 2);
+  }
+
+  setTapHandler(fn: (cssX: number, cssY: number) => void) {
+    this.tapHandler = fn;
+  }
+
+  hitTest(cssX: number, cssY: number): string | null {
+    const w = screenToWorld(this.cam, cssX, cssY);
     let hit: string | null = null;
-    let best = 30 * 30;
+    // Keep the tap target a constant ~22px on screen regardless of zoom, so people
+    // stay tappable when zoomed out (where a fixed world radius would be tiny).
+    const tol = 22 / this.cam.zoom;
+    let best = tol * tol;
     for (const s of this.npcs) {
-      const dx = s.x - vx;
-      const dy = s.y - vy;
+      const dx = s.x - w.x;
+      const dy = s.y - 8 - w.y;
       const dist = dx * dx + dy * dy;
       if (dist < best) {
         best = dist;
@@ -151,80 +214,132 @@ export class HollywoodRenderer {
     return hit;
   }
 
+  // ---- input (pan / pinch / wheel / tap) ----
+
+  attachInput() {
+    const canvas = this.canvas;
+    const rel = (e: { clientX: number; clientY: number }) => {
+      const r = canvas.getBoundingClientRect();
+      return { x: e.clientX - r.left, y: e.clientY - r.top };
+    };
+
+    const onDown = (e: PointerEvent) => {
+      canvas.setPointerCapture(e.pointerId);
+      const p = rel(e);
+      this.pointers.set(e.pointerId, p);
+      if (this.pointers.size === 1) {
+        this.downPos = p;
+        this.moved = false;
+      } else if (this.pointers.size === 2) {
+        const pts = [...this.pointers.values()];
+        this.pinchDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+      }
+    };
+
+    const onMove = (e: PointerEvent) => {
+      const prev = this.pointers.get(e.pointerId);
+      if (!prev) return;
+      const p = rel(e);
+      this.pointers.set(e.pointerId, p);
+
+      if (this.pointers.size >= 2) {
+        const pts = [...this.pointers.values()];
+        const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        const mid = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 };
+        if (this.pinchDist > 0) this.zoomAt(dist / this.pinchDist, mid.x, mid.y);
+        this.pinchDist = dist;
+        this.moved = true;
+      } else {
+        const dx = p.x - prev.x;
+        const dy = p.y - prev.y;
+        this.panBy(dx, dy);
+        if (this.downPos && Math.hypot(p.x - this.downPos.x, p.y - this.downPos.y) > TAP_THRESHOLD) {
+          this.moved = true;
+        }
+      }
+    };
+
+    const onUp = (e: PointerEvent) => {
+      const p = rel(e);
+      const wasSingle = this.pointers.size === 1;
+      this.pointers.delete(e.pointerId);
+      try {
+        canvas.releasePointerCapture(e.pointerId);
+      } catch {
+        /* ignore */
+      }
+      if (wasSingle && !this.moved && this.tapHandler) this.tapHandler(p.x, p.y);
+      if (this.pointers.size < 2) this.pinchDist = 0;
+    };
+
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const p = rel(e);
+      const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+      this.zoomAt(factor, p.x, p.y);
+    };
+
+    canvas.addEventListener("pointerdown", onDown);
+    canvas.addEventListener("pointermove", onMove);
+    canvas.addEventListener("pointerup", onUp);
+    canvas.addEventListener("pointercancel", onUp);
+    canvas.addEventListener("wheel", onWheel, { passive: false });
+
+    this.cleanupInput = () => {
+      canvas.removeEventListener("pointerdown", onDown);
+      canvas.removeEventListener("pointermove", onMove);
+      canvas.removeEventListener("pointerup", onUp);
+      canvas.removeEventListener("pointercancel", onUp);
+      canvas.removeEventListener("wheel", onWheel);
+    };
+  }
+
   // ---- drawing ----
 
   private render(t: number) {
     const ctx = this.ctx;
-    ctx.clearRect(0, 0, SCENE_W, SCENE_H);
+    if (this.cssW === 0) return;
 
-    this.drawHills();
-    ctx.fillStyle = "#3a3226";
-    ctx.fillRect(0, 150, SCENE_W, SCENE_H - 150);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-    this.drawRoad();
-    this.drawSidewalks();
-    this.drawCars();
+    const s = this.dpr * this.cam.zoom;
+    ctx.setTransform(s, 0, 0, s, -this.cam.x * s, -this.cam.y * s);
 
+    // ground (no sky)
+    ctx.fillStyle = "#241f18";
+    ctx.fillRect(0, 0, WORLD_W, WORLD_H);
+
+    for (const b of BACKDROP_BUILDINGS) this.drawBuilding(b);
     for (const b of NORTH_BUILDINGS) {
       if (b.special === "tcl") this.drawTCL(b.x);
       else this.drawBuilding(b);
     }
+    this.drawRoad();
+    this.drawSidewalks();
+    this.drawCars();
     for (const b of SOUTH_BUILDINGS) this.drawBuilding(b);
+    for (const b of RESIDENTIAL_BUILDINGS) this.drawBuilding(b);
+    for (const npc of this.npcs) this.drawNPC(npc, t);
 
-    for (const s of this.npcs) this.drawNPC(s, t);
-
-    const tint = ctx.createLinearGradient(0, 0, 0, SCENE_H);
-    tint.addColorStop(0, "rgba(255, 214, 140, 0.06)");
-    tint.addColorStop(1, "rgba(255, 170, 90, 0.1)");
+    const tint = ctx.createLinearGradient(0, 0, 0, WORLD_H);
+    tint.addColorStop(0, "rgba(255, 214, 140, 0.05)");
+    tint.addColorStop(1, "rgba(255, 170, 90, 0.08)");
     ctx.fillStyle = tint;
-    ctx.fillRect(0, 0, SCENE_W, SCENE_H);
-  }
-
-  private drawHills() {
-    const ctx = this.ctx;
-    const grd = ctx.createLinearGradient(0, 0, 0, 140);
-    grd.addColorStop(0, "#8fb4cf");
-    grd.addColorStop(1, "#b9c9a8");
-    ctx.fillStyle = grd;
-    ctx.fillRect(0, 0, SCENE_W, 150);
-
-    ctx.fillStyle = "#7c9a6d";
-    ctx.beginPath();
-    ctx.moveTo(0, 150);
-    ctx.quadraticCurveTo(220, 60, 480, 120);
-    ctx.quadraticCurveTo(760, 40, 1040, 110);
-    ctx.quadraticCurveTo(1320, 55, 1600, 120);
-    ctx.lineTo(1600, 150);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.fillStyle = "#6a8a5c";
-    ctx.beginPath();
-    ctx.moveTo(0, 150);
-    ctx.quadraticCurveTo(300, 100, 620, 140);
-    ctx.quadraticCurveTo(950, 95, 1250, 135);
-    ctx.quadraticCurveTo(1450, 105, 1600, 140);
-    ctx.lineTo(1600, 150);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.fillStyle = "#efe9de";
-    const startX = 560;
-    const gap = 20;
-    for (let i = 0; i < 9; i++) ctx.fillRect(startX + i * gap, 78, 4, 12);
+    ctx.fillRect(0, 0, WORLD_W, WORLD_H);
   }
 
   private drawRoad() {
     const ctx = this.ctx;
     ctx.fillStyle = "#33322f";
-    ctx.fillRect(0, ROAD_TOP, SCENE_W, ROAD_BOTTOM - ROAD_TOP);
+    ctx.fillRect(0, ROAD_TOP, WORLD_W, ROAD_BOTTOM - ROAD_TOP);
 
     ctx.strokeStyle = "#d8c96a";
     ctx.setLineDash([26, 20]);
     ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.moveTo(0, (ROAD_TOP + ROAD_BOTTOM) / 2);
-    ctx.lineTo(SCENE_W, (ROAD_TOP + ROAD_BOTTOM) / 2);
+    ctx.lineTo(WORLD_W, (ROAD_TOP + ROAD_BOTTOM) / 2);
     ctx.stroke();
     ctx.setLineDash([]);
 
@@ -232,21 +347,23 @@ export class HollywoodRenderer {
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(0, ROAD_TOP + 4);
-    ctx.lineTo(SCENE_W, ROAD_TOP + 4);
+    ctx.lineTo(WORLD_W, ROAD_TOP + 4);
     ctx.moveTo(0, ROAD_BOTTOM - 4);
-    ctx.lineTo(SCENE_W, ROAD_BOTTOM - 4);
+    ctx.lineTo(WORLD_W, ROAD_BOTTOM - 4);
     ctx.stroke();
 
-    ctx.fillStyle = "#33322f";
-    ctx.fillRect(HIGHLAND_LEFT, 0, HIGHLAND_RIGHT - HIGHLAND_LEFT, SCENE_H);
+    // Highland Ave — vertical cross street, full height (a gap through the block)
+    ctx.fillStyle = "#2c2b28";
+    ctx.fillRect(HIGHLAND_LEFT, 0, HIGHLAND_RIGHT - HIGHLAND_LEFT, WORLD_H);
     ctx.strokeStyle = "#d8c96a";
     ctx.setLineDash([22, 18]);
     ctx.beginPath();
     ctx.moveTo((HIGHLAND_LEFT + HIGHLAND_RIGHT) / 2, 0);
-    ctx.lineTo((HIGHLAND_LEFT + HIGHLAND_RIGHT) / 2, SCENE_H);
+    ctx.lineTo((HIGHLAND_LEFT + HIGHLAND_RIGHT) / 2, WORLD_H);
     ctx.stroke();
     ctx.setLineDash([]);
 
+    // crosswalk stripes at the intersection
     ctx.fillStyle = "#e7e2d2";
     for (let cx = HIGHLAND_LEFT - 6; cx < HIGHLAND_RIGHT + 6; cx += 14) {
       ctx.fillRect(cx, ROAD_TOP + 6, 8, ROAD_BOTTOM - ROAD_TOP - 12);
@@ -260,7 +377,7 @@ export class HollywoodRenderer {
     ctx.textAlign = "left";
     ctx.fillText("HOLLYWOOD BLVD", 30, ROAD_TOP + (ROAD_BOTTOM - ROAD_TOP) / 2 + 5);
     ctx.save();
-    ctx.translate((HIGHLAND_LEFT + HIGHLAND_RIGHT) / 2 + 5, 300);
+    ctx.translate((HIGHLAND_LEFT + HIGHLAND_RIGHT) / 2 + 5, 980);
     ctx.rotate(Math.PI / 2);
     ctx.fillText("HIGHLAND AVE", 0, 0);
     ctx.restore();
@@ -287,7 +404,7 @@ export class HollywoodRenderer {
 
   private drawWalkOfFame(y: number) {
     const ctx = this.ctx;
-    for (let x = 70; x < SCENE_W - 70; x += 78) {
+    for (let x = 70; x < WORLD_W - 70; x += 78) {
       if (x > HIGHLAND_LEFT - 40 && x < HIGHLAND_RIGHT + 40) continue;
       ctx.fillStyle = "#6b4a86";
       ctx.beginPath();
@@ -300,11 +417,11 @@ export class HollywoodRenderer {
   private drawSidewalks() {
     const ctx = this.ctx;
     ctx.fillStyle = "#9a9488";
-    ctx.fillRect(0, NORTH_SIDEWALK_TOP, SCENE_W, NORTH_SIDEWALK_BOTTOM - NORTH_SIDEWALK_TOP);
-    ctx.fillRect(0, SOUTH_SIDEWALK_TOP, SCENE_W, SOUTH_SIDEWALK_BOTTOM - SOUTH_SIDEWALK_TOP);
+    ctx.fillRect(0, NORTH_SIDEWALK_TOP, WORLD_W, NORTH_SIDEWALK_BOTTOM - NORTH_SIDEWALK_TOP);
+    ctx.fillRect(0, SOUTH_SIDEWALK_TOP, WORLD_W, SOUTH_SIDEWALK_BOTTOM - SOUTH_SIDEWALK_TOP);
     ctx.strokeStyle = "#847e70";
     ctx.lineWidth = 1;
-    for (let x = 0; x < SCENE_W; x += 40) {
+    for (let x = 0; x < WORLD_W; x += 40) {
       ctx.beginPath();
       ctx.moveTo(x, NORTH_SIDEWALK_TOP);
       ctx.lineTo(x, NORTH_SIDEWALK_BOTTOM);
@@ -325,12 +442,14 @@ export class HollywoodRenderer {
     const side = b.side ?? "north";
     const depth = b.depth ?? 34;
     const skew = b.skew ?? width * 0.14;
-    const facadeColor = b.facadeColor ?? "#5b6b7a";
-    const roofColor = b.roofColor ?? shade(facadeColor, -28);
+    const df = b.dim ?? 1;
+    const dk = Math.round((df - 1) * 55); // <= 0: pushes dim rows back / darker
+    const facadeColor = shade(b.facadeColor ?? "#5b6b7a", dk);
+    const roofColor = b.roofColor ? shade(b.roofColor, dk) : shade(facadeColor, -28);
     const sideColor = shade(facadeColor, -42);
     const x = b.x;
 
-    const baseY = side === "north" ? NORTH_BASELINE : SOUTH_BASELINE;
+    const baseY = b.baseY ?? (side === "north" ? NORTH_BASELINE : SOUTH_BASELINE);
     const dir = side === "north" ? -1 : 1;
     const facadeTopY = baseY + dir * height;
 
@@ -355,7 +474,7 @@ export class HollywoodRenderer {
     ctx.fillStyle = facadeColor;
     ctx.fillRect(x, Math.min(baseY, facadeTopY), width, height);
 
-    ctx.fillStyle = shade(facadeColor, 22);
+    ctx.fillStyle = shade(facadeColor, df < 1 ? 12 : 22);
     const rows = Math.max(1, Math.floor(height / 34) - 1);
     const cols = Math.max(2, Math.floor(width / 46));
     for (let r = 0; r < rows; r++) {
@@ -376,11 +495,13 @@ export class HollywoodRenderer {
       ctx.fillText(b.marquee, x + width / 2, my + 15);
     }
 
-    ctx.fillStyle = "#f3ecd8";
-    ctx.font = "bold 12px sans-serif";
-    ctx.textAlign = "center";
-    const labelY = side === "north" ? baseY - 6 : baseY + 14;
-    ctx.fillText(b.label ?? "", x + width / 2, labelY);
+    if (b.label) {
+      ctx.fillStyle = "#f3ecd8";
+      ctx.font = "bold 12px sans-serif";
+      ctx.textAlign = "center";
+      const labelY = side === "north" ? baseY - 6 : baseY + 14;
+      ctx.fillText(b.label, x + width / 2, labelY);
+    }
   }
 
   private drawTCL(x: number) {
@@ -453,6 +574,19 @@ export class HollywoodRenderer {
     });
   }
 
+  // Load a spirit sprite once; returns the <img> (which may still be loading), or null
+  // if it 404'd (→ code-drawn fallback). Drop a PNG into public/spirits/<id>.png and it
+  // appears automatically.
+  private getSprite(id: string): HTMLImageElement | null {
+    const cached = this.sprites.get(id);
+    if (cached !== undefined) return cached;
+    const img = new Image();
+    img.onerror = () => this.sprites.set(id, null);
+    img.src = `/spirits/${id}.png`;
+    this.sprites.set(id, img);
+    return img;
+  }
+
   private drawNPC(s: NpcRuntime, t: number) {
     const ctx = this.ctx;
     const bob = Math.sin(t / 180 + s.x) * 2;
@@ -468,6 +602,18 @@ export class HollywoodRenderer {
     ctx.arc(s.x, y, 26, 0, Math.PI * 2);
     ctx.fill();
 
+    const sprite = this.getSprite(s.soul.id);
+    if (sprite && sprite.complete && sprite.naturalWidth > 0) {
+      const targetH = 52;
+      const w = targetH * (sprite.naturalWidth / sprite.naturalHeight);
+      const prev = ctx.imageSmoothingEnabled;
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(sprite, s.x - w / 2, y - targetH + 12, w, targetH);
+      ctx.imageSmoothingEnabled = prev;
+      return;
+    }
+
+    // fallback: simple code-drawn figure
     ctx.fillStyle = "#3a2f26";
     ctx.beginPath();
     ctx.ellipse(s.x, y + 9, 5, 8, 0, 0, Math.PI * 2);

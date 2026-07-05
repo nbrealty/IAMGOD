@@ -24,8 +24,7 @@ export default function App() {
         <HollywoodScene engine={engine} />
       </main>
       <footer className="footnote">
-        Tap a person to read their live Soul Profile — needs, emotion, and chakras shift
-        as time passes. Use the speed controls to watch the city live. Phase 1: the soul engine.
+        Drag to pan · pinch or ＋/－ to zoom · tap a person to read their live Soul Profile
       </footer>
     </div>
   );

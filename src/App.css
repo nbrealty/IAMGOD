@@ -1,7 +1,8 @@
 .app {
   display: flex;
   flex-direction: column;
-  min-height: 100%;
+  height: 100%;
+  overflow: hidden;
 }
 
 /* ---------- HUD ---------- */
@@ -108,35 +109,62 @@
   background: #6b6252;
 }
 
-/* ---------- Stage / canvas ---------- */
+/* ---------- Stage / canvas (full-bleed, fills the screen) ---------- */
 .stage {
   flex: 1;
+  min-height: 0;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 10px;
 }
 .scene-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
   width: 100%;
-  max-width: 1400px;
+  overflow: hidden;
 }
 .scene-canvas {
+  position: absolute;
+  inset: 0;
   width: 100%;
-  height: auto;
+  height: 100%;
   display: block;
-  background: #6b8fae;
-  border-radius: 6px;
-  box-shadow:
-    0 0 0 1px #33291b,
-    0 10px 30px rgba(0, 0, 0, 0.5);
+  background: #1a1610;
+  touch-action: none; /* we handle pan/zoom ourselves */
+  cursor: grab;
+}
+.scene-canvas:active {
+  cursor: grabbing;
+}
+.zoom-controls {
+  position: absolute;
+  right: 10px;
+  bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 5;
+}
+.zoom-controls button {
+  width: 40px;
+  height: 40px;
+  font-size: 20px;
+  line-height: 1;
+  background: rgba(20, 17, 12, 0.82);
+  border: 1px solid #4a3a22;
+  color: #e8d9ae;
+  border-radius: 8px;
   cursor: pointer;
+}
+.zoom-controls button:active {
+  background: rgba(58, 47, 30, 0.95);
 }
 
 .footnote {
   text-align: center;
-  font-size: 10.5px;
+  font-size: 10px;
   color: #5c5442;
-  padding: 6px 10px 12px 10px;
+  padding: 4px 10px;
+  flex-shrink: 0;
 }
 
 /* ---------- Soul Profile panel ---------- */
@@ -421,4 +449,21 @@
   background: #191512;
   border: 1px solid #3a2f1c;
   color: #a99d80;
+}
+
+/* ---------- phone: slim the HUD so the map dominates the screen ---------- */
+@media (max-width: 600px) {
+  .hud {
+    padding: 5px 10px;
+    gap: 8px 12px;
+  }
+  .hud-breadcrumb {
+    font-size: 12px;
+  }
+  .faith {
+    display: none; /* placeholder gauges — reclaim vertical space on phones */
+  }
+  .hud-clock {
+    font-size: 12px;
+  }
 }
