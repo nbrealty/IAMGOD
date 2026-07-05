@@ -716,20 +716,30 @@ export class HollywoodRenderer {
         ctx.restore();
       };
 
-      // Gaia-style feet/leg blur: while moving, trail translucent ghost copies of the
-      // lower body behind the direction of travel, clipped to the feet + lower legs.
+      // Gaia-style walk: sharp upper body, but the legs/feet dissolve into a soft
+      // horizontal crescent smear (many low-alpha copies fanned symmetrically, the
+      // spread pulsing with the step). Legs are drawn ONLY as the smear while moving.
+      const legTop = top + targetH * 0.56;
       if (s.moving) {
-        const moveSign = s.soul.id === this.controlledId ? (this.facingLeft ? -1 : 1) : s.dir;
         ctx.save();
         ctx.beginPath();
-        ctx.rect(s.x - w, y + 12 - targetH * 0.42, w * 2, targetH * 0.46);
+        ctx.rect(s.x - w, top - 2, w * 2, legTop - top + 2);
         ctx.clip();
-        drawAt(s.x - moveSign * 3, 0.22);
-        drawAt(s.x - moveSign * 6, 0.1);
+        drawAt(s.x, 1); // crisp torso + head
         ctx.restore();
-      }
 
-      drawAt(s.x, 1);
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(s.x - w, legTop, w * 2, y + 14 - legTop);
+        ctx.clip();
+        const spread = 7 + 4 * Math.abs(Math.sin(t / 80));
+        for (let i = -5; i <= 5; i++) {
+          drawAt(s.x + (i / 5) * spread, 0.12);
+        }
+        ctx.restore();
+      } else {
+        drawAt(s.x, 1);
+      }
       ctx.imageSmoothingEnabled = prev;
       return;
     }
