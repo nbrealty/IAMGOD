@@ -617,4 +617,44 @@ export const ROSTER: Soul[] = [
     xMax: 1350,
     baseSpeed: 13,
   }),
+
+  // Dalia Nasser — "The Carrier". Fifth and last of the friend crew. Palestinian-
+  // American; the keffiyeh is a deliberate, chosen link to a homeland she may
+  // have never physically stood in — diaspora Palestinians describe wearing it
+  // as "carrying home on my shoulders" (sources in conversation). Grounded in
+  // real academic work on the "unsettled belonging" of Palestinian-American
+  // youth (Abu El-Haj) — caught between transnational belonging and an
+  // American public life that periodically casts them as not-quite-belonging.
+  // Her ACE score stays low deliberately: her stressors are societal/identity-
+  // based, not family dysfunction, and conflating the two would be a category
+  // error — the chronic-vigilance weight lives in Safety and NegativeAffectivity
+  // instead. Highest Crown seed of the new crew: she's already the furthest
+  // along toward something beyond self-interest (the archive project), even
+  // though she hasn't stopped needing to *prove* it yet.
+  soul({
+    id: "dalia",
+    name: "Dalia Nasser",
+    occupation: "Retail Associate — Building a Family Oral-History Archive",
+    archetype: "The Carrier (Diaspora Homeland-Keeper)",
+    age: 21,
+    narrative:
+      "She's never set foot in the village her grandfather describes in the voice memos she's been quietly collecting since she was sixteen — recording him before the stories go with him. The keffiyeh isn't a costume; it's the one thing she can wrap around herself that makes the distance feel smaller. At school she was always the one explaining herself; here on the Boulevard, surrounded by people building their own reinventions, she's stopped apologizing for carrying hers.",
+    needs: { survival: 56, safety: 44, belonging: 48, esteem: 46, actualization: 52 },
+    traits: traits({ negativeAffectivity: 48, detachment: 30, antagonism: 24, disinhibition: 18, psychoticism: 10 }),
+    aceScore: 2,
+    resilience: 74,
+    kohlberg: 5,
+    soulAge: "Mature",
+    initiationLevel: 3,
+    chakras: chakras([46, 40, 48, 48, 58, 52, 46]),
+    consciousAspiration:
+      "Finish the archive and prove — to everyone, maybe herself most of all — that she belongs to a place she's never even stood in",
+    soulPurpose:
+      "Let carrying her people's memory be enough on its own — she doesn't need anyone's permission or proof to claim what's already hers",
+    affinities: { gaze: 1.5, socialize: 1.3, work: 1.2, hustle: 0.9, rest: 1.0 },
+    row: "north",
+    xMin: 1250,
+    xMax: 1450,
+    baseSpeed: 15,
+  }),
 ];
