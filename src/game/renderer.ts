@@ -32,6 +32,7 @@ interface NpcRuntime {
   x: number;
   y: number;
   dir: number;
+  moving: boolean;
 }
 
 interface CarRuntime {
@@ -111,6 +112,7 @@ export class HollywoodRenderer {
       x: soul.xMin + Math.random() * (soul.xMax - soul.xMin),
       dir: Math.random() > 0.5 ? 1 : -1,
       y: soul.row === "north" ? NORTH_SIDEWALK_TOP + 20 : SOUTH_SIDEWALK_TOP + 20,
+      moving: false,
     }));
 
     this.cars = [
@@ -134,6 +136,7 @@ export class HollywoodRenderer {
       for (const s of this.npcs) {
         if (s.soul.id === this.controlledId) continue; // driven by input below
         const stationary = activityIsStationary(s.soul.activity);
+        s.moving = !stationary; // planted while doing a stationary activity
         const spd = s.soul.baseSpeed * (stationary ? 0.2 : 1) * moveScale;
         s.x += s.dir * spd * dt;
         if (s.x > s.soul.xMax) {
@@ -153,6 +156,7 @@ export class HollywoodRenderer {
         if (pc) {
           const vx = (this.held.has("right") ? 1 : 0) - (this.held.has("left") ? 1 : 0);
           const vy = (this.held.has("down") ? 1 : 0) - (this.held.has("up") ? 1 : 0);
+          pc.moving = vx !== 0 || vy !== 0;
           if (vx || vy) {
             const m = Math.hypot(vx, vy) || 1;
             pc.x += (vx / m) * PLAYER_SPEED * dt;
@@ -666,7 +670,8 @@ export class HollywoodRenderer {
 
   private drawNPC(s: NpcRuntime, t: number) {
     const ctx = this.ctx;
-    const bob = Math.sin(t / 180 + s.x) * 2;
+    // Gaia-style: planted when idle, a light step-bounce ONLY while moving.
+    const bob = s.moving ? -Math.abs(Math.sin(t / 90)) * 2.5 : 0;
     const pulse = 0.75 + 0.25 * Math.sin(t / 400 + s.x * 0.05);
     const y = s.y + bob;
 
@@ -680,12 +685,12 @@ export class HollywoodRenderer {
     ctx.arc(s.x, y, auraR, 0, Math.PI * 2);
     ctx.fill();
 
-    // "you are here" ring under the player-controlled character
+    // "you are here" ring — anchored to the ground so it stays put while she bounces
     if (s.soul.id === this.controlledId) {
       ctx.strokeStyle = "rgba(240, 230, 200, 0.85)";
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.ellipse(s.x, y + 16, 16, 6, 0, 0, Math.PI * 2);
+      ctx.ellipse(s.x, s.y + 16, 16, 6, 0, 0, Math.PI * 2);
       ctx.stroke();
     }
 
@@ -695,7 +700,8 @@ export class HollywoodRenderer {
       const w = targetH * (sprite.naturalWidth / sprite.naturalHeight);
       const flip = s.soul.id === this.controlledId ? this.facingLeft : s.dir < 0;
       const prev = ctx.imageSmoothingEnabled;
-      ctx.imageSmoothingEnabled = false;
+      ctx.imageSmoothingEnabled = true; // smooth downscale — these are painted, not pixel art
+      ctx.imageSmoothingQuality = "high";
       ctx.save();
       if (flip) {
         ctx.translate(s.x, 0);
