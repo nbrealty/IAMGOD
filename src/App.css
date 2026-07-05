@@ -159,6 +159,42 @@
   background: rgba(58, 47, 30, 0.95);
 }
 
+/* ---------- on-screen D-pad (drive the controllable character) ---------- */
+.dpad {
+  position: absolute;
+  left: 12px;
+  bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  z-index: 5;
+  touch-action: none;
+  user-select: none;
+}
+.dpad-row {
+  display: flex;
+  gap: 4px;
+}
+.dpad-btn {
+  width: 46px;
+  height: 46px;
+  font-size: 18px;
+  line-height: 1;
+  color: #e8d9ae;
+  background: rgba(20, 17, 12, 0.72);
+  border: 1px solid #4a3a22;
+  border-radius: 10px;
+  cursor: pointer;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.dpad-btn:active {
+  background: rgba(201, 150, 44, 0.9);
+  color: #1a1206;
+}
+
 .footnote {
   text-align: center;
   font-size: 10px;

@@ -44,6 +44,11 @@ interface CarRuntime {
 const NORTH_SIDEWALK_BOTTOM = ROAD_TOP;
 const TAP_THRESHOLD = 7; // css px of movement below which a pointer-up counts as a tap
 
+// Player-controlled character tuning
+const PLAYER_SPEED = 130; // world units / sec, independent of the sim time-speed
+const PLAYER_Y_MIN = 660; // walkable band: sidewalks + road
+const PLAYER_Y_MAX = 900;
+
 function clamp255(v: number): number {
   return Math.max(0, Math.min(255, v));
 }
@@ -78,6 +83,11 @@ export class HollywoodRenderer {
   private cssH = 0;
   private dpr = 1;
   private centered = false;
+
+  // player control
+  private controlledId: string | null = null;
+  private held = new Set<string>();
+  private facingLeft = false;
 
   private sprites = new Map<string, HTMLImageElement | null>();
   private tapHandler: ((cssX: number, cssY: number) => void) | null = null;
@@ -122,6 +132,7 @@ export class HollywoodRenderer {
 
       const moveScale = Math.min(this.engine.speed, 3);
       for (const s of this.npcs) {
+        if (s.soul.id === this.controlledId) continue; // driven by input below
         const stationary = activityIsStationary(s.soul.activity);
         const spd = s.soul.baseSpeed * (stationary ? 0.2 : 1) * moveScale;
         s.x += s.dir * spd * dt;
@@ -132,6 +143,27 @@ export class HollywoodRenderer {
         if (s.x < s.soul.xMin) {
           s.x = s.soul.xMin;
           s.dir = 1;
+        }
+      }
+
+      // player-controlled character: WASD / arrows / on-screen D-pad. Real-time speed
+      // (not scaled by sim time-speed), and the camera eases to follow.
+      if (this.controlledId) {
+        const pc = this.npcs.find((n) => n.soul.id === this.controlledId);
+        if (pc) {
+          const vx = (this.held.has("right") ? 1 : 0) - (this.held.has("left") ? 1 : 0);
+          const vy = (this.held.has("down") ? 1 : 0) - (this.held.has("up") ? 1 : 0);
+          if (vx || vy) {
+            const m = Math.hypot(vx, vy) || 1;
+            pc.x += (vx / m) * PLAYER_SPEED * dt;
+            pc.y += (vy / m) * PLAYER_SPEED * dt;
+            pc.x = Math.max(40, Math.min(WORLD_W - 40, pc.x));
+            pc.y = Math.max(PLAYER_Y_MIN, Math.min(PLAYER_Y_MAX, pc.y));
+            if (vx < 0) this.facingLeft = true;
+            else if (vx > 0) this.facingLeft = false;
+            pc.dir = vx < 0 ? -1 : 1;
+          }
+          this.followCam(pc.x, pc.y);
         }
       }
       for (const car of this.cars) {
@@ -163,10 +195,15 @@ export class HollywoodRenderer {
     this.canvas.height = Math.max(1, Math.round(cssH * dpr));
 
     if (!this.centered && cssW > 0 && cssH > 0) {
-      // Default view: fit-to-world zoom, framed on the boulevard + storefronts.
-      this.cam.zoom = minZoomFor(cssW, cssH, WORLD_W, WORLD_H);
-      const cx = WORLD_W * 0.34;
-      const cy = 660;
+      // Start zoomed in enough to read the sprite detail; center on the controlled
+      // character when there is one, else frame the boulevard.
+      const minZ = minZoomFor(cssW, cssH, WORLD_W, WORLD_H);
+      this.cam.zoom = minZ * 1.9;
+      const pc = this.controlledId
+        ? this.npcs.find((n) => n.soul.id === this.controlledId)
+        : null;
+      const cx = pc ? pc.x : WORLD_W * 0.34;
+      const cy = pc ? pc.y : 660;
       this.cam.x = cx - cssW / this.cam.zoom / 2;
       this.cam.y = cy - cssH / this.cam.zoom / 2;
       this.centered = true;
@@ -189,6 +226,26 @@ export class HollywoodRenderer {
   // Zoom about the viewport center — for on-screen +/- buttons.
   zoomButton(factor: number) {
     this.zoomAt(factor, this.cssW / 2, this.cssH / 2);
+  }
+
+  // Ease the camera to keep the controlled character centered.
+  private followCam(x: number, y: number) {
+    const tx = x - this.cssW / this.cam.zoom / 2;
+    const ty = y - this.cssH / this.cam.zoom / 2;
+    this.cam.x += (tx - this.cam.x) * 0.12;
+    this.cam.y += (ty - this.cam.y) * 0.12;
+    clampCamera(this.cam, this.cssW, this.cssH, WORLD_W, WORLD_H);
+  }
+
+  // Designate the player-driven character (its patrol AI is suspended).
+  setControlled(id: string | null) {
+    this.controlledId = id;
+  }
+
+  // Hold / release a movement direction — called by the D-pad and keyboard.
+  setMove(dir: "up" | "down" | "left" | "right", pressed: boolean) {
+    if (pressed) this.held.add(dir);
+    else this.held.delete(dir);
   }
 
   setTapHandler(fn: (cssX: number, cssY: number) => void) {
@@ -252,7 +309,7 @@ export class HollywoodRenderer {
       } else {
         const dx = p.x - prev.x;
         const dy = p.y - prev.y;
-        this.panBy(dx, dy);
+        if (!this.controlledId) this.panBy(dx, dy); // camera follows the player instead
         if (this.downPos && Math.hypot(p.x - this.downPos.x, p.y - this.downPos.y) > TAP_THRESHOLD) {
           this.moved = true;
         }
@@ -279,13 +336,33 @@ export class HollywoodRenderer {
       this.zoomAt(factor, p.x, p.y);
     };
 
+    // keyboard drive for the controllable character (desktop)
+    const keyMap: Record<string, "up" | "down" | "left" | "right"> = {
+      ArrowUp: "up", KeyW: "up",
+      ArrowDown: "down", KeyS: "down",
+      ArrowLeft: "left", KeyA: "left",
+      ArrowRight: "right", KeyD: "right",
+    };
+    const onKey = (down: boolean) => (e: KeyboardEvent) => {
+      const dir = keyMap[e.code];
+      if (!dir) return;
+      e.preventDefault();
+      this.setMove(dir, down);
+    };
+    const onKeyDown = onKey(true);
+    const onKeyUp = onKey(false);
+
     canvas.addEventListener("pointerdown", onDown);
     canvas.addEventListener("pointermove", onMove);
     canvas.addEventListener("pointerup", onUp);
     canvas.addEventListener("pointercancel", onUp);
     canvas.addEventListener("wheel", onWheel, { passive: false });
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
 
     this.cleanupInput = () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
       canvas.removeEventListener("pointerdown", onDown);
       canvas.removeEventListener("pointermove", onMove);
       canvas.removeEventListener("pointerup", onUp);
@@ -594,21 +671,39 @@ export class HollywoodRenderer {
     const y = s.y + bob;
 
     const aura = auraColor(s.soul);
-    const grad = ctx.createRadialGradient(s.x, y, 2, s.x, y, 26);
+    const auraR = 34;
+    const grad = ctx.createRadialGradient(s.x, y, 2, s.x, y, auraR);
     grad.addColorStop(0, hexAlpha(aura, 0.55 * pulse));
     grad.addColorStop(1, hexAlpha(aura, 0));
     ctx.fillStyle = grad;
     ctx.beginPath();
-    ctx.arc(s.x, y, 26, 0, Math.PI * 2);
+    ctx.arc(s.x, y, auraR, 0, Math.PI * 2);
     ctx.fill();
+
+    // "you are here" ring under the player-controlled character
+    if (s.soul.id === this.controlledId) {
+      ctx.strokeStyle = "rgba(240, 230, 200, 0.85)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(s.x, y + 16, 16, 6, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
 
     const sprite = this.getSprite(s.soul.id);
     if (sprite && sprite.complete && sprite.naturalWidth > 0) {
-      const targetH = 52;
+      const targetH = 84; // bigger, Gaia-style — shows the sprite detail
       const w = targetH * (sprite.naturalWidth / sprite.naturalHeight);
+      const flip = s.soul.id === this.controlledId ? this.facingLeft : s.dir < 0;
       const prev = ctx.imageSmoothingEnabled;
       ctx.imageSmoothingEnabled = false;
+      ctx.save();
+      if (flip) {
+        ctx.translate(s.x, 0);
+        ctx.scale(-1, 1);
+        ctx.translate(-s.x, 0);
+      }
       ctx.drawImage(sprite, s.x - w / 2, y - targetH + 12, w, targetH);
+      ctx.restore();
       ctx.imageSmoothingEnabled = prev;
       return;
     }

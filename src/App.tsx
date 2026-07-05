@@ -24,7 +24,7 @@ export default function App() {
         <HollywoodScene engine={engine} />
       </main>
       <footer className="footnote">
-        Drag to pan · pinch or ＋/－ to zoom · tap a person to read their live Soul Profile
+        Move Roxy with the D-pad (or WASD / arrows) · pinch or ＋/－ to zoom · tap a person to read their live Soul Profile
       </footer>
     </div>
   );

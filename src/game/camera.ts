@@ -16,7 +16,8 @@ export function minZoomFor(vw: number, vh: number, ww: number, wh: number): numb
 }
 
 function maxZoomFor(minZ: number): number {
-  return Math.max(minZ * 3.5, 1.6);
+  // Allow zooming in much closer now that characters carry real sprite detail.
+  return Math.max(minZ * 5, 3);
 }
 
 export function clampCamera(cam: Camera, vw: number, vh: number, ww: number, wh: number): void {
