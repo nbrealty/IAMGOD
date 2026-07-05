@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { Hud } from "./components/Hud";
-import { HollywoodScene } from "./game/HollywoodScene";
+import { HollywoodScene, PLAYABLE_CHARACTERS } from "./game/HollywoodScene";
 import { SoulEngine } from "./soul/engine";
 import { ROSTER } from "./soul/roster";
 import "./App.css";
@@ -17,14 +17,22 @@ export default function App() {
     setSpeed(s);
   }
 
+  // Lori is the default playable character; null = Observer Mode (free pan/zoom).
+  const [controlledId, setControlledId] = useState<string | null>("lori");
+  const controlledName = controlledId
+    ? PLAYABLE_CHARACTERS.find((c) => c.id === controlledId)?.label ?? null
+    : null;
+
   return (
     <div className="app">
       <Hud engine={engine} speed={speed} onSpeed={changeSpeed} />
       <main className="stage">
-        <HollywoodScene engine={engine} />
+        <HollywoodScene engine={engine} controlledId={controlledId} onControlledChange={setControlledId} />
       </main>
       <footer className="footnote">
-        Move Roxy with the D-pad (or WASD / arrows) · pinch or ＋/－ to zoom · tap a person to read their live Soul Profile
+        {controlledName
+          ? `Move ${controlledName} with the D-pad (or WASD / arrows) · pinch or ＋/－ to zoom · tap a person to read their live Soul Profile`
+          : "Drag to pan · pinch or ＋/－ to zoom · tap a person to read their live Soul Profile"}
       </footer>
     </div>
   );

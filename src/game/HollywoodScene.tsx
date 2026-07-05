@@ -3,7 +3,21 @@ import { HollywoodRenderer } from "./renderer";
 import type { SoulEngine } from "../soul/engine";
 import { SoulProfilePanel } from "../components/SoulProfilePanel";
 
-export function HollywoodScene({ engine }: { engine: SoulEngine }) {
+// The characters the player can step into. `id: null` is Observer Mode — free
+// pan/zoom, nobody driven. Add an entry here to make another soul playable.
+export const PLAYABLE_CHARACTERS: { id: string | null; label: string }[] = [
+  { id: "lori", label: "Lori" },
+  { id: "roxy_valente", label: "Roxy" },
+  { id: null, label: "Observe" },
+];
+
+interface Props {
+  engine: SoulEngine;
+  controlledId: string | null;
+  onControlledChange: (id: string | null) => void;
+}
+
+export function HollywoodScene({ engine, controlledId, onControlledChange }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<HollywoodRenderer | null>(null);
@@ -16,7 +30,6 @@ export function HollywoodScene({ engine }: { engine: SoulEngine }) {
 
     const renderer = new HollywoodRenderer(canvas, engine);
     rendererRef.current = renderer;
-    renderer.setControlled("roxy_valente"); // player drives Roxy for now
     renderer.setTapHandler((cssX, cssY) => {
       const id = renderer.hitTest(cssX, cssY);
       if (id) setSelectedId(id);
@@ -42,6 +55,12 @@ export function HollywoodScene({ engine }: { engine: SoulEngine }) {
     };
   }, [engine]);
 
+  // Apply the controlled-character selection whenever it changes (including
+  // the first render, once the renderer above has mounted).
+  useEffect(() => {
+    rendererRef.current?.setControlled(controlledId);
+  }, [controlledId]);
+
   const hold =
     (dir: "up" | "down" | "left" | "right", pressed: boolean) =>
     (e: ReactPointerEvent) => {
@@ -53,50 +72,65 @@ export function HollywoodScene({ engine }: { engine: SoulEngine }) {
     <div className="scene-stage" ref={wrapRef}>
       <canvas ref={canvasRef} className="scene-canvas" />
 
-      <div className="dpad">
-        <button
-          className="dpad-btn up"
-          aria-label="Move up"
-          onPointerDown={hold("up", true)}
-          onPointerUp={hold("up", false)}
-          onPointerLeave={hold("up", false)}
-          onPointerCancel={hold("up", false)}
-        >
-          ▲
-        </button>
-        <div className="dpad-row">
+      <div className="char-switcher">
+        {PLAYABLE_CHARACTERS.map((c) => (
           <button
-            className="dpad-btn left"
-            aria-label="Move left"
-            onPointerDown={hold("left", true)}
-            onPointerUp={hold("left", false)}
-            onPointerLeave={hold("left", false)}
-            onPointerCancel={hold("left", false)}
+            key={c.label}
+            className={`char-chip ${controlledId === c.id ? "active" : ""}`}
+            onClick={() => onControlledChange(c.id)}
           >
-            ◀
+            {c.id === null ? "👁 " : ""}
+            {c.label}
           </button>
-          <button
-            className="dpad-btn down"
-            aria-label="Move down"
-            onPointerDown={hold("down", true)}
-            onPointerUp={hold("down", false)}
-            onPointerLeave={hold("down", false)}
-            onPointerCancel={hold("down", false)}
-          >
-            ▼
-          </button>
-          <button
-            className="dpad-btn right"
-            aria-label="Move right"
-            onPointerDown={hold("right", true)}
-            onPointerUp={hold("right", false)}
-            onPointerLeave={hold("right", false)}
-            onPointerCancel={hold("right", false)}
-          >
-            ▶
-          </button>
-        </div>
+        ))}
       </div>
+
+      {controlledId !== null && (
+        <div className="dpad">
+          <button
+            className="dpad-btn up"
+            aria-label="Move up"
+            onPointerDown={hold("up", true)}
+            onPointerUp={hold("up", false)}
+            onPointerLeave={hold("up", false)}
+            onPointerCancel={hold("up", false)}
+          >
+            ▲
+          </button>
+          <div className="dpad-row">
+            <button
+              className="dpad-btn left"
+              aria-label="Move left"
+              onPointerDown={hold("left", true)}
+              onPointerUp={hold("left", false)}
+              onPointerLeave={hold("left", false)}
+              onPointerCancel={hold("left", false)}
+            >
+              ◀
+            </button>
+            <button
+              className="dpad-btn down"
+              aria-label="Move down"
+              onPointerDown={hold("down", true)}
+              onPointerUp={hold("down", false)}
+              onPointerLeave={hold("down", false)}
+              onPointerCancel={hold("down", false)}
+            >
+              ▼
+            </button>
+            <button
+              className="dpad-btn right"
+              aria-label="Move right"
+              onPointerDown={hold("right", true)}
+              onPointerUp={hold("right", false)}
+              onPointerLeave={hold("right", false)}
+              onPointerCancel={hold("right", false)}
+            >
+              ▶
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="zoom-controls">
         <button onClick={() => rendererRef.current?.zoomButton(1.3)} aria-label="Zoom in">

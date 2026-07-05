@@ -245,9 +245,19 @@ export class HollywoodRenderer {
     clampCamera(this.cam, this.cssW, this.cssH, WORLD_W, WORLD_H);
   }
 
-  // Designate the player-driven character (its patrol AI is suspended).
+  // Designate the player-driven character (its patrol AI is suspended), or null
+  // for observer mode (free pan/zoom, nobody driven). Clears stale input state
+  // so a held direction or mid-turn facing doesn't leak from the previous
+  // character.
   setControlled(id: string | null) {
     this.controlledId = id;
+    this.held.clear();
+    this.facingLeft = false;
+    this.facingUp = false;
+  }
+
+  getControlled(): string | null {
+    return this.controlledId;
   }
 
   // Hold / release a movement direction — called by the D-pad and keyboard.
