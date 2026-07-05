@@ -68,7 +68,7 @@ export function clothingTag(soul: Soul): string {
     if (/influencer|reality/.test(arc) || (t.antagonism > 55 && t.disinhibition > 45))
       return "loud-curated";
     if (/aspirant|actress|actor|performer|busker/.test(arc)) return "aspirational-curated";
-    if (/trend|fashion/.test(arc)) return "trend-curated";
+    if (/trend|fashion|sneaker|streetwear/.test(arc)) return "trend-curated";
     if (soul.needs.actualization > 55) return "ironic-curated";
     return "aspirational-curated";
   }

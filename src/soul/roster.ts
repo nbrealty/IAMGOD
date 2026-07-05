@@ -473,4 +473,38 @@ export const ROSTER: Soul[] = [
     xMax: 1180,
     baseSpeed: 18,
   }),
+
+  // Nia Brooks — "The Real One". First of a 5-person friend crew being added one
+  // at a time. Grounded in the real, documented history of women (especially
+  // Black and Latina women) as the uncredited founders of sneaker/streetwear
+  // culture — women who built their own communities because the mainstream
+  // scene wouldn't recognize them. Her Solar Plexus (esteem) runs low despite
+  // real mastery; her Heart is healthier than you'd expect, because the crew
+  // she built for herself actually works.
+  soul({
+    id: "nia",
+    name: "Nia Brooks",
+    occupation: "Sneaker Reseller & Community Organizer",
+    archetype: "The Real One (Underestimated Sneakerhead)",
+    age: 24,
+    narrative:
+      "She's been in this culture since she was twelve, trading Jordans in middle-school hallways before half these resale apps even existed. The scene still treats her like a tourist in her own house, so she stopped waiting for an invitation — built her own group chat for the girls the culture forgets to credit, runs pop-up trades off her fanny pack like a mobile shop, and remembers every name that ever doubted her.",
+    needs: { survival: 58, safety: 55, belonging: 62, esteem: 34, actualization: 48 },
+    traits: traits({ negativeAffectivity: 48, detachment: 22, antagonism: 46, disinhibition: 30, psychoticism: 15 }),
+    aceScore: 3,
+    resilience: 78,
+    kohlberg: 4,
+    soulAge: "Young",
+    initiationLevel: 2,
+    chakras: chakras([54, 46, 38, 58, 50, 46, 16]),
+    consciousAspiration:
+      "Make them recognize I built this — get my name said in the culture for real, not as somebody's afterthought",
+    soulPurpose:
+      "Build the door she had to force open herself so the next overlooked girl never has to fight alone for a seat at the table",
+    affinities: { hustle: 1.5, perform: 1.3, socialize: 1.4, work: 1.1, gaze: 1.0, rest: 1.0 },
+    row: "north",
+    xMin: 950,
+    xMax: 1150,
+    baseSpeed: 20,
+  }),
 ];
