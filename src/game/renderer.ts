@@ -731,14 +731,30 @@ export class HollywoodRenderer {
 
         const spread = 8 + 4 * Math.abs(Math.sin(t / 80));
         const lift = 7;
-        for (let i = -5; i <= 5; i++) {
-          const u = i / 5;
+        const footBaseY = y + 12;
+
+        // Fused darker "boat": one filled concave-up crescent that unifies the smear
+        // into a single dark-grey shadow (curves up at the ends).
+        const hw = spread + w * 0.32;
+        ctx.save();
+        ctx.fillStyle = "rgba(16, 14, 11, 0.5)";
+        ctx.beginPath();
+        ctx.moveTo(s.x - hw, footBaseY - lift);
+        ctx.quadraticCurveTo(s.x, footBaseY + 6, s.x + hw, footBaseY - lift);
+        ctx.quadraticCurveTo(s.x, footBaseY - lift - 3, s.x - hw, footBaseY - lift);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+
+        // Faint feet texture fused on top (many low-alpha copies blend smoothly).
+        for (let i = -8; i <= 8; i++) {
+          const u = i / 8;
           ctx.save();
-          ctx.translate(u * spread, -lift * u * u); // fan out + lift the ends
+          ctx.translate(u * spread, -lift * u * u);
           ctx.beginPath();
-          ctx.rect(s.x - w, footTop, w * 2, y + 16 - footTop);
+          ctx.rect(s.x - w, footTop, w * 2, footBaseY + 4 - footTop);
           ctx.clip();
-          drawAt(s.x, 0.13);
+          drawAt(s.x, 0.07);
           ctx.restore();
         }
       } else {
