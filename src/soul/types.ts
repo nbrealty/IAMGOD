@@ -75,6 +75,11 @@ export interface Soul {
   archetype: string;
   age: number;
   narrative: string;
+  // Cluster-level social affiliation (a street set, a scene, a crew). Per the locked
+  // homophily decision, faction is a GROUP signal that drives faction-coded clothing —
+  // NOT an individual trait. The same colors sit on a true believer, a scared initiate,
+  // and someone quietly getting out; the soul's own numbers carry the real difference.
+  faction?: string;
 
   // psychology
   needs: Needs;

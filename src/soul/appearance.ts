@@ -48,6 +48,11 @@ export function auraColor(soul: Soul): string {
 // Clothing tag: survival/safety tier → worn/practical; esteem tier → one of the 5
 // curated sub-flavors (inferred from archetype + traits); actualization → authentic.
 export function clothingTag(soul: Soul): string {
+  // Faction colors are a cluster-level uniform worn regardless of need tier, so they
+  // override the Maslow-driven flavor. Deliberately the same read for every member —
+  // the player has to open the soul to tell the shot-caller from the kid getting out.
+  if (soul.faction) return "faction-coded";
+
   const level = maslowLevel(soul.needs).level;
   const arc = soul.archetype.toLowerCase();
   const t = soul.traits;

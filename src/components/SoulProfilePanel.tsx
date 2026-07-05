@@ -66,6 +66,7 @@ export function SoulProfilePanel({ engine, soulId, onClose }: Props) {
         <p className="panel-occ">
           {soul.occupation} · {soul.archetype} · {soul.age}
         </p>
+        {soul.faction && <p className="panel-faction">Affiliated · {soul.faction}</p>}
 
         <div className="panel-live">
           <span className="chip">Maslow {maslow.level}</span>

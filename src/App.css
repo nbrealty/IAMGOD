@@ -195,10 +195,21 @@
   color: #f4e6c1;
 }
 .panel-occ {
-  margin: 0 0 14px 0;
+  margin: 0 0 6px 0;
   font-size: 12.5px;
   color: #b7a67f;
   font-style: italic;
+}
+.panel-faction {
+  margin: 0 0 14px 0;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: #c98a6a;
+  display: inline-block;
+  padding: 2px 9px;
+  border: 1px solid #6a4230;
+  border-radius: 20px;
+  background: #221512;
 }
 .stat-row {
   display: flex;
