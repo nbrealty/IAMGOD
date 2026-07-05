@@ -699,17 +699,37 @@ export class HollywoodRenderer {
       const targetH = 84; // bigger, Gaia-style — shows the sprite detail
       const w = targetH * (sprite.naturalWidth / sprite.naturalHeight);
       const flip = s.soul.id === this.controlledId ? this.facingLeft : s.dir < 0;
+      const top = y - targetH + 12;
       const prev = ctx.imageSmoothingEnabled;
       ctx.imageSmoothingEnabled = true; // smooth downscale — these are painted, not pixel art
       ctx.imageSmoothingQuality = "high";
-      ctx.save();
-      if (flip) {
-        ctx.translate(s.x, 0);
-        ctx.scale(-1, 1);
-        ctx.translate(-s.x, 0);
+
+      const drawAt = (cx: number, alpha: number) => {
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        if (flip) {
+          ctx.translate(cx, 0);
+          ctx.scale(-1, 1);
+          ctx.translate(-cx, 0);
+        }
+        ctx.drawImage(sprite, cx - w / 2, top, w, targetH);
+        ctx.restore();
+      };
+
+      // Gaia-style feet/leg blur: while moving, trail translucent ghost copies of the
+      // lower body behind the direction of travel, clipped to the feet + lower legs.
+      if (s.moving) {
+        const moveSign = s.soul.id === this.controlledId ? (this.facingLeft ? -1 : 1) : s.dir;
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(s.x - w, y + 12 - targetH * 0.42, w * 2, targetH * 0.46);
+        ctx.clip();
+        drawAt(s.x - moveSign * 3, 0.22);
+        drawAt(s.x - moveSign * 6, 0.1);
+        ctx.restore();
       }
-      ctx.drawImage(sprite, s.x - w / 2, y - targetH + 12, w, targetH);
-      ctx.restore();
+
+      drawAt(s.x, 1);
       ctx.imageSmoothingEnabled = prev;
       return;
     }
