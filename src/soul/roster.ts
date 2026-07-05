@@ -507,4 +507,39 @@ export const ROSTER: Soul[] = [
     xMax: 1150,
     baseSpeed: 20,
   }),
+
+  // Kiki Torres — "The Founder". Second of the 5-person friend crew. Grounded in
+  // the real, documented pattern of very young bootstrap streetwear founders who
+  // self-fund, self-model, and hustle their own line into existence with no
+  // outside capital (sources in conversation). "citylittles" is HER brand, not
+  // just something she wears — the Gucci belt is the one real designer piece she
+  // let herself buy as proof it's working. Her Throat runs hot (she's the loud,
+  // public-facing one); her Heart lags well behind it — the audience she built
+  // isn't the same as being truly known.
+  soul({
+    id: "kiki",
+    name: "Kiki Torres",
+    occupation: "Founder & Model, \"citylittles\" Streetwear",
+    archetype: "The Founder (Self-Made Streetwear Brand)",
+    age: 22,
+    narrative:
+      "She started citylittles with a heat press in her bedroom and a duffel bag full of pieces she hand-pressed herself — no investor, no team, just her modeling every drop because she couldn't afford a photographer. Left the Bay for Hollywood chasing a bigger audience for it. Online she's all confidence; she hasn't told anyone how close the whole thing came to folding last month.",
+    needs: { survival: 42, safety: 40, belonging: 38, esteem: 58, actualization: 44 },
+    traits: traits({ negativeAffectivity: 52, detachment: 40, antagonism: 42, disinhibition: 28, psychoticism: 12 }),
+    aceScore: 3,
+    resilience: 76,
+    kohlberg: 4,
+    soulAge: "Young",
+    initiationLevel: 1,
+    chakras: chakras([40, 32, 54, 42, 64, 44, 14]),
+    consciousAspiration:
+      "Blow citylittles up into a real empire — prove the Bay didn't lose its best one when I left",
+    soulPurpose:
+      "Let herself be known for more than the brand she built to be seen at all — real connection, not just an audience",
+    affinities: { hustle: 1.5, perform: 1.5, work: 1.3, socialize: 1.1, gaze: 1.0, rest: 1.0 },
+    row: "north",
+    xMin: 1000,
+    xMax: 1200,
+    baseSpeed: 17,
+  }),
 ];
