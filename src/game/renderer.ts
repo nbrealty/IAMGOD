@@ -89,6 +89,7 @@ export class HollywoodRenderer {
   private controlledId: string | null = null;
   private held = new Set<string>();
   private facingLeft = false;
+  private facingUp = false; // moving away from camera → show the back sprite
 
   private sprites = new Map<string, HTMLImageElement | null>();
   private tapHandler: ((cssX: number, cssY: number) => void) | null = null;
@@ -165,6 +166,9 @@ export class HollywoodRenderer {
             pc.y = Math.max(PLAYER_Y_MIN, Math.min(PLAYER_Y_MAX, pc.y));
             if (vx < 0) this.facingLeft = true;
             else if (vx > 0) this.facingLeft = false;
+            // vertical dominates → face toward/away camera (front/back sprite)
+            if (vy !== 0 && Math.abs(vy) >= Math.abs(vx)) this.facingUp = vy < 0;
+            else if (vx !== 0) this.facingUp = false;
             pc.dir = vx < 0 ? -1 : 1;
           }
           this.followCam(pc.x, pc.y);
@@ -694,7 +698,12 @@ export class HollywoodRenderer {
       ctx.stroke();
     }
 
-    const sprite = this.getSprite(s.soul.id);
+    let sprite = this.getSprite(s.soul.id);
+    // player facing away from the camera → use the back sprite if one exists
+    if (s.soul.id === this.controlledId && this.facingUp) {
+      const back = this.getSprite(`${s.soul.id}_back`);
+      if (back && back.complete && back.naturalWidth > 0) sprite = back;
+    }
     if (sprite && sprite.complete && sprite.naturalWidth > 0) {
       const targetH = 84; // bigger, Gaia-style — shows the sprite detail
       const w = targetH * (sprite.naturalWidth / sprite.naturalHeight);
