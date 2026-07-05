@@ -407,4 +407,35 @@ export const ROSTER: Soul[] = [
     xMax: 1560,
     baseSpeed: 20,
   }),
+
+  // Rosangela "Roxy" Valente — Brazilian-American sidewalk survivor and Hidden
+  // Protector. Flagged as a future side-quest anchor ("Hollywood Doesn't Sleep").
+  // Her circumstance is survival-tier but her SOUL runs high: fearless Throat (she
+  // calls out every fake guru on the block), strong Solar Plexus (will), and a Heart
+  // kept open for the girls too new to see danger smiling at them. Charm is tactical —
+  // armor, not need. She placed near Bailey on purpose: she's watching over her.
+  soul({
+    id: "roxy_valente",
+    name: 'Rosangela "Roxy" Valente',
+    occupation: "Street Worker · Hollywood Blvd",
+    archetype: "Streetwise Brazilian Survivor",
+    age: 46,
+    narrative:
+      "Tourists see attitude, curves, and sunglasses. The girls who are too new to know better see the one person on this block who'll step between them and a smiling predator. Rio to Newark to here — she survived worse than anything Hollywood can bring. Eu sobrevivi coisa pior.",
+    needs: { survival: 46, safety: 48, belonging: 58, esteem: 56, actualization: 58 },
+    traits: traits({ antagonism: 50, disinhibition: 42, negativeAffectivity: 38, detachment: 30, psychoticism: 15 }),
+    aceScore: 7,
+    resilience: 88,
+    kohlberg: 5,
+    soulAge: "Old",
+    initiationLevel: 4,
+    chakras: chakras([48, 42, 66, 62, 70, 58, 38]),
+    consciousAspiration: "Keep my corner, stay three steps ahead, make it through another night",
+    soulPurpose: "Be the protector she never had — stand between the new girls and the danger that's smiling at them",
+    affinities: { hustle: 1.4, socialize: 1.4, gaze: 1.2, work: 1.1, rest: 1.0 },
+    row: "south",
+    xMin: 720,
+    xMax: 1000,
+    baseSpeed: 13,
+  }),
 ];
