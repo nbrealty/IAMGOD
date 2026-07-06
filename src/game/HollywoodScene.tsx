@@ -2,13 +2,21 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } f
 import { HollywoodRenderer } from "./renderer";
 import type { SoulEngine } from "../soul/engine";
 import { SoulProfilePanel } from "../components/SoulProfilePanel";
+import { ROSTER } from "../soul/roster";
 
-// The characters the player can step into. `id: null` is Observer Mode — free
-// pan/zoom, nobody driven. Add an entry here to make another soul playable.
+// A short chip label: the quoted nickname if the soul has one, else the first name.
+function chipLabel(name: string): string {
+  const m = name.match(/["“”]([^"“”]+)["“”]/);
+  if (m) return m[1].split("/")[0].trim();
+  return name.split(/\s+/)[0];
+}
+
+// Every soul is playable — step into any of them. `id: null` is Observer Mode (free
+// pan/zoom, nobody driven), pinned first. Built from the live roster so new souls appear
+// automatically.
 export const PLAYABLE_CHARACTERS: { id: string | null; label: string }[] = [
-  { id: "lori", label: "Lori" },
-  { id: "roxy_valente", label: "Roxy" },
   { id: null, label: "Observe" },
+  ...ROSTER.map((s) => ({ id: s.id, label: chipLabel(s.name) })),
 ];
 
 interface Props {

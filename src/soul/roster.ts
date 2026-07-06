@@ -657,6 +657,59 @@ const RAW: Soul[] = [
     xMax: 1450,
     baseSpeed: 15,
   }),
+
+  // --- New playable characters (front+back sprites in public/spirits/). Full arcs come
+  // later from the user; these profiles are plausible placeholders so the panels render.
+  // NOTE: "Bella Cruz" is Nathaniel's SURNAME, not a separate character; "Sorriso" (smile)
+  // and "DEZ" (the playmaker's #10) are his two nicknames.
+  soul({
+    id: "nathaniel",
+    name: 'Nathaniel "Sorriso / DEZ" Bella Cruz',
+    occupation: "Brazilian Transplant · Working the Block",
+    archetype: "The Newcomer (charismatic hustler)",
+    age: 23,
+    narrative:
+      "Fresh off the plane from Brazil with a duffel, a killer smile, and a number-ten's swagger. They call him Sorriso for the grin that opens every door and DEZ for the way he reads a room like a pitch. He's chasing something on this Boulevard he can't quite name yet — his story is still being written.",
+    needs: { survival: 44, safety: 48, belonging: 58, esteem: 52, actualization: 62 },
+    traits: traits({ negativeAffectivity: 30, detachment: 18, antagonism: 24, disinhibition: 46, psychoticism: 14 }),
+    aceScore: 3,
+    resilience: 78,
+    kohlberg: 4,
+    soulAge: "Young",
+    initiationLevel: 2,
+    chakras: chakras([56, 52, 58, 60, 62, 50, 22]),
+    consciousAspiration: "Make it here — turn the smile into something real and lasting",
+    soulPurpose: "Learn that being truly known beats being universally liked",
+    affinities: { socialize: 1.5, perform: 1.3, hustle: 1.3, gaze: 1.1, work: 1.1, rest: 1.0 },
+    row: "north",
+    xMin: 330,
+    xMax: 420,
+    baseSpeed: 24,
+  }),
+  soul({
+    id: "elizabeth",
+    name: "Elizabeth Taylor",
+    occupation: "Detective",
+    archetype: "The Investigator",
+    age: 34,
+    narrative:
+      "Badge on her belt, sidearm on her hip, and a read on people most of the Boulevard never sees coming. She works the cases nobody else will touch and trusts almost no one — a discipline that keeps her sharp and keeps her lonely. Her full story is still to come.",
+    needs: { survival: 62, safety: 54, belonging: 38, esteem: 60, actualization: 56 },
+    traits: traits({ negativeAffectivity: 40, detachment: 52, antagonism: 38, disinhibition: 16, psychoticism: 14 }),
+    aceScore: 4,
+    resilience: 80,
+    kohlberg: 5,
+    soulAge: "Mature",
+    initiationLevel: 3,
+    chakras: chakras([58, 60, 44, 66, 62, 56, 30]),
+    consciousAspiration: "Close the case that's haunted her — get the truth, no matter the cost",
+    soulPurpose: "Let someone past the guard, and learn that justice without mercy is only control",
+    affinities: { work: 1.6, gaze: 1.4, hustle: 1.2, socialize: 1.0, rest: 1.0 },
+    row: "south",
+    xMin: 360,
+    xMax: 450,
+    baseSpeed: 18,
+  }),
 ];
 
 // The cast was authored for the old 1600-wide single boulevard. Phase 2b opened the

@@ -195,14 +195,33 @@
   color: #1a1206;
 }
 
-/* ---------- character switcher (play a soul, or observe freely) ---------- */
+/* ---------- character switcher (play a soul, or observe freely) ----------
+   The full roster is ~24 souls, so the strip scrolls horizontally instead of
+   overflowing. "Observe" is pinned to the left so it's always reachable. */
 .char-switcher {
   position: absolute;
   top: 10px;
+  left: 10px;
   right: 10px;
   display: flex;
   gap: 6px;
   z-index: 5;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 2px 6px;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(201, 150, 44, 0.5) transparent;
+  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 26px), transparent 100%);
+  mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 26px), transparent 100%);
+}
+.char-switcher::-webkit-scrollbar {
+  height: 5px;
+}
+.char-switcher::-webkit-scrollbar-thumb {
+  background: rgba(201, 150, 44, 0.5);
+  border-radius: 3px;
 }
 .char-chip {
   font-size: 11.5px;
@@ -213,6 +232,15 @@
   color: #cbb98f;
   cursor: pointer;
   white-space: nowrap;
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+}
+/* Pin "Observe" (always the first chip) to the left edge while scrolling. */
+.char-chip:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  box-shadow: 8px 0 10px -6px rgba(6, 5, 4, 0.9);
 }
 .char-chip.active {
   background: #c9962c;
