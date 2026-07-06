@@ -1,22 +1,25 @@
-# Buildings — drop-in facade art
+# Buildings — facade art (placed)
 
-Generated building facades for the Hollywood & Highland square. Drop the raw
-generated images straight in here — **backgrounds are fine** (white /
-checkerboard / transparent all work); I key + crop them the same way I do the
-character sprites, then place each at its correct in-game scale.
+Keyed + cropped building facades for the Hollywood & Highland square. **All 14
+landmarks below are done and live in the scene** — background removed, cropped
+tight, downscaled/optimized, and composited in their fixed slots at
+character-height (CH) scale (see `src/game/sceneData.ts`). Each renders via the
+`sprite` hook on its slot; the renderer loads `/buildings/<stem>.png`.
+
+The raw phone uploads (UUID-named originals + the 2 filler sheets) were removed
+from this folder to keep the deploy lean — they live in git history at commit
+`3916f37` and can be pulled back for re-keying or slicing.
 
 See [`docs/BUILDING_PROMPTS.md`](../../docs/BUILDING_PROMPTS.md) for the prompts,
-style, perspective, and the character-height (CH) scale each was drawn to.
+style, perspective, and the CH scale each was drawn to.
 
-## How to add them
+## To drop in a NEW / replacement facade
 
-Put your phone's `building` folder contents here (`public/buildings/`). Easiest
-path if you're on your phone: rename them to the filenames below so I can map
-each one automatically. If renaming 15 files is a pain, just dump them with
-whatever names — I can recognize each landmark and rename them when I wire them
-in; only cost is you telling me "these are all of them."
+Save it as `<stem>.png` from the map below (or any name — I can recognize the
+landmark and rename it). White, black, or transparent backgrounds all work; I
+key + crop + downscale it and it appears in its slot with no code change.
 
-## Filename map (fictional name → file → real basis · size)
+## Filename map (fictional name → file → real basis · size) — ✅ all placed
 
 | Save as | Building | Based on | Size |
 |---|---|---|---|
