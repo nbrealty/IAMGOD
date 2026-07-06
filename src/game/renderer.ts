@@ -88,6 +88,13 @@ function smoothstep(e0: number, e1: number, x: number): number {
   const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0)));
   return t * t * (3 - 2 * t);
 }
+// Deterministic 0..1 hash of an integer cell (x,y) — the ground layer's stand-in for
+// randomness (mirrors the integer-mod hashing genRow uses; never Math.random).
+function groundHash(x: number, y: number): number {
+  let h = (Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263)) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
 
 // Ambient overlay colour+alpha by minute-of-day (0–1439). The scene is tinted TOWARD this
 // colour: cold blue at night, warm amber at golden hours, near-neutral at midday.
@@ -473,9 +480,8 @@ export class HollywoodRenderer {
     const s = this.dpr * this.cam.zoom;
     ctx.setTransform(s, 0, 0, s, -this.cam.x * s, -this.cam.y * s);
 
-    // ground (no sky)
-    ctx.fillStyle = "#241f18";
-    ctx.fillRect(0, 0, WORLD_W, WORLD_H);
+    // ground plane (no sky): base tone, texture mottle, and residential yards
+    this.drawGround();
 
     for (const b of BACKDROP_BUILDINGS) this.drawBuilding(b);
     this.drawFrontages(NORTH_FRONTAGES);
@@ -485,6 +491,9 @@ export class HollywoodRenderer {
     this.drawFrontages(SOUTH_FRONTAGES);
     for (const b of RESIDENTIAL_BUILDINGS) this.drawBuilding(b);
     this.drawFrontages(RES_FRONTAGES);
+    // concrete aprons at storefront feet + terrazzo plazas at landmarks (over the
+    // sidewalks, in front of the now-laid-out N/S rows, beneath the NPCs)
+    this.drawGroundDetail();
     for (const npc of this.npcs) this.drawNPC(npc, t);
 
     // day/night ambient grade — the whole city takes on a time of day
@@ -696,6 +705,89 @@ export class HollywoodRenderer {
       ctx.ellipse(x, y, 20, 9, 0, 0, Math.PI * 2);
       ctx.fill();
       this.drawStar(x, y, 8, 3.6, "#e9c96b");
+    }
+  }
+
+  // The ground plane, drawn first behind everything. A base tone, a zoom-gated mottle so the
+  // land between buildings has texture instead of a flat void, and a grass/dirt yard under
+  // each house of the residential back-street. All viewport-culled, all deterministic.
+  private drawGround() {
+    const ctx = this.ctx;
+    const vx = this.cam.x;
+    const vy = this.cam.y;
+    const vw = this.cssW / this.cam.zoom;
+    const vh = this.cssH / this.cam.zoom;
+    const vR = vx + vw;
+    const vB = vy + vh;
+
+    ctx.fillStyle = "#241f18";
+    ctx.fillRect(vx, vy, vw, vh);
+
+    // coarse mottle — only worth drawing (and paying for) when zoomed in enough to read it
+    if (this.cam.zoom > 0.5) {
+      const CELL = 92;
+      const x0 = Math.floor(vx / CELL) * CELL;
+      const y0 = Math.floor(vy / CELL) * CELL;
+      ctx.globalAlpha = 0.5;
+      for (let gx = x0; gx < vR; gx += CELL) {
+        for (let gy = y0; gy < vB; gy += CELL) {
+          const d = Math.round((groundHash(gx, gy) - 0.5) * 20);
+          ctx.fillStyle = shade("#241f18", d);
+          ctx.fillRect(gx, gy, CELL, CELL);
+        }
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // residential yards: a grass-or-dirt lot per house (drawn behind the house art, which
+    // grows up from BACK_Y and lands on top). layoutFrontage first so x/width are current.
+    const yardTop = SOUTH_SIDEWALK_BOTTOM + 4;
+    for (const f of RES_FRONTAGES) {
+      layoutFrontage(f, this.aspectOf);
+      const half = f.gap / 2;
+      for (const b of f.buildings) {
+        const bx = b.x ?? 0;
+        const bw = b.width ?? 0;
+        const lx = bx - half;
+        const lw = bw + f.gap;
+        if (lx + lw < vx - 40 || lx > vR + 40) continue;
+        const grass = groundHash(Math.round(lx), 917) > 0.34;
+        const base = grass ? "#3b4a2e" : "#38301f";
+        ctx.fillStyle = base;
+        ctx.fillRect(lx, yardTop, lw, WORLD_H - yardTop);
+        // a mown/path seam down the middle of the lot for a touch of variation
+        ctx.fillStyle = shade(base, grass ? -8 : 9);
+        ctx.fillRect(bx + bw * 0.5 - 9, yardTop, 18, WORLD_H - yardTop);
+      }
+    }
+  }
+
+  // Concrete aprons at every storefront's foot, and richer terrazzo plazas at the landmarks.
+  // Painted onto the boulevard sidewalks after the N/S rows are laid out, in front of (not
+  // over) the buildings and beneath the NPCs. Viewport-culled; landmark speckle deterministic.
+  private drawGroundDetail() {
+    const ctx = this.ctx;
+    const vx = this.cam.x;
+    const vR = vx + this.cssW / this.cam.zoom;
+    for (const f of [...NORTH_FRONTAGES, ...SOUTH_FRONTAGES]) {
+      const walkTop = f.side === "north" ? NORTH_SIDEWALK_TOP : SOUTH_SIDEWALK_TOP;
+      for (const b of f.buildings) {
+        const bx = b.x ?? 0;
+        const bw = b.width ?? 0;
+        if (bx + bw < vx - 40 || bx > vR + 40 || bw <= 0) continue;
+        const landmark = !!b.marquee;
+        ctx.fillStyle = landmark ? "#b6a877" : "#8b857a";
+        ctx.fillRect(bx + 6, walkTop + 1, bw - 12, 13);
+        if (landmark) {
+          // terrazzo flecks scattered across the plaza pad (fixed count, hashed positions)
+          for (let i = 0; i < 16; i++) {
+            const px = bx + 10 + groundHash(Math.round(bx) + i * 7, i) * (bw - 20);
+            const py = walkTop + 2 + groundHash(i, Math.round(bx) + i * 5) * 10;
+            ctx.fillStyle = i % 3 === 0 ? "#d9c583" : "#9a8f6a";
+            ctx.fillRect(px, py, 3, 3);
+          }
+        }
+      }
     }
   }
 
