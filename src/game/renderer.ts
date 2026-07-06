@@ -480,10 +480,13 @@ export class HollywoodRenderer {
     ctx.fillStyle = "#efe4bd";
     ctx.font = "bold 26px sans-serif";
     ctx.textAlign = "left";
-    ctx.fillText("HOLLYWOOD BLVD", 220, ROAD_TOP + (ROAD_BOTTOM - ROAD_TOP) / 2 + 9);
-    ctx.fillText("HOLLYWOOD BLVD", 2500, ROAD_TOP + (ROAD_BOTTOM - ROAD_TOP) / 2 + 9);
+    const blvdY = ROAD_TOP + (ROAD_BOTTOM - ROAD_TOP) / 2 + 9;
+    for (let lx = 300; lx < WORLD_W; lx += 1700) {
+      if (lx > HIGHLAND_LEFT - 260 && lx < HIGHLAND_RIGHT + 40) continue; // skip the intersection
+      ctx.fillText("HOLLYWOOD BLVD", lx, blvdY);
+    }
     ctx.save();
-    ctx.translate((HIGHLAND_LEFT + HIGHLAND_RIGHT) / 2 + 9, 1560);
+    ctx.translate((HIGHLAND_LEFT + HIGHLAND_RIGHT) / 2 + 9, 1720);
     ctx.rotate(Math.PI / 2);
     ctx.fillText("HIGHLAND AVE", 0, 0);
     ctx.restore();
