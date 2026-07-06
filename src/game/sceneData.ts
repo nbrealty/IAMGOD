@@ -49,12 +49,15 @@ export const WORLD_H = 2200;
 export const ROAD_TOP = 1060;
 export const ROAD_BOTTOM = 1240;
 export const NORTH_SIDEWALK_TOP = 1000; // north blvd sidewalk: [1000, ROAD_TOP]
-export const SOUTH_SIDEWALK_TOP = ROAD_BOTTOM;
-export const SOUTH_SIDEWALK_BOTTOM = 1300; // south blvd sidewalk: [ROAD_BOTTOM, 1300]
-// Every building's BASE sits on its sidewalk's curb line and grows up. Far (north) row on
-// the north curb; near (south) row on the south curb — the outer edge of each sidewalk.
+// The near (south) sidewalk is the FOREGROUND walkway the near row's bases sit on. It's
+// placed below the near buildings' full height so they grow UP from it toward the road but
+// their roofs stop at the asphalt — base ON the sidewalk line, never IN the road.
+export const SOUTH_SIDEWALK_TOP = 1790;
+export const SOUTH_SIDEWALK_BOTTOM = 1850;
+// Every building's BASE sits on its sidewalk line and grows UP. Far (north) row from the
+// north sidewalk; near (south) row from the foreground south sidewalk.
 export const NORTH_BASELINE = NORTH_SIDEWALK_TOP; // far row: base ON the north sidewalk (1000)
-export const SOUTH_BASELINE = SOUTH_SIDEWALK_BOTTOM; // near row: base ON the south curb line (1300)
+export const SOUTH_BASELINE = SOUTH_SIDEWALK_TOP; // near row: base ON the south sidewalk (1790)
 
 // ---- Highland Ave (vertical cross street, full height) ----
 // Road band widened to 180u to match the boulevard; sidewalk outer edges unchanged so the
@@ -64,17 +67,19 @@ export const HIGHLAND_LEFT = 1407; // road band
 export const HIGHLAND_RIGHT = 1587;
 export const HIGHLAND_SIDEWALK_RIGHT = 1627;
 
-// ---- walkability: walk anywhere in the street "+" corridor, not into a quadrant ----
+// ---- walkability: the north sidewalk+road band and the foreground south sidewalk, joined
+// by the full-height Highland corridor (the near buildings sit in the gap between them). ----
 export function canWalk(x: number, y: number): boolean {
   if (x < 20 || x > WORLD_W - 20 || y < 20 || y > WORLD_H - 20) return false;
-  const onBlvd = y >= NORTH_SIDEWALK_TOP && y <= SOUTH_SIDEWALK_BOTTOM;
+  const onNorthBand = y >= NORTH_SIDEWALK_TOP && y <= ROAD_BOTTOM;
+  const onSouthWalk = y >= SOUTH_SIDEWALK_TOP && y <= SOUTH_SIDEWALK_BOTTOM;
   const onHighland = x >= HIGHLAND_SIDEWALK_LEFT && x <= HIGHLAND_SIDEWALK_RIGHT;
-  return onBlvd || onHighland;
+  return onNorthBand || onSouthWalk || onHighland;
 }
 
 // Frontage sidewalk lines the cast stands/patrols on.
 export const NORTH_FRONTAGE_Y = NORTH_SIDEWALK_TOP + 28; // 1028
-export const SOUTH_FRONTAGE_Y = ROAD_BOTTOM + 28; // 1208
+export const SOUTH_FRONTAGE_Y = SOUTH_SIDEWALK_TOP + 28; // 1818 — foreground walk at the near bases
 
 // ============================================================================
 // REAL-ESTATE LAYOUT — buildings are authored as ordered LOTS on a frontage, and
