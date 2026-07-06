@@ -19,6 +19,11 @@ Save it as `<stem>.png` from the map below (or any name — I can recognize the
 landmark and rename it). White, black, or transparent backgrounds all work; I
 key + crop + downscale it and it appears in its slot with no code change.
 
+> ⚠️ **Pre-launch TODO — `madame-rousseau.png`:** the wax-museum banners currently
+> show recognizable real-celebrity / trademarked-character likenesses (kept as-is
+> for the dev build because the blurred version looked bad). **Replace this asset
+> with a copyright-safe generation before any App Store / public release.**
+
 ## Filename map (fictional name → file → real basis · size) — ✅ all placed
 
 | Save as | Building | Based on | Size |
