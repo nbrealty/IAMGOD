@@ -605,9 +605,9 @@ export class HollywoodRenderer {
     const sideColor = shade(facadeColor, -42);
     const x = b.x;
 
-    // Far row grows UP from feet on baseY; near row hangs DOWN from its top on baseY.
+    // Base sits on the ground line (baseY) and the facade grows UP.
     const baseY = b.baseY ?? (side === "north" ? NORTH_BASELINE : SOUTH_BASELINE);
-    const dir = (b.growUp ?? (side === "north")) ? -1 : 1;
+    const dir = (b.growUp ?? true) ? -1 : 1;
     const facadeTopY = baseY + dir * height;
     const topEdge = Math.min(baseY, facadeTopY);
 
@@ -709,10 +709,9 @@ export class HollywoodRenderer {
     const H = (b.ch ?? (b.height ?? 90) / 84) * 84;
     const w = H * (img.naturalWidth / img.naturalHeight);
     const cx = b.x + (b.width ?? 120) / 2;
-    // Far row (growUp): feet on baseY, grows up. Near row: street-front (top) on baseY,
-    // hangs down. So both rows meet their sidewalk line at baseY.
+    // A building's BASE sits on its ground line (baseY = the sidewalk) and it grows UP.
     const baseY = b.baseY ?? (side === "north" ? NORTH_BASELINE : SOUTH_BASELINE);
-    const growUp = b.growUp ?? (side === "north");
+    const growUp = b.growUp ?? true;
     const top = growUp ? baseY - H : baseY;
     const prev = ctx.imageSmoothingEnabled;
     ctx.imageSmoothingEnabled = true;
