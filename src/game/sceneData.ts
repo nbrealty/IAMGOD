@@ -34,6 +34,10 @@ export interface Building {
   ch?: number; // building height in character-heights (1 CH = 84 units)
   sprite?: string; // public/buildings/<sprite>.png facade art
   aspect?: number; // nominal w/h of the art (fallback until the image loads; live aspect wins)
+  // How the facade meets its ground line at baseY. true = feet ON the line, grows UP
+  // (far/north row + the residential houses). false = street-front (top) ON the line,
+  // hangs DOWN into the foreground (near/south row — the mirror). Defaults by side.
+  growUp?: boolean;
 }
 
 // The whole block. Bigger than any phone viewport → the camera pans/zooms within it.
@@ -46,12 +50,11 @@ export const ROAD_BOTTOM = 1180;
 export const NORTH_SIDEWALK_TOP = 1000; // north blvd sidewalk: [1000, ROAD_TOP]
 export const SOUTH_SIDEWALK_TOP = ROAD_BOTTOM;
 export const SOUTH_SIDEWALK_BOTTOM = 1240; // south blvd sidewalk: [ROAD_BOTTOM, 1240]
-// Every building sits its FEET on a ground line and grows UP (bottom-aligned, like any
-// real street) — so a row's entrances align on one line and only the rooflines vary.
-export const NORTH_BASELINE = NORTH_SIDEWALK_TOP; // far row: feet at the north sidewalk (1000)
-// Near row: feet on a ground line in the foreground, below the south sidewalk. Set so the
-// tallest near facade's roof reaches up to the sidewalk and shorter ones leave a plaza.
-export const SOUTH_BASELINE = 1786; // near-row FEET line (bottom-aligned)
+// The two facing rows connect to their sidewalks like any real street: the FAR (north) row
+// sits its feet on the north sidewalk and grows up; the NEAR (south) row hangs its street-
+// front (top) from the south sidewalk down into the foreground. Both meet one clean line.
+export const NORTH_BASELINE = NORTH_SIDEWALK_TOP; // far row: feet ON the north sidewalk (1000)
+export const SOUTH_BASELINE = SOUTH_SIDEWALK_BOTTOM; // near row: street-front ON the south sidewalk (1240)
 
 // ---- Highland Ave (vertical cross street, full height) ----
 export const HIGHLAND_SIDEWALK_LEFT = 1367;
@@ -155,8 +158,8 @@ function lot(sprite: string, ch: number, aspect: number, label: string, marquee:
   return { x: 0, ch, aspect, side, sprite, label, marquee, marqueeColor };
 }
 // A plain filler lot (shop / apartment / parking): art + scale + aspect only.
-function fill(sprite: string, ch: number, aspect: number, side: "north" | "south", baseY?: number): Building {
-  return { x: 0, ch, aspect, side, sprite, baseY };
+function fill(sprite: string, ch: number, aspect: number, side: "north" | "south", baseY?: number, growUp?: boolean): Building {
+  return { x: 0, ch, aspect, side, sprite, baseY, growUp };
 }
 
 // ---- North side of Hollywood Blvd (the hero row, facades grow UP toward the sky) ----
@@ -212,21 +215,21 @@ export const RES_FRONTAGES: Frontage[] = [
   {
     key: "res-west", x0: WEST_X0, x1: WEST_X1, side: "south", baseY: BACK_Y, align: "toward", gap: -10,
     buildings: [
-      fill("apt-palm-court", 3.2, 1.733, "south", BACK_Y),
-      fill("apt-sunset-arms", 3.2, 1.872, "south", BACK_Y),
-      fill("parking-a", 1.7, 5.741, "south", BACK_Y),
+      fill("apt-palm-court", 3.2, 1.733, "south", BACK_Y, true),
+      fill("apt-sunset-arms", 3.2, 1.872, "south", BACK_Y, true),
+      fill("parking-a", 1.7, 5.741, "south", BACK_Y, true),
     ],
   },
   {
     key: "res-east", x0: EAST_X0, x1: EAST_X1, side: "south", baseY: BACK_Y, align: "toward", gap: -10,
     buildings: [
-      fill("apt-el-camino", 3.2, 1.603, "south", BACK_Y),
-      fill("apt-corner-slice", 3.2, 1.4, "south", BACK_Y),
-      fill("apt-vine-terrace", 3.2, 1.445, "south", BACK_Y),
-      fill("parking-b", 1.7, 5.041, "south", BACK_Y),
-      fill("apt-el-camino-2", 3.2, 1.359, "south", BACK_Y),
-      fill("apt-palm-court", 3.2, 1.733, "south", BACK_Y),
-      fill("apt-sunset-arms", 3.2, 1.872, "south", BACK_Y),
+      fill("apt-el-camino", 3.2, 1.603, "south", BACK_Y, true),
+      fill("apt-corner-slice", 3.2, 1.4, "south", BACK_Y, true),
+      fill("apt-vine-terrace", 3.2, 1.445, "south", BACK_Y, true),
+      fill("parking-b", 1.7, 5.041, "south", BACK_Y, true),
+      fill("apt-el-camino-2", 3.2, 1.359, "south", BACK_Y, true),
+      fill("apt-palm-court", 3.2, 1.733, "south", BACK_Y, true),
+      fill("apt-sunset-arms", 3.2, 1.872, "south", BACK_Y, true),
     ],
   },
 ];
@@ -251,6 +254,7 @@ interface RowOpts {
   palette: string[];
   gapBase: number;
   gapVar: number;
+  growUp?: boolean;
 }
 
 function genRow(o: RowOpts): Building[] {
@@ -269,6 +273,7 @@ function genRow(o: RowOpts): Building[] {
         baseY: o.baseY,
         facadeColor: o.palette[(i + o.baseY) % o.palette.length],
         dim: o.dim,
+        growUp: o.growUp,
       });
     }
     x += w + o.gapBase + ((i * 23) % o.gapVar);
@@ -290,5 +295,5 @@ export const BACKDROP_BUILDINGS: Building[] = [
 // residential row now, so the procedural blocks are retired (they only peeked around the
 // keyed apartments as boxy halos). One very dim, distant row is kept far behind for depth.
 export const RESIDENTIAL_BUILDINGS: Building[] = [
-  ...genRow({ baseY: 2000, side: "south", count: 52, startX: -20, minW: 84, varW: 60, minH: 60, varH: 48, dim: 0.5, palette: RESI_PALETTE, gapBase: 18, gapVar: 28 }),
+  ...genRow({ baseY: 2000, side: "south", count: 52, startX: -20, minW: 84, varW: 60, minH: 60, varH: 48, dim: 0.5, palette: RESI_PALETTE, gapBase: 18, gapVar: 28, growUp: true }),
 ];
