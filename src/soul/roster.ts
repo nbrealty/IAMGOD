@@ -38,7 +38,7 @@ function soul(seed: Seed): Soul {
   };
 }
 
-export const ROSTER: Soul[] = [
+const RAW: Soul[] = [
   soul({
     id: "danny",
     name: "Danny Rios",
@@ -658,3 +658,36 @@ export const ROSTER: Soul[] = [
     baseSpeed: 15,
   }),
 ];
+
+// The cast was authored for the old 1600-wide single boulevard. Phase 2b opened the
+// world into a wider square (Hollywood Blvd + Highland Ave), so respread each soul's
+// x-range across the new width and pin them to a frontage sidewalk line (patrolY).
+// A few are then relocated onto Highland Ave's sidewalks so the new N/S corridor is
+// populated too — the player walking up/down Highland actually meets someone.
+// (Values hardcoded rather than imported to keep the soul layer independent of scene
+// geometry; they mirror the constants in src/game/sceneData.ts.)
+const XSCALE = 3400 / 1600;
+const NORTH_FRONTAGE_Y = 908;
+const SOUTH_FRONTAGE_Y = 1088;
+const HIGHLAND_W_SIDEWALK_X = 1405; // west sidewalk of Highland Ave
+const HIGHLAND_E_SIDEWALK_X = 1600; // east sidewalk
+
+// souls posted along Highland Ave (fixed x on a sidewalk, standing at a given y)
+const HIGHLAND_POSTS: Record<string, { x: number; y: number }> = {
+  ruben: { x: HIGHLAND_E_SIDEWALK_X, y: 760 }, // up Highland, north of the blvd
+  javi: { x: HIGHLAND_W_SIDEWALK_X, y: 560 }, // further up
+  hector: { x: HIGHLAND_E_SIDEWALK_X, y: 1360 }, // down Highland, south of the blvd
+};
+
+export const ROSTER: Soul[] = RAW.map((s) => {
+  const post = HIGHLAND_POSTS[s.id];
+  if (post) {
+    return { ...s, xMin: post.x, xMax: post.x, patrolY: post.y };
+  }
+  return {
+    ...s,
+    xMin: Math.round(s.xMin * XSCALE),
+    xMax: Math.round(s.xMax * XSCALE),
+    patrolY: s.row === "north" ? NORTH_FRONTAGE_Y : SOUTH_FRONTAGE_Y,
+  };
+});

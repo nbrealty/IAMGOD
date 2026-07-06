@@ -16,6 +16,11 @@ import {
   SOUTH_BASELINE,
   HIGHLAND_LEFT,
   HIGHLAND_RIGHT,
+  HIGHLAND_SIDEWALK_LEFT,
+  HIGHLAND_SIDEWALK_RIGHT,
+  NORTH_FRONTAGE_Y,
+  SOUTH_FRONTAGE_Y,
+  canWalk,
   NORTH_BUILDINGS,
   SOUTH_BUILDINGS,
   BACKDROP_BUILDINGS,
@@ -45,10 +50,10 @@ interface CarRuntime {
 const NORTH_SIDEWALK_BOTTOM = ROAD_TOP;
 const TAP_THRESHOLD = 7; // css px of movement below which a pointer-up counts as a tap
 
-// Player-controlled character tuning
+// Player-controlled character tuning. Movement is now bounded by the street "+" corridor
+// (see canWalk in sceneData) rather than a fixed y-band, so the player can walk the full
+// boulevard AND up/down Highland Ave and turn the corner at the intersection.
 const PLAYER_SPEED = 130; // world units / sec, independent of the sim time-speed
-const PLAYER_Y_MIN = 660; // walkable band: sidewalks + road
-const PLAYER_Y_MAX = 900;
 
 function clamp255(v: number): number {
   return Math.max(0, Math.min(255, v));
@@ -112,7 +117,7 @@ export class HollywoodRenderer {
       soul,
       x: soul.xMin + Math.random() * (soul.xMax - soul.xMin),
       dir: Math.random() > 0.5 ? 1 : -1,
-      y: soul.row === "north" ? NORTH_SIDEWALK_TOP + 20 : SOUTH_SIDEWALK_TOP + 20,
+      y: soul.patrolY ?? (soul.row === "north" ? NORTH_FRONTAGE_Y : SOUTH_FRONTAGE_Y),
       moving: false,
     }));
 
@@ -160,10 +165,18 @@ export class HollywoodRenderer {
           pc.moving = vx !== 0 || vy !== 0;
           if (vx || vy) {
             const m = Math.hypot(vx, vy) || 1;
-            pc.x += (vx / m) * PLAYER_SPEED * dt;
-            pc.y += (vy / m) * PLAYER_SPEED * dt;
-            pc.x = Math.max(40, Math.min(WORLD_W - 40, pc.x));
-            pc.y = Math.max(PLAYER_Y_MIN, Math.min(PLAYER_Y_MAX, pc.y));
+            const dx = (vx / m) * PLAYER_SPEED * dt;
+            const dy = (vy / m) * PLAYER_SPEED * dt;
+            // Move axis-independently against the street "+" corridor: try the full
+            // step, else slide along the wall on whichever axis stays walkable — so you
+            // hug the sidewalk and can turn the corner at the intersection.
+            if (canWalk(pc.x + dx, pc.y + dy)) {
+              pc.x += dx;
+              pc.y += dy;
+            } else {
+              if (canWalk(pc.x + dx, pc.y)) pc.x += dx;
+              if (canWalk(pc.x, pc.y + dy)) pc.y += dy;
+            }
             if (vx < 0) this.facingLeft = true;
             else if (vx > 0) this.facingLeft = false;
             // vertical dominates → face toward/away camera (front/back sprite)
@@ -210,8 +223,8 @@ export class HollywoodRenderer {
       const pc = this.controlledId
         ? this.npcs.find((n) => n.soul.id === this.controlledId)
         : null;
-      const cx = pc ? pc.x : WORLD_W * 0.34;
-      const cy = pc ? pc.y : 660;
+      const cx = pc ? pc.x : (HIGHLAND_LEFT + HIGHLAND_RIGHT) / 2;
+      const cy = pc ? pc.y : (ROAD_TOP + ROAD_BOTTOM) / 2;
       this.cam.x = cx - cssW / this.cam.zoom / 2;
       this.cam.y = cy - cssH / this.cam.zoom / 2;
       this.centered = true;
@@ -406,12 +419,9 @@ export class HollywoodRenderer {
     ctx.fillRect(0, 0, WORLD_W, WORLD_H);
 
     for (const b of BACKDROP_BUILDINGS) this.drawBuilding(b);
-    for (const b of NORTH_BUILDINGS) {
-      if (b.special === "tcl") this.drawTCL(b.x);
-      else this.drawBuilding(b);
-    }
-    this.drawRoad();
+    for (const b of NORTH_BUILDINGS) this.drawBuilding(b);
     this.drawSidewalks();
+    this.drawRoad();
     this.drawCars();
     for (const b of SOUTH_BUILDINGS) this.drawBuilding(b);
     for (const b of RESIDENTIAL_BUILDINGS) this.drawBuilding(b);
@@ -468,11 +478,12 @@ export class HollywoodRenderer {
     }
 
     ctx.fillStyle = "#efe4bd";
-    ctx.font = "bold 13px sans-serif";
+    ctx.font = "bold 26px sans-serif";
     ctx.textAlign = "left";
-    ctx.fillText("HOLLYWOOD BLVD", 30, ROAD_TOP + (ROAD_BOTTOM - ROAD_TOP) / 2 + 5);
+    ctx.fillText("HOLLYWOOD BLVD", 220, ROAD_TOP + (ROAD_BOTTOM - ROAD_TOP) / 2 + 9);
+    ctx.fillText("HOLLYWOOD BLVD", 2500, ROAD_TOP + (ROAD_BOTTOM - ROAD_TOP) / 2 + 9);
     ctx.save();
-    ctx.translate((HIGHLAND_LEFT + HIGHLAND_RIGHT) / 2 + 5, 980);
+    ctx.translate((HIGHLAND_LEFT + HIGHLAND_RIGHT) / 2 + 9, 1560);
     ctx.rotate(Math.PI / 2);
     ctx.fillText("HIGHLAND AVE", 0, 0);
     ctx.restore();
@@ -512,8 +523,13 @@ export class HollywoodRenderer {
   private drawSidewalks() {
     const ctx = this.ctx;
     ctx.fillStyle = "#9a9488";
+    // Hollywood Blvd sidewalks (full width)
     ctx.fillRect(0, NORTH_SIDEWALK_TOP, WORLD_W, NORTH_SIDEWALK_BOTTOM - NORTH_SIDEWALK_TOP);
     ctx.fillRect(0, SOUTH_SIDEWALK_TOP, WORLD_W, SOUTH_SIDEWALK_BOTTOM - SOUTH_SIDEWALK_TOP);
+    // Highland Ave sidewalks (full height, flanking the road) — the new N/S walkway
+    ctx.fillRect(HIGHLAND_SIDEWALK_LEFT, 0, HIGHLAND_LEFT - HIGHLAND_SIDEWALK_LEFT, WORLD_H);
+    ctx.fillRect(HIGHLAND_RIGHT, 0, HIGHLAND_SIDEWALK_RIGHT - HIGHLAND_RIGHT, WORLD_H);
+
     ctx.strokeStyle = "#847e70";
     ctx.lineWidth = 1;
     for (let x = 0; x < WORLD_W; x += 40) {
@@ -526,12 +542,31 @@ export class HollywoodRenderer {
       ctx.lineTo(x, SOUTH_SIDEWALK_BOTTOM);
       ctx.stroke();
     }
+    // seams across the Highland sidewalks
+    for (let y = 0; y < WORLD_H; y += 40) {
+      ctx.beginPath();
+      ctx.moveTo(HIGHLAND_SIDEWALK_LEFT, y);
+      ctx.lineTo(HIGHLAND_LEFT, y);
+      ctx.moveTo(HIGHLAND_RIGHT, y);
+      ctx.lineTo(HIGHLAND_SIDEWALK_RIGHT, y);
+      ctx.stroke();
+    }
     this.drawWalkOfFame(NORTH_SIDEWALK_TOP + 20);
     this.drawWalkOfFame(SOUTH_SIDEWALK_TOP + 20);
   }
 
   private drawBuilding(b: Building) {
     const ctx = this.ctx;
+
+    // Real facade art, when present, replaces the code-drawn placeholder.
+    if (b.sprite) {
+      const img = this.getBuildingSprite(b.sprite);
+      if (img && img.complete && img.naturalWidth > 0) {
+        this.drawBuildingSprite(b, img);
+        return;
+      }
+    }
+
     const width = b.width ?? 120;
     const height = b.height ?? 90;
     const side = b.side ?? "north";
@@ -599,64 +634,6 @@ export class HollywoodRenderer {
     }
   }
 
-  private drawTCL(x: number) {
-    const ctx = this.ctx;
-    const width = 260;
-    const baseY = NORTH_BASELINE;
-    const facadeH = 130;
-    const topFacade = baseY - facadeH;
-
-    ctx.fillStyle = "#7a1f1f";
-    ctx.fillRect(x, topFacade, width, facadeH);
-    ctx.fillStyle = "#2d1a12";
-    ctx.fillRect(x + width * 0.32, baseY - 74, width * 0.36, 74);
-
-    ctx.fillStyle = "#9c2a2a";
-    ctx.fillRect(x + width * 0.22, topFacade - 6, 14, 90);
-    ctx.fillRect(x + width * 0.78 - 14, topFacade - 6, 14, 90);
-
-    const tiers = [
-      { y: topFacade - 6, w: width + 30, h: 16 },
-      { y: topFacade - 34, w: width - 10, h: 16 },
-      { y: topFacade - 62, w: width - 60, h: 16 },
-      { y: topFacade - 88, w: width - 110, h: 14 },
-    ];
-    for (const tier of tiers) {
-      const tx = x + (width - tier.w) / 2;
-      ctx.fillStyle = "#1f5c47";
-      ctx.beginPath();
-      ctx.moveTo(tx, tier.y + tier.h);
-      ctx.lineTo(tx + tier.w, tier.y + tier.h);
-      ctx.lineTo(tx + tier.w - 20, tier.y);
-      ctx.lineTo(tx + 20, tier.y);
-      ctx.closePath();
-      ctx.fill();
-      ctx.fillStyle = "#c99a3f";
-      ctx.fillRect(tx - 6, tier.y + tier.h - 4, 10, 4);
-      ctx.fillRect(tx + tier.w - 4, tier.y + tier.h - 4, 10, 4);
-    }
-
-    ctx.fillStyle = "#c9a34a";
-    ctx.beginPath();
-    ctx.arc(x + width / 2, baseY + 34, 30, Math.PI, 0);
-    ctx.closePath();
-    ctx.fill();
-    ctx.fillStyle = "#5a86c9";
-    ctx.beginPath();
-    ctx.ellipse(x + width / 2, baseY + 30, 16, 8, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = "#111";
-    ctx.font = "bold 12px sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText("CHINESE", x + width / 2, topFacade + 40);
-    ctx.fillText("THEATRE", x + width / 2, topFacade + 56);
-
-    ctx.fillStyle = "#f3ecd8";
-    ctx.font = "bold 13px sans-serif";
-    ctx.fillText("TCL CHINESE THEATRE", x + width / 2, baseY - 6);
-  }
-
   private drawCars() {
     const ctx = this.ctx;
     const colors = ["#b23b3b", "#3b5fb2", "#c9c9c9", "#e0a733"];
@@ -680,6 +657,37 @@ export class HollywoodRenderer {
     img.src = `/spirits/${id}.png`;
     this.sprites.set(id, img);
     return img;
+  }
+
+  // Same drop-in idea for building facades: /buildings/<stem>.png. Cached in the same
+  // map under a "b:" prefix. Returns null once it 404s (→ code-drawn placeholder). The
+  // art chunk sets each slot's `sprite` and the real facade appears in place.
+  private getBuildingSprite(stem: string): HTMLImageElement | null {
+    const key = `b:${stem}`;
+    const cached = this.sprites.get(key);
+    if (cached !== undefined) return cached;
+    const img = new Image();
+    img.onerror = () => this.sprites.set(key, null);
+    img.src = `/buildings/${stem}.png`;
+    this.sprites.set(key, img);
+    return img;
+  }
+
+  // Composite a facade image at its character-height scale, feet-anchored to the
+  // building's baseline and horizontally centered on its slot.
+  private drawBuildingSprite(b: Building, img: HTMLImageElement) {
+    const ctx = this.ctx;
+    const side = b.side ?? "north";
+    const H = (b.ch ?? (b.height ?? 90) / 84) * 84;
+    const w = H * (img.naturalWidth / img.naturalHeight);
+    const cx = b.x + (b.width ?? 120) / 2;
+    const baseY = b.baseY ?? (side === "north" ? NORTH_BASELINE : SOUTH_BASELINE);
+    const top = side === "north" ? baseY - H : baseY;
+    const prev = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(img, cx - w / 2, top, w, H);
+    ctx.imageSmoothingEnabled = prev;
   }
 
   private drawNPC(s: NpcRuntime, t: number) {

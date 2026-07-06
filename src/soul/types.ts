@@ -125,4 +125,9 @@ export interface Soul {
   xMin: number;
   xMax: number;
   baseSpeed: number;
+  // Phase 2b: the square opened up N/S. `patrolY` pins a soul to an explicit frontage
+  // line (a sidewalk y) instead of the row-derived boulevard sidewalk — lets the cast
+  // spread across the new frontages (e.g. standing on a Highland Ave sidewalk) rather
+  // than only the two boulevard sidewalks. Falls back to the row logic when unset.
+  patrolY?: number;
 }
