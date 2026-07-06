@@ -10,6 +10,9 @@ export default function App() {
   const engineRef = useRef<SoulEngine | null>(null);
   if (!engineRef.current) engineRef.current = new SoulEngine(ROSTER);
   const engine = engineRef.current;
+  // Debug handle: lets dev tooling drive the sim clock (e.g. set the time to preview
+  // lighting). Harmless read/write access to the running engine.
+  (globalThis as unknown as { __engine?: SoulEngine }).__engine = engine;
 
   const [speed, setSpeed] = useState(engine.speed);
   function changeSpeed(s: number) {

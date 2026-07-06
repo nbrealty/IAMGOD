@@ -77,6 +77,61 @@ function hexAlpha(hex: string, alpha: number): string {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
+// ---- day/night lighting ----
+interface RGBA { r: number; g: number; b: number; a: number }
+
+function lerp(a: number, b: number, f: number): number {
+  return a + (b - a) * f;
+}
+function smoothstep(e0: number, e1: number, x: number): number {
+  const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0)));
+  return t * t * (3 - 2 * t);
+}
+
+// Ambient overlay colour+alpha by minute-of-day (0–1439). The scene is tinted TOWARD this
+// colour: cold blue at night, warm amber at golden hours, near-neutral at midday.
+const AMBIENT_KEYS: { m: number; c: RGBA }[] = [
+  { m: 0, c: { r: 18, g: 22, b: 48, a: 0.62 } }, // deep night
+  { m: 300, c: { r: 20, g: 24, b: 50, a: 0.6 } }, // 05:00 still night
+  { m: 372, c: { r: 74, g: 52, b: 66, a: 0.4 } }, // 06:12 dawn
+  { m: 432, c: { r: 255, g: 178, b: 108, a: 0.17 } }, // 07:12 golden AM
+  { m: 780, c: { r: 255, g: 244, b: 224, a: 0.04 } }, // 13:00 midday, near-neutral
+  { m: 1080, c: { r: 255, g: 202, b: 128, a: 0.13 } }, // 18:00 afternoon warmth
+  { m: 1140, c: { r: 255, g: 150, b: 70, a: 0.2 } }, // 19:00 golden dusk
+  { m: 1218, c: { r: 70, g: 46, b: 74, a: 0.42 } }, // 20:18 dusk→night
+  { m: 1260, c: { r: 30, g: 26, b: 60, a: 0.5 } }, // 21:00 blue night
+  { m: 1440, c: { r: 18, g: 22, b: 48, a: 0.62 } }, // wrap
+];
+function ambientAt(minutes: number): RGBA {
+  const m = ((minutes % 1440) + 1440) % 1440;
+  let a = AMBIENT_KEYS[0];
+  let b = AMBIENT_KEYS[AMBIENT_KEYS.length - 1];
+  for (let i = 0; i < AMBIENT_KEYS.length - 1; i++) {
+    if (m >= AMBIENT_KEYS[i].m && m <= AMBIENT_KEYS[i + 1].m) {
+      a = AMBIENT_KEYS[i];
+      b = AMBIENT_KEYS[i + 1];
+      break;
+    }
+  }
+  const f = b.m === a.m ? 0 : (m - a.m) / (b.m - a.m);
+  return {
+    r: lerp(a.c.r, b.c.r, f),
+    g: lerp(a.c.g, b.c.g, f),
+    b: lerp(a.c.b, b.c.b, f),
+    a: lerp(a.c.a, b.c.a, f),
+  };
+}
+// 0 by day → 1 at night (drives the multiply switch + every night light's alpha). Lights
+// ramp on at dusk (18:30→20:00) and off at dawn (05:00→06:30).
+function nightAt(minutes: number): number {
+  const m = ((minutes % 1440) + 1440) % 1440;
+  if (m < 300) return 1; // 00:00–05:00 full night
+  if (m < 390) return 1 - smoothstep(300, 390, m); // dawn
+  if (m < 1110) return 0; // day
+  if (m < 1200) return smoothstep(1110, 1200, m); // dusk
+  return 1; // 20:00–24:00 full night
+}
+
 export class HollywoodRenderer {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
@@ -431,11 +486,31 @@ export class HollywoodRenderer {
     this.drawFrontages(RES_FRONTAGES);
     for (const npc of this.npcs) this.drawNPC(npc, t);
 
-    const tint = ctx.createLinearGradient(0, 0, 0, WORLD_H);
-    tint.addColorStop(0, "rgba(255, 214, 140, 0.05)");
-    tint.addColorStop(1, "rgba(255, 170, 90, 0.08)");
-    ctx.fillStyle = tint;
-    ctx.fillRect(0, 0, WORLD_W, WORLD_H);
+    // day/night ambient grade — the whole city takes on a time of day
+    this.drawAmbientGrade();
+  }
+
+  // Tint the whole visible frame toward the current time-of-day ambient colour. Warm/low-
+  // alpha washes by day use source-over (coloured light); the dark cool night tint uses
+  // multiply so it darkens without a milky flatten. Only fills the visible world rect.
+  private drawAmbientGrade() {
+    const ctx = this.ctx;
+    const amb = ambientAt(this.engine.clockMinutes);
+    if (amb.a <= 0.001) return;
+    const night = nightAt(this.engine.clockMinutes);
+    const vx = this.cam.x;
+    const vy = this.cam.y;
+    const vw = this.cssW / this.cam.zoom;
+    const vh = this.cssH / this.cam.zoom;
+    const r = amb.r | 0, g = amb.g | 0, b = amb.b | 0;
+    const grad = ctx.createLinearGradient(0, vy, 0, vy + vh);
+    grad.addColorStop(0, `rgba(${r},${g},${b},${amb.a})`);
+    grad.addColorStop(1, `rgba(${clamp255(r - 8)},${clamp255(g - 6)},${clamp255(b + 3)},${amb.a})`);
+    ctx.save();
+    ctx.globalCompositeOperation = night > 0.15 ? "multiply" : "source-over";
+    ctx.fillStyle = grad;
+    ctx.fillRect(vx, vy, vw, vh);
+    ctx.restore();
   }
 
   private drawRoad() {
