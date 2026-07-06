@@ -169,16 +169,29 @@ const LANDMARKS: Record<string, LmSpec> = {
   "meridian-hotel": { ch: 10, aspect: 0.304, label: "MERIDIAN", marquee: "HOTEL", mc: "#d8a24a" },
 };
 
-// storefront fillers cycled through to pad each Blvd block face
+// storefront fillers cycled through to pad each Blvd block face — the named fake
+// businesses break up the repetition; the two generic slices add width variety.
 const SHOP_FILL: [string, number, number][] = [
+  ["shop-salon", 3.8, 0.867],
   ["shop-slice", 2.6, 1.72],
+  ["shop-boutique", 3.8, 0.803],
+  ["shop-cameras", 3.8, 0.797],
   ["shop-cage", 2.6, 1.631],
+  ["shop-tacos", 3.8, 0.815],
+  ["shop-records", 3.8, 0.885],
+  ["shop-tattoo", 3.8, 0.814],
 ];
-// apartment fillers for the residential back-street
+// a mid-rise apartment tower — only used on north faces (grows up from the north sidewalk
+// with headroom; on the south row it would poke into the road).
+const TOWER_FILL: [string, number, number] = ["apt-tower", 9, 0.361];
+// residential back-street mix (short houses + apartments; no tower — it would overlap the
+// near row's ground line).
 const APT_FILL: [string, number, number][] = [
+  ["house-casa", 2.9, 1.631],
   ["apt-el-camino", 3.2, 1.603],
   ["apt-corner-slice", 3.2, 1.4],
   ["apt-vine-terrace", 3.2, 1.445],
+  ["house-casa", 2.9, 1.631],
   ["apt-el-camino-2", 3.2, 1.359],
   ["apt-palm-court", 3.2, 1.733],
   ["apt-sunset-arms", 3.2, 1.872],
@@ -223,9 +236,10 @@ function buildFace(i: number, side: "north" | "south", lmKeys: string[]): Fronta
     const s = LANDMARKS[k];
     push(lot(k, s.ch, s.aspect, s.label, s.marquee, s.mc, side), s.ch * 84 * s.aspect);
   }
+  const fills = side === "north" ? [...SHOP_FILL, TOWER_FILL] : SHOP_FILL;
   let fi = i; // vary the starting filler per block
   while (used < target - 260) {
-    const [sp, ch, asp] = SHOP_FILL[fi % SHOP_FILL.length];
+    const [sp, ch, asp] = fills[fi % fills.length];
     fi++;
     push(fill(sp, ch, asp, side), ch * 84 * asp);
   }
