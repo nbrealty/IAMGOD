@@ -71,10 +71,13 @@ export const SOUTH_FRONTAGE_Y = ROAD_BOTTOM + 28; // 1208
 // REAL-ESTATE LAYOUT — buildings are authored as ordered LOTS on a frontage, and
 // their on-screen x/width are computed at draw time by layoutFrontage(). Nothing is
 // hand-placed: a frontage is a strip of buildable land between two cross-streets, and
-// its buildings are packed left→right and JUSTIFIED so they sit shoulder-to-shoulder
-// with even gaps, edge to edge. Each building's rendered width = ch·84·aspect where
-// aspect is the live image ratio (or the nominal `aspect` fallback below). Regenerate
-// any facade at a new shape and the whole street re-flows tidy — zero manual math.
+// its buildings are PACKED shoulder-to-shoulder (a thin, even slightly negative seam) so
+// the row reads as one continuous condensed wall — never scattered with dead lots between
+// them. The leftover land is pushed to the OUTER edge (align "toward"), hugging the row
+// against the Highland intersection so the block's heart is dense and the empty space
+// falls off-screen. Each building's rendered width = ch·84·aspect where aspect is the live
+// image ratio (or the nominal `aspect` fallback). Regenerate any facade at a new shape and
+// the whole street re-packs itself tidy — zero manual coordinate math.
 // ============================================================================
 
 export interface Frontage {
@@ -83,8 +86,11 @@ export interface Frontage {
   x1: number; // east edge of buildable land
   side: "north" | "south";
   baseY?: number; // overrides the side's default baseline (used by the back-street row)
-  align?: "justify" | "center" | "left"; // justify = fill edge-to-edge with even gaps
-  minGap: number; // floor on the gap between neighbours (units)
+  // Buildings always pack shoulder-to-shoulder; align only decides where the LEFTOVER
+  // land goes. "toward" hugs the row against the Highland intersection (dense heart, empty
+  // land pushed off-screen to the outer edge); "center" splits it; "left" pins to x0.
+  align?: "toward" | "center" | "left";
+  gap: number; // seam between neighbours — small (or negative) so facades read as one wall
   buildings: Building[]; // ordered west→east; x + width are assigned by layoutFrontage
 }
 
@@ -101,18 +107,28 @@ export function layoutFrontage(f: Frontage, aspectOf: (b: Building) => number): 
   const ws = f.buildings.map((b) => buildingWidth(b, aspectOf(b)));
   const total = ws.reduce((a, c) => a + c, 0);
   const span = f.x1 - f.x0;
-  const align = f.align ?? "justify";
+  const align = f.align ?? "center";
 
-  let gap: number;
+  // Buildings sit shoulder-to-shoulder separated only by `gap` (a thin/negative seam) so
+  // the row reads as one continuous wall. If the run is too wide for the strip, the seam
+  // shrinks until it fits rather than overflowing.
+  let gap = f.gap;
+  const usedAt = (g: number) => total + g * (n - 1);
+  if (usedAt(gap) > span && n > 1) gap = (span - total) / (n - 1);
+  const usedFinal = usedAt(gap);
+
+  // Where the leftover land goes. "toward" hugs the Highland intersection: east strips
+  // (x0 just east of Highland) pin to x0; west strips (x1 just west of Highland) pin the
+  // row's right edge to x1. We detect the side by which bound sits nearer Highland center.
   let x: number;
-  if (align === "justify") {
-    gap = (span - total) / (n + 1); // n+1 gaps: one at each end + between each pair
-    if (gap < f.minGap) gap = f.minGap; // overflow → pack tight rather than overlap
-    x = f.x0 + gap;
+  if (align === "toward") {
+    const highlandCenter = (HIGHLAND_SIDEWALK_LEFT + HIGHLAND_SIDEWALK_RIGHT) / 2;
+    const westStrip = Math.abs(f.x1 - highlandCenter) < Math.abs(f.x0 - highlandCenter);
+    x = westStrip ? f.x1 - usedFinal : f.x0;
+  } else if (align === "left") {
+    x = f.x0;
   } else {
-    gap = f.minGap;
-    const used = total + gap * (n - 1);
-    x = align === "center" ? f.x0 + (span - used) / 2 : f.x0;
+    x = f.x0 + (span - usedFinal) / 2;
   }
 
   for (let i = 0; i < n; i++) {
@@ -142,14 +158,14 @@ function fill(sprite: string, ch: number, aspect: number, side: "north" | "south
 // ---- North side of Hollywood Blvd (the hero row, facades grow UP toward the sky) ----
 export const NORTH_FRONTAGES: Frontage[] = [
   {
-    key: "n-west", x0: WEST_X0, x1: WEST_X1, side: "north", minGap: 40,
+    key: "n-west", x0: WEST_X0, x1: WEST_X1, side: "north", align: "toward", gap: -18,
     buildings: [
       lot("madame-rousseau", 5, 0.918, "MADAME ROUSSEAU'S", "WAX MUSEUM", "#c9962c", "north"),
       lot("jade-pagoda", 7, 1.159, "JADE PAGODA", "THEATRE", "#c9a34a", "north"),
     ],
   },
   {
-    key: "n-east", x0: EAST_X0, x1: EAST_X1, side: "north", minGap: 40,
+    key: "n-east", x0: EAST_X0, x1: EAST_X1, side: "north", align: "toward", gap: -18,
     buildings: [
       lot("overture-hollywood", 6, 2.004, "OVERTURE HOLLYWOOD", "SHOPS · DINE", "#c9962c", "north"),
       lot("vantage-theatre", 6, 0.979, "VANTAGE", "THEATRE", "#c9a34a", "north"),
@@ -163,7 +179,7 @@ export const NORTH_FRONTAGES: Frontage[] = [
 // ---- South side of Hollywood Blvd (near row, facades grow DOWN toward the camera) ----
 export const SOUTH_FRONTAGES: Frontage[] = [
   {
-    key: "s-west", x0: WEST_X0, x1: WEST_X1, side: "south", minGap: 40,
+    key: "s-west", x0: WEST_X0, x1: WEST_X1, side: "south", align: "toward", gap: -18,
     buildings: [
       lot("sovereign-hotel", 7, 0.728, "SOVEREIGN", "HOTEL", "#d8b25a", "south"),
       fill("shop-slice", 2.6, 1.72, "south"),
@@ -171,7 +187,7 @@ export const SOUTH_FRONTAGES: Frontage[] = [
     ],
   },
   {
-    key: "s-east", x0: EAST_X0, x1: EAST_X1, side: "south", minGap: 40,
+    key: "s-east", x0: EAST_X0, x1: EAST_X1, side: "south", align: "toward", gap: -18,
     buildings: [
       lot("wonderland-theatre", 6.5, 0.832, "WONDERLAND", "THEATRE", "#e0b23a", "south"),
       lot("glamour-archive", 5, 0.891, "GLAMOUR ARCHIVE", "MUSEUM", "#d8b25a", "south"),
@@ -189,7 +205,7 @@ export const SOUTH_FRONTAGES: Frontage[] = [
 const BACK_Y = 1860;
 export const RES_FRONTAGES: Frontage[] = [
   {
-    key: "res-west", x0: WEST_X0, x1: WEST_X1, side: "south", baseY: BACK_Y, minGap: 30,
+    key: "res-west", x0: WEST_X0, x1: WEST_X1, side: "south", baseY: BACK_Y, align: "toward", gap: -10,
     buildings: [
       fill("apt-palm-court", 3.2, 1.733, "south", BACK_Y),
       fill("apt-sunset-arms", 3.2, 1.872, "south", BACK_Y),
@@ -197,7 +213,7 @@ export const RES_FRONTAGES: Frontage[] = [
     ],
   },
   {
-    key: "res-east", x0: EAST_X0, x1: EAST_X1, side: "south", baseY: BACK_Y, minGap: 30,
+    key: "res-east", x0: EAST_X0, x1: EAST_X1, side: "south", baseY: BACK_Y, align: "toward", gap: -10,
     buildings: [
       fill("apt-el-camino", 3.2, 1.603, "south", BACK_Y),
       fill("apt-corner-slice", 3.2, 1.4, "south", BACK_Y),
