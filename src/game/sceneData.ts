@@ -46,8 +46,12 @@ export const ROAD_BOTTOM = 1180;
 export const NORTH_SIDEWALK_TOP = 1000; // north blvd sidewalk: [1000, ROAD_TOP]
 export const SOUTH_SIDEWALK_TOP = ROAD_BOTTOM;
 export const SOUTH_SIDEWALK_BOTTOM = 1240; // south blvd sidewalk: [ROAD_BOTTOM, 1240]
-export const NORTH_BASELINE = NORTH_SIDEWALK_TOP; // north storefronts grow upward from here
-export const SOUTH_BASELINE = SOUTH_SIDEWALK_BOTTOM; // south storefronts grow downward from here
+// Every building sits its FEET on a ground line and grows UP (bottom-aligned, like any
+// real street) — so a row's entrances align on one line and only the rooflines vary.
+export const NORTH_BASELINE = NORTH_SIDEWALK_TOP; // far row: feet at the north sidewalk (1000)
+// Near row: feet on a ground line in the foreground, below the south sidewalk. Set so the
+// tallest near facade's roof reaches up to the sidewalk and shorter ones leave a plaza.
+export const SOUTH_BASELINE = 1786; // near-row FEET line (bottom-aligned)
 
 // ---- Highland Ave (vertical cross street, full height) ----
 export const HIGHLAND_SIDEWALK_LEFT = 1367;
@@ -202,7 +206,8 @@ export const SOUTH_FRONTAGES: Frontage[] = [
 ];
 
 // ---- Residential back-street below the boulevard (apartments + parking, sliced art) ----
-const BACK_Y = 1860;
+// Feet on a ground line behind (below) the near row, so the apartments bottom-align too.
+const BACK_Y = 2140;
 export const RES_FRONTAGES: Frontage[] = [
   {
     key: "res-west", x0: WEST_X0, x1: WEST_X1, side: "south", baseY: BACK_Y, align: "toward", gap: -10,
@@ -285,5 +290,5 @@ export const BACKDROP_BUILDINGS: Building[] = [
 // residential row now, so the procedural blocks are retired (they only peeked around the
 // keyed apartments as boxy halos). One very dim, distant row is kept far behind for depth.
 export const RESIDENTIAL_BUILDINGS: Building[] = [
-  ...genRow({ baseY: 2140, side: "south", count: 52, startX: -20, minW: 84, varW: 60, minH: 60, varH: 48, dim: 0.5, palette: RESI_PALETTE, gapBase: 18, gapVar: 28 }),
+  ...genRow({ baseY: 2000, side: "south", count: 52, startX: -20, minW: 84, varW: 60, minH: 60, varH: 48, dim: 0.5, palette: RESI_PALETTE, gapBase: 18, gapVar: 28 }),
 ];

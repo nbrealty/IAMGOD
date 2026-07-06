@@ -605,8 +605,9 @@ export class HollywoodRenderer {
     const sideColor = shade(facadeColor, -42);
     const x = b.x;
 
+    // Every building's feet sit on baseY and it grows UP (bottom-aligned, both rows).
     const baseY = b.baseY ?? (side === "north" ? NORTH_BASELINE : SOUTH_BASELINE);
-    const dir = side === "north" ? -1 : 1;
+    const dir = -1;
     const facadeTopY = baseY + dir * height;
 
     ctx.fillStyle = sideColor;
@@ -636,14 +637,14 @@ export class HollywoodRenderer {
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
         const wx = x + 12 + (c * (width - 24)) / cols;
-        const wy = (side === "north" ? facadeTopY + 14 : baseY + 14) + r * 30;
+        const wy = facadeTopY + 14 + r * 30;
         ctx.fillRect(wx, wy, 16, 18);
       }
     }
 
     if (b.marquee) {
       ctx.fillStyle = b.marqueeColor ?? "#e64444";
-      const my = side === "north" ? facadeTopY + 6 : baseY - 24;
+      const my = facadeTopY + 6;
       ctx.fillRect(x + 6, my, width - 12, 22);
       ctx.fillStyle = "#fff8e2";
       ctx.font = "bold 11px sans-serif";
@@ -655,7 +656,7 @@ export class HollywoodRenderer {
       ctx.fillStyle = "#f3ecd8";
       ctx.font = "bold 12px sans-serif";
       ctx.textAlign = "center";
-      const labelY = side === "north" ? baseY - 6 : baseY + 14;
+      const labelY = baseY - 6;
       ctx.fillText(b.label, x + width / 2, labelY);
     }
   }
@@ -707,8 +708,9 @@ export class HollywoodRenderer {
     const H = (b.ch ?? (b.height ?? 90) / 84) * 84;
     const w = H * (img.naturalWidth / img.naturalHeight);
     const cx = b.x + (b.width ?? 120) / 2;
+    // Feet on baseY, facade grows UP — both rows bottom-aligned on their ground line.
     const baseY = b.baseY ?? (side === "north" ? NORTH_BASELINE : SOUTH_BASELINE);
-    const top = side === "north" ? baseY - H : baseY;
+    const top = baseY - H;
     const prev = ctx.imageSmoothingEnabled;
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
