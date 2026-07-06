@@ -89,6 +89,30 @@ export const SOUTH_BUILDINGS: Building[] = [
   { x: 4028, width: 234, height: 294, ch: 3.5, side: "south", facadeColor: "#5a6a3a", roofColor: "#3f4a28", label: "THE REEL PAGE", marquee: "BOOKS", marqueeColor: "#e0b23a", sprite: "reel-page-bookshop" },
 ];
 
+// ---- ordinary storefronts / apartments (sliced from the filler sheets) ----
+// A residential back-street row below the boulevard, plus shops dropped into the two big
+// boulevard lots (SW between Sovereign and Highland, SE east of Reel Page). Same Building
+// shape → renders through drawBuilding/drawBuildingSprite like the landmarks.
+export const FILLER_BUILDINGS: Building[] = [
+  // residential back-street row below the boulevard
+  { x: 40, width: 342, height: 269, ch: 3.2, side: "south", sprite: "apt-palm-court", baseY: 1860 },
+  { x: 442, width: 351, height: 269, ch: 3.2, side: "south", sprite: "apt-sunset-arms", baseY: 1860 },
+  { x: 853, width: 784, height: 143, ch: 1.7, side: "south", sprite: "parking-a", baseY: 1860 },
+  { x: 1697, width: 326, height: 269, ch: 3.2, side: "south", sprite: "apt-el-camino", baseY: 1860 },
+  { x: 2083, width: 412, height: 269, ch: 3.2, side: "south", sprite: "apt-corner-slice", baseY: 1860 },
+  { x: 2555, width: 413, height: 269, ch: 3.2, side: "south", sprite: "apt-vine-terrace", baseY: 1860 },
+  { x: 3028, width: 784, height: 143, ch: 1.7, side: "south", sprite: "parking-b", baseY: 1860 },
+  { x: 3872, width: 392, height: 269, ch: 3.2, side: "south", sprite: "apt-el-camino-2", baseY: 1860 },
+  { x: 4324, width: 342, height: 269, ch: 3.2, side: "south", sprite: "apt-palm-court", baseY: 1860 },
+  { x: 4726, width: 351, height: 269, ch: 3.2, side: "south", sprite: "apt-sunset-arms", baseY: 1860 },
+  // SW boulevard lot (between Sovereign and Highland)
+  { x: 600, width: 324, height: 218, ch: 2.6, side: "south", sprite: "shop-slice" },
+  { x: 984, width: 334, height: 218, ch: 2.6, side: "south", sprite: "shop-cage" },
+  // SE boulevard lot (east of Reel Page)
+  { x: 4320, width: 334, height: 218, ch: 2.6, side: "south", sprite: "shop-cage" },
+  { x: 4714, width: 324, height: 218, ch: 2.6, side: "south", sprite: "shop-slice" },
+];
+
 // ---- procedural backdrop + residential rows (deterministic, no randomness) ----
 
 interface RowOpts {
@@ -139,8 +163,9 @@ export const BACKDROP_BUILDINGS: Building[] = [
   ...genRow({ baseY: 520, side: "north", count: 46, startX: -30, minW: 100, varW: 90, minH: 150, varH: 100, dim: 0.72, palette: BACKDROP_PALETTE, gapBase: 12, gapVar: 26 }),
 ];
 
-// Residential band below the south frontage.
+// Residential band: the sliced apartment sprites in FILLER_BUILDINGS are the real
+// residential row now, so the procedural blocks are retired (they only peeked around the
+// keyed apartments as boxy halos). One very dim, distant row is kept far behind for depth.
 export const RESIDENTIAL_BUILDINGS: Building[] = [
-  ...genRow({ baseY: 1960, side: "south", count: 48, startX: -40, minW: 100, varW: 70, minH: 100, varH: 70, dim: 0.85, palette: RESI_PALETTE, gapBase: 16, gapVar: 30 }),
-  ...genRow({ baseY: 2090, side: "south", count: 52, startX: -20, minW: 84, varW: 60, minH: 64, varH: 52, dim: 0.68, palette: RESI_PALETTE, gapBase: 18, gapVar: 28 }),
+  ...genRow({ baseY: 2140, side: "south", count: 52, startX: -20, minW: 84, varW: 60, minH: 60, varH: 48, dim: 0.5, palette: RESI_PALETTE, gapBase: 18, gapVar: 28 }),
 ];

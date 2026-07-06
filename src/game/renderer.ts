@@ -23,6 +23,7 @@ import {
   canWalk,
   NORTH_BUILDINGS,
   SOUTH_BUILDINGS,
+  FILLER_BUILDINGS,
   BACKDROP_BUILDINGS,
   RESIDENTIAL_BUILDINGS,
   type Building,
@@ -425,6 +426,7 @@ export class HollywoodRenderer {
     this.drawCars();
     for (const b of SOUTH_BUILDINGS) this.drawBuilding(b);
     for (const b of RESIDENTIAL_BUILDINGS) this.drawBuilding(b);
+    for (const b of FILLER_BUILDINGS) this.drawBuilding(b);
     for (const npc of this.npcs) this.drawNPC(npc, t);
 
     const tint = ctx.createLinearGradient(0, 0, 0, WORLD_H);
