@@ -666,13 +666,13 @@ const RAW: Soul[] = [
 // populated too — the player walking up/down Highland actually meets someone.
 // (Values hardcoded rather than imported to keep the soul layer independent of scene
 // geometry; they mirror the constants in src/game/sceneData.ts.)
-// The cast's x was authored for a 1600-wide strip; spread them across the whole 14000-wide
+// The cast's x was authored for a 1600-wide strip; spread them across the whole 17200-wide
 // district so the player meets someone on every block.
-const XSCALE = 14000 / 1600;
+const XSCALE = 17200 / 1600;
 const NORTH_FRONTAGE_Y = 1028;
 const SOUTH_FRONTAGE_Y = 1818;
-const HIGHLAND_W_SIDEWALK_X = 4470; // west sidewalk of Highland Ave (cross street x≈4550)
-const HIGHLAND_E_SIDEWALK_X = 4630; // east sidewalk
+const HIGHLAND_W_SIDEWALK_X = 3580; // west sidewalk of Highland Ave (cross street x≈3700)
+const HIGHLAND_E_SIDEWALK_X = 3820; // east sidewalk
 
 // souls posted along Highland Ave (fixed x on a sidewalk, standing at a given y)
 const HIGHLAND_POSTS: Record<string, { x: number; y: number }> = {

@@ -43,7 +43,7 @@ export interface Building {
 // The whole DISTRICT — the real Hollywood Blvd Commercial & Entertainment District,
 // 6200–7000 (Sycamore → Gower), tiled as a grid of blocks. Far wider than any phone
 // viewport → the camera pans/zooms within it.
-export const WORLD_W = 14000;
+export const WORLD_W = 17200;
 export const WORLD_H = 2200;
 
 // ---- Hollywood Blvd (the horizontal spine through the vertical middle) ----
@@ -62,20 +62,23 @@ export interface CrossStreet { name: string; x: number; }
 export const CS_ROAD_HALF = 90; // half the asphalt width of a cross street
 export const CS_WALK = 60; // sidewalk flanking each side of a cross street
 export const CS_HALF = CS_ROAD_HALF + CS_WALK; // 150: centre → outer sidewalk edge
+// Real cross-street order W→E (addresses decrease eastward: 7000 → 6100). Positions are
+// roughly proportional to the real spacing; the Highland→McCadden block is widened to hold
+// the big Ovation complex. No streets that aren't actually in the district.
 export const CROSS_STREETS: CrossStreet[] = [
-  { name: "SYCAMORE", x: 700 },
-  { name: "ORANGE", x: 2000 },
-  { name: "ORCHID", x: 3250 },
-  { name: "HIGHLAND", x: 4550 },
-  { name: "LAS PALMAS", x: 5650 },
-  { name: "CHEROKEE", x: 6550 },
-  { name: "WILCOX", x: 7450 },
-  { name: "CAHUENGA", x: 8450 },
-  { name: "COSMO", x: 9350 },
-  { name: "VINE", x: 10450 },
-  { name: "IVAR", x: 11350 },
-  { name: "ARGYLE", x: 12250 },
-  { name: "GOWER", x: 13350 },
+  { name: "LA BREA", x: 700 },
+  { name: "ORANGE", x: 2200 },
+  { name: "HIGHLAND", x: 3700 },
+  { name: "McCADDEN", x: 6850 },
+  { name: "LAS PALMAS", x: 8050 },
+  { name: "CHEROKEE", x: 9150 },
+  { name: "WILCOX", x: 10150 },
+  { name: "CAHUENGA", x: 11150 },
+  { name: "IVAR", x: 12150 },
+  { name: "VINE", x: 13350 },
+  { name: "ARGYLE", x: 14550 },
+  { name: "EL CENTRO", x: 15550 },
+  { name: "GOWER", x: 16550 },
 ];
 
 // ---- walkability: the Blvd (north sidewalk+road band and the foreground south walk, full
@@ -182,23 +185,25 @@ const APT_FILL: [string, number, number][] = [
 ];
 
 // ---- which landmarks sit on which block (index = gap between CROSS_STREETS[i], [i+1]) ----
-// Real district: Roosevelt(Sovereign) at 7000 south; Wax + Chinese(Jade) west of Highland
-// north; the Ovation/Dolby(Overture/Vantage) + El Capitan(Wonderland) cluster at Highland;
-// Musso(Marchetti) + bookshop mid-blocks; the Loews(Crescendo) + W Hotel(Meridian) towers
-// out toward Vine. The rest of each face fills with storefronts; empty faces are all shops.
+// Positions verified against real Hollywood Blvd addresses (odd = which side varies; sides
+// are the documented ones). Empty faces fill with storefronts.
 const PLACEMENT: { n?: string[]; s?: string[] }[] = [
-  { s: ["sovereign-hotel"] }, //                                    0  Sycamore→Orange (7000)
-  { n: ["madame-rousseau"] }, //                                    1  Orange→Orchid (6900)
-  { n: ["jade-pagoda"] }, //                                        2  Orchid→Highland (6800 W)
-  { n: ["overture-hollywood", "vantage-theatre"], s: ["wonderland-theatre", "glamour-archive"] }, // 3 Highland→Las Palmas
-  { n: ["thunderclap-cafe"], s: ["blackwood-odditorium", "apex-records"] }, //                      4 Las Palmas→Cherokee
-  { s: ["marchetti-vane-grill", "reel-page-bookshop"] }, //         5  Cherokee→Wilcox (6600)
-  {}, //                                                            6  Wilcox→Cahuenga (6500)
-  { n: ["crescendo-hotel"] }, //                                    7  Cahuenga→Cosmo (6400)
-  {}, //                                                            8  Cosmo→Vine (6300)
-  { n: ["meridian-hotel"] }, //                                     9  Vine→Ivar (6300/6200)
-  {}, //                                                            10 Ivar→Argyle (6200)
-  {}, //                                                            11 Argyle→Gower
+  // 0  La Brea→Orange (7000–6900): Roosevelt 7000 S · Chinese 6925 + Tussauds 6933 N
+  { n: ["madame-rousseau", "jade-pagoda"], s: ["sovereign-hotel"] },
+  // 1  Orange→Highland (6900–6800): El Capitan 6838 N · Hollywood Museum (Max Factor) S
+  { n: ["wonderland-theatre"], s: ["glamour-archive"] },
+  // 2  Highland→McCadden (6800–6770): Ovation complex 6801 N (Dolby/Loews/Hard Rock) ·
+  //    Ripley's 6780 + Guinness 6764 S
+  { n: ["overture-hollywood", "vantage-theatre", "crescendo-hotel", "thunderclap-cafe"], s: ["blackwood-odditorium", "apex-records"] },
+  {}, // 3  McCadden→Las Palmas (6770–6720): Egyptian 6712 S (no asset yet) → storefronts
+  { s: ["marchetti-vane-grill"] }, // 4  Las Palmas→Cherokee (6720–6660): Musso & Frank 6667 S
+  { s: ["reel-page-bookshop"] }, //   5  Cherokee→Wilcox (6660–6600): Larry Edmunds 6644 S
+  {}, // 6  Wilcox→Cahuenga (6600–6500)
+  {}, // 7  Cahuenga→Ivar (6500–6420)
+  {}, // 8  Ivar→Vine (6420–6300)
+  { n: ["meridian-hotel"] }, // 9  Vine→Argyle (6300–6250): W Hollywood 6250 N (Pantages 6233, no asset)
+  {}, // 10 Argyle→El Centro (6250–6200)
+  {}, // 11 El Centro→Gower (6200–6100)
 ];
 
 const BLOCK_COUNT = CROSS_STREETS.length - 1;
@@ -279,16 +284,20 @@ function genRow(o: RowOpts): Building[] {
   for (let i = 0; i < o.count; i++) {
     const w = o.minW + ((i * 37 + o.baseY) % o.varW);
     const h = o.minH + ((i * 53 + 7) % o.varH);
-    out.push({
-      x,
-      width: w,
-      height: h,
-      side: o.side,
-      baseY: o.baseY,
-      facadeColor: o.palette[(i + o.baseY) % o.palette.length],
-      dim: o.dim,
-      growUp: o.growUp,
-    });
+    // Never let a code-drawn block land on a cross-street corridor (no houses on the road).
+    const onStreet = CROSS_STREETS.some((cs) => x + w > cs.x - CS_HALF && x < cs.x + CS_HALF);
+    if (!onStreet) {
+      out.push({
+        x,
+        width: w,
+        height: h,
+        side: o.side,
+        baseY: o.baseY,
+        facadeColor: o.palette[(i + o.baseY) % o.palette.length],
+        dim: o.dim,
+        growUp: o.growUp,
+      });
+    }
     x += w + o.gapBase + ((i * 23) % o.gapVar);
     if (x > WORLD_W + 40) break;
   }
@@ -300,11 +309,11 @@ const RESI_PALETTE = ["#5a4a3a", "#6a5544", "#4e4436", "#63513f", "#574a3c", "#4
 
 // Receding skyline high above the north frontage (spans the full district width).
 export const BACKDROP_BUILDINGS: Building[] = [
-  ...genRow({ baseY: 300, side: "north", count: 130, startX: -60, minW: 120, varW: 100, minH: 200, varH: 120, dim: 0.5, palette: BACKDROP_PALETTE, gapBase: 10, gapVar: 30 }),
-  ...genRow({ baseY: 520, side: "north", count: 140, startX: -30, minW: 100, varW: 90, minH: 150, varH: 100, dim: 0.72, palette: BACKDROP_PALETTE, gapBase: 12, gapVar: 26 }),
+  ...genRow({ baseY: 300, side: "north", count: 160, startX: -60, minW: 120, varW: 100, minH: 200, varH: 120, dim: 0.5, palette: BACKDROP_PALETTE, gapBase: 10, gapVar: 30 }),
+  ...genRow({ baseY: 520, side: "north", count: 175, startX: -30, minW: 100, varW: 90, minH: 150, varH: 100, dim: 0.72, palette: BACKDROP_PALETTE, gapBase: 12, gapVar: 26 }),
 ];
 
 // One very dim, distant row far behind the residential back-street for depth.
 export const RESIDENTIAL_BUILDINGS: Building[] = [
-  ...genRow({ baseY: 2000, side: "south", count: 150, startX: -20, minW: 84, varW: 60, minH: 60, varH: 48, dim: 0.5, palette: RESI_PALETTE, gapBase: 18, gapVar: 28, growUp: true }),
+  ...genRow({ baseY: 2000, side: "south", count: 185, startX: -20, minW: 84, varW: 60, minH: 60, varH: 48, dim: 0.5, palette: RESI_PALETTE, gapBase: 18, gapVar: 28, growUp: true }),
 ];
