@@ -668,7 +668,7 @@ const RAW: Soul[] = [
 // geometry; they mirror the constants in src/game/sceneData.ts.)
 const XSCALE = 5100 / 1600;
 const NORTH_FRONTAGE_Y = 1028;
-const SOUTH_FRONTAGE_Y = 1208;
+const SOUTH_FRONTAGE_Y = 1268;
 const HIGHLAND_W_SIDEWALK_X = 1395; // west sidewalk of Highland Ave
 const HIGHLAND_E_SIDEWALK_X = 1600; // east sidewalk
 

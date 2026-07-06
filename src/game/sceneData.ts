@@ -45,21 +45,23 @@ export const WORLD_W = 5100;
 export const WORLD_H = 2200;
 
 // ---- Hollywood Blvd (horizontal, main street through the vertical middle) ----
+// Wider asphalt (180u) than before so the boulevard reads as a real thoroughfare.
 export const ROAD_TOP = 1060;
-export const ROAD_BOTTOM = 1180;
+export const ROAD_BOTTOM = 1240;
 export const NORTH_SIDEWALK_TOP = 1000; // north blvd sidewalk: [1000, ROAD_TOP]
 export const SOUTH_SIDEWALK_TOP = ROAD_BOTTOM;
-export const SOUTH_SIDEWALK_BOTTOM = 1240; // south blvd sidewalk: [ROAD_BOTTOM, 1240]
-// The two facing rows connect to their sidewalks like any real street: the FAR (north) row
-// sits its feet on the north sidewalk and grows up; the NEAR (south) row hangs its street-
-// front (top) from the south sidewalk down into the foreground. Both meet one clean line.
-export const NORTH_BASELINE = NORTH_SIDEWALK_TOP; // far row: feet ON the north sidewalk (1000)
-export const SOUTH_BASELINE = SOUTH_SIDEWALK_BOTTOM; // near row: street-front ON the south sidewalk (1240)
+export const SOUTH_SIDEWALK_BOTTOM = 1300; // south blvd sidewalk: [ROAD_BOTTOM, 1300]
+// Every building's BASE sits on its sidewalk's curb line and grows up. Far (north) row on
+// the north curb; near (south) row on the south curb — the outer edge of each sidewalk.
+export const NORTH_BASELINE = NORTH_SIDEWALK_TOP; // far row: base ON the north sidewalk (1000)
+export const SOUTH_BASELINE = SOUTH_SIDEWALK_BOTTOM; // near row: base ON the south curb line (1300)
 
 // ---- Highland Ave (vertical cross street, full height) ----
+// Road band widened to 180u to match the boulevard; sidewalk outer edges unchanged so the
+// building layout bounds stay put.
 export const HIGHLAND_SIDEWALK_LEFT = 1367;
-export const HIGHLAND_LEFT = 1427; // road band
-export const HIGHLAND_RIGHT = 1567;
+export const HIGHLAND_LEFT = 1407; // road band
+export const HIGHLAND_RIGHT = 1587;
 export const HIGHLAND_SIDEWALK_RIGHT = 1627;
 
 // ---- walkability: walk anywhere in the street "+" corridor, not into a quadrant ----
