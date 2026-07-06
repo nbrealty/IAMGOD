@@ -169,33 +169,27 @@ const LANDMARKS: Record<string, LmSpec> = {
   "meridian-hotel": { ch: 10, aspect: 0.304, label: "MERIDIAN", marquee: "HOTEL", mc: "#d8a24a" },
 };
 
-// storefront fillers cycled through to pad each Blvd block face — the named fake
-// businesses break up the repetition; the two generic slices add width variety.
+// The named fake businesses — the only storefront fillers (the old sheet-sliced shops were
+// chipped/broken and were removed). Ordered so visually-distinct fronts sit adjacent. A
+// single continuous cursor walks this list across the WHOLE district so the same store is
+// never placed twice in a row (see buildFace).
 const SHOP_FILL: [string, number, number][] = [
   ["shop-salon", 3.8, 0.867],
-  ["shop-slice", 2.6, 1.72],
-  ["shop-boutique", 3.8, 0.803],
   ["shop-cameras", 3.8, 0.797],
-  ["shop-cage", 2.6, 1.631],
-  ["shop-tacos", 3.8, 0.815],
+  ["shop-boutique", 3.8, 0.803],
   ["shop-records", 3.8, 0.885],
+  ["shop-tacos", 3.8, 0.815],
   ["shop-tattoo", 3.8, 0.814],
 ];
-// a mid-rise apartment tower — only used on north faces (grows up from the north sidewalk
-// with headroom; on the south row it would poke into the road).
+// a mid-rise apartment tower — only on north faces (headroom to grow up; on the south row
+// it would poke into the road).
 const TOWER_FILL: [string, number, number] = ["apt-tower", 9, 0.361];
-// residential back-street mix (short houses + apartments; no tower — it would overlap the
-// near row's ground line).
-const APT_FILL: [string, number, number][] = [
-  ["house-casa", 2.9, 1.631],
-  ["apt-el-camino", 3.2, 1.603],
-  ["apt-corner-slice", 3.2, 1.4],
-  ["apt-vine-terrace", 3.2, 1.445],
-  ["house-casa", 2.9, 1.631],
-  ["apt-el-camino-2", 3.2, 1.359],
-  ["apt-palm-court", 3.2, 1.733],
-  ["apt-sunset-arms", 3.2, 1.872],
-];
+// the one clean house — the residential back-street scatters it with wide yards between.
+const HOUSE_FILL: [string, number, number] = ["house-casa", 3.0, 1.631];
+
+// Continuous cursor into SHOP_FILL, shared across every block face so consecutive
+// storefronts (within a block and across block edges) are always different stores.
+let shopCursor = 0;
 
 // ---- which landmarks sit on which block (index = gap between CROSS_STREETS[i], [i+1]) ----
 // Positions verified against real Hollywood Blvd addresses (odd = which side varies; sides
@@ -236,11 +230,16 @@ function buildFace(i: number, side: "north" | "south", lmKeys: string[]): Fronta
     const s = LANDMARKS[k];
     push(lot(k, s.ch, s.aspect, s.label, s.marquee, s.mc, side), s.ch * 84 * s.aspect);
   }
-  const fills = side === "north" ? [...SHOP_FILL, TOWER_FILL] : SHOP_FILL;
-  let fi = i; // vary the starting filler per block
+  let towerPlaced = false;
   while (used < target - 260) {
-    const [sp, ch, asp] = fills[fi % fills.length];
-    fi++;
+    // scatter one mid-rise tower onto some north blocks for skyline variety
+    if (side === "north" && !towerPlaced && i % 3 === 1 && out.length > lmKeys.length) {
+      towerPlaced = true;
+      const [sp, ch, asp] = TOWER_FILL;
+      push(fill(sp, ch, asp, side), ch * 84 * asp);
+      continue;
+    }
+    const [sp, ch, asp] = SHOP_FILL[shopCursor++ % SHOP_FILL.length];
     push(fill(sp, ch, asp, side), ch * 84 * asp);
   }
   return { key: `b${i}-${side}`, x0, x1, side, align: "center", gap, buildings: out };
@@ -258,15 +257,14 @@ const BACK_Y = 2140;
 function buildResFace(i: number): Frontage {
   const x0 = blockX0(i), x1 = blockX1(i);
   const target = x1 - x0;
-  const gap = 24;
+  const [sp, ch, asp] = HOUSE_FILL;
+  const w = ch * 84 * asp;
+  const gap = 150; // wide yards between houses → a scattered residential street, not a wall
   const out: Building[] = [];
   let used = -gap;
-  let fi = i;
-  while (used < target - 260) {
-    const [sp, ch, asp] = APT_FILL[fi % APT_FILL.length];
-    fi++;
+  while (used < target - 300) {
     out.push(fill(sp, ch, asp, "south", BACK_Y, true));
-    used += ch * 84 * asp + gap;
+    used += w + gap;
   }
   return { key: `res${i}`, x0, x1, side: "south", baseY: BACK_Y, align: "center", gap, buildings: out };
 }
