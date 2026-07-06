@@ -23,6 +23,7 @@ import {
   NORTH_FRONTAGES,
   SOUTH_FRONTAGES,
   RES_FRONTAGES,
+  ALL_FRONTAGES,
   layoutFrontage,
   BACKDROP_BUILDINGS,
   RESIDENTIAL_BUILDINGS,
@@ -488,6 +489,92 @@ export class HollywoodRenderer {
 
     // day/night ambient grade — the whole city takes on a time of day
     this.drawAmbientGrade();
+    // night light sources punch through the darkened scene (additive)
+    this.drawLights();
+  }
+
+  // Additive night lights: street lamps, glowing marquees, warm interior/window light, and
+  // NPC "lanterns". Skipped entirely by day (zero cost); everything culled to the viewport.
+  private drawLights() {
+    const night = nightAt(this.engine.clockMinutes);
+    if (night <= 0.001) return;
+    const ctx = this.ctx;
+    const vL = this.cam.x;
+    const vR = this.cam.x + this.cssW / this.cam.zoom;
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+
+    // 1. street lamps along both boulevard sidewalks (skip cross-street spans)
+    const LAMP_STEP = 156;
+    for (const ly of [NORTH_SIDEWALK_TOP + 18, SOUTH_SIDEWALK_TOP + 18]) {
+      for (let x = 78; x < WORLD_W; x += LAMP_STEP) {
+        if (x < vL - 130 || x > vR + 130) continue;
+        if (CROSS_STREETS.some((cs) => x > cs.x - CS_HALF && x < cs.x + CS_HALF)) continue;
+        const r = 95;
+        const g = ctx.createRadialGradient(x, ly, 2, x, ly, r);
+        g.addColorStop(0, `rgba(255,196,120,${0.42 * night})`);
+        g.addColorStop(1, "rgba(255,196,120,0)");
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(x, ly, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // 2. building glow — a warm interior blob per building, plus a neon halo on landmark
+    // marquees. Footprint math mirrors drawBuildingSprite so glows land on the art.
+    for (const f of ALL_FRONTAGES) {
+      for (const b of f.buildings) {
+        const bx = b.x ?? 0;
+        const bw = b.width ?? 0;
+        if (bx + bw < vL - 220 || bx > vR + 220) continue;
+        const side = b.side ?? "north";
+        const growUp = b.growUp ?? true;
+        const baseY = b.baseY ?? (side === "north" ? NORTH_BASELINE : SOUTH_BASELINE);
+        const H = (b.ch ?? (b.height ?? 90) / 84) * 84;
+        const w = H * this.aspectOf(b);
+        const cx = bx + bw / 2;
+        const top = growUp ? baseY - H : baseY;
+        // interior warm glow (taller buildings glow a touch brighter)
+        const gy = top + H * 0.62;
+        const wa = (0.09 + Math.min(0.08, H / 2400)) * night;
+        const gr = ctx.createRadialGradient(cx, gy, 4, cx, gy, Math.max(w, H) * 0.5);
+        gr.addColorStop(0, `rgba(255,205,135,${wa})`);
+        gr.addColorStop(1, "rgba(255,205,135,0)");
+        ctx.fillStyle = gr;
+        ctx.beginPath();
+        ctx.ellipse(cx, gy, w * 0.5, H * 0.42, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // marquee neon halo (landmarks only)
+        if (b.marquee) {
+          const my = top + H * 0.16;
+          const mc = b.marqueeColor ?? "#e0b23a";
+          const mg = ctx.createRadialGradient(cx, my, 4, cx, my, w * 0.6);
+          mg.addColorStop(0, hexAlpha(mc, 0.55 * night));
+          mg.addColorStop(1, hexAlpha(mc, 0));
+          ctx.fillStyle = mg;
+          ctx.beginPath();
+          ctx.ellipse(cx, my, w * 0.62, H * 0.18, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+
+    // 3. NPC lanterns — each soul glows their aura colour after dark
+    for (const s of this.npcs) {
+      if (s.x < vL - 60 || s.x > vR + 60) continue;
+      const aura = auraColor(s.soul);
+      const r = 42;
+      const g = ctx.createRadialGradient(s.x, s.y, 2, s.x, s.y, r);
+      g.addColorStop(0, hexAlpha(aura, 0.5 * night));
+      g.addColorStop(1, hexAlpha(aura, 0));
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.restore();
   }
 
   // Tint the whole visible frame toward the current time-of-day ambient colour. Warm/low-
