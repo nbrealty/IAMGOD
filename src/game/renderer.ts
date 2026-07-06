@@ -14,10 +14,9 @@ import {
   SOUTH_SIDEWALK_BOTTOM,
   NORTH_BASELINE,
   SOUTH_BASELINE,
-  HIGHLAND_LEFT,
-  HIGHLAND_RIGHT,
-  HIGHLAND_SIDEWALK_LEFT,
-  HIGHLAND_SIDEWALK_RIGHT,
+  CROSS_STREETS,
+  CS_ROAD_HALF,
+  CS_HALF,
   NORTH_FRONTAGE_Y,
   SOUTH_FRONTAGE_Y,
   canWalk,
@@ -226,7 +225,8 @@ export class HollywoodRenderer {
       const pc = this.controlledId
         ? this.npcs.find((n) => n.soul.id === this.controlledId)
         : null;
-      const cx = pc ? pc.x : (HIGHLAND_LEFT + HIGHLAND_RIGHT) / 2;
+      const highland = CROSS_STREETS.find((cs) => cs.name === "HIGHLAND");
+      const cx = pc ? pc.x : (highland ? highland.x : WORLD_W / 2);
       const cy = pc ? pc.y : (ROAD_TOP + ROAD_BOTTOM) / 2;
       this.cam.x = cx - cssW / this.cam.zoom / 2;
       this.cam.y = cy - cssH / this.cam.zoom / 2;
@@ -461,39 +461,49 @@ export class HollywoodRenderer {
     ctx.lineTo(WORLD_W, ROAD_BOTTOM - 4);
     ctx.stroke();
 
-    // Highland Ave — vertical cross street, full height (a gap through the block)
-    ctx.fillStyle = "#2c2b28";
-    ctx.fillRect(HIGHLAND_LEFT, 0, HIGHLAND_RIGHT - HIGHLAND_LEFT, WORLD_H);
-    ctx.strokeStyle = "#d8c96a";
-    ctx.setLineDash([22, 18]);
-    ctx.beginPath();
-    ctx.moveTo((HIGHLAND_LEFT + HIGHLAND_RIGHT) / 2, 0);
-    ctx.lineTo((HIGHLAND_LEFT + HIGHLAND_RIGHT) / 2, WORLD_H);
-    ctx.stroke();
-    ctx.setLineDash([]);
+    // Cross streets — each a full-height vertical road with flanking sidewalks, dashed
+    // centre line, crosswalk stripes at the Blvd intersection, and a rotated street label.
+    for (const cs of CROSS_STREETS) {
+      const roadL = cs.x - CS_ROAD_HALF;
+      const roadR = cs.x + CS_ROAD_HALF;
+      ctx.fillStyle = "#2c2b28";
+      ctx.fillRect(roadL, 0, roadR - roadL, WORLD_H);
+      ctx.strokeStyle = "#d8c96a";
+      ctx.setLineDash([22, 18]);
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(cs.x, 0);
+      ctx.lineTo(cs.x, WORLD_H);
+      ctx.stroke();
+      ctx.setLineDash([]);
 
-    // crosswalk stripes at the intersection
-    ctx.fillStyle = "#e7e2d2";
-    for (let cx = HIGHLAND_LEFT - 6; cx < HIGHLAND_RIGHT + 6; cx += 14) {
-      ctx.fillRect(cx, ROAD_TOP + 6, 8, ROAD_BOTTOM - ROAD_TOP - 12);
-    }
-    for (let cy = ROAD_TOP - 6; cy < ROAD_BOTTOM + 6; cy += 14) {
-      ctx.fillRect(HIGHLAND_LEFT + 6, cy, HIGHLAND_RIGHT - HIGHLAND_LEFT - 12, 8);
+      ctx.fillStyle = "#e7e2d2";
+      for (let px = roadL - 6; px < roadR + 6; px += 14) {
+        ctx.fillRect(px, ROAD_TOP + 6, 8, ROAD_BOTTOM - ROAD_TOP - 12);
+      }
+      for (let py = ROAD_TOP - 6; py < ROAD_BOTTOM + 6; py += 14) {
+        ctx.fillRect(roadL + 6, py, roadR - roadL - 12, 8);
+      }
+
+      ctx.save();
+      ctx.fillStyle = "#efe4bd";
+      ctx.font = "bold 22px sans-serif";
+      ctx.textAlign = "left";
+      ctx.translate(cs.x + 8, ROAD_BOTTOM + 320);
+      ctx.rotate(Math.PI / 2);
+      ctx.fillText(cs.name, 0, 0);
+      ctx.restore();
     }
 
+    // "HOLLYWOOD BLVD" repeated down the asphalt, skipping the intersections.
     ctx.fillStyle = "#efe4bd";
     ctx.font = "bold 26px sans-serif";
     ctx.textAlign = "left";
     const blvdY = ROAD_TOP + (ROAD_BOTTOM - ROAD_TOP) / 2 + 9;
-    for (let lx = 300; lx < WORLD_W; lx += 1700) {
-      if (lx > HIGHLAND_LEFT - 260 && lx < HIGHLAND_RIGHT + 40) continue; // skip the intersection
+    for (let lx = 300; lx < WORLD_W; lx += 1300) {
+      if (CROSS_STREETS.some((cs) => lx > cs.x - CS_HALF - 260 && lx < cs.x + CS_HALF + 40)) continue;
       ctx.fillText("HOLLYWOOD BLVD", lx, blvdY);
     }
-    ctx.save();
-    ctx.translate((HIGHLAND_LEFT + HIGHLAND_RIGHT) / 2 + 9, 1720);
-    ctx.rotate(Math.PI / 2);
-    ctx.fillText("HIGHLAND AVE", 0, 0);
-    ctx.restore();
   }
 
   private drawStar(cx: number, cy: number, outerR: number, innerR: number, color: string) {
@@ -518,7 +528,7 @@ export class HollywoodRenderer {
   private drawWalkOfFame(y: number) {
     const ctx = this.ctx;
     for (let x = 70; x < WORLD_W - 70; x += 78) {
-      if (x > HIGHLAND_LEFT - 40 && x < HIGHLAND_RIGHT + 40) continue;
+      if (CROSS_STREETS.some((cs) => x > cs.x - CS_HALF - 20 && x < cs.x + CS_HALF + 20)) continue;
       ctx.fillStyle = "#6b4a86";
       ctx.beginPath();
       ctx.ellipse(x, y, 20, 9, 0, 0, Math.PI * 2);
@@ -533,9 +543,11 @@ export class HollywoodRenderer {
     // Hollywood Blvd sidewalks (full width)
     ctx.fillRect(0, NORTH_SIDEWALK_TOP, WORLD_W, NORTH_SIDEWALK_BOTTOM - NORTH_SIDEWALK_TOP);
     ctx.fillRect(0, SOUTH_SIDEWALK_TOP, WORLD_W, SOUTH_SIDEWALK_BOTTOM - SOUTH_SIDEWALK_TOP);
-    // Highland Ave sidewalks (full height, flanking the road) — the new N/S walkway
-    ctx.fillRect(HIGHLAND_SIDEWALK_LEFT, 0, HIGHLAND_LEFT - HIGHLAND_SIDEWALK_LEFT, WORLD_H);
-    ctx.fillRect(HIGHLAND_RIGHT, 0, HIGHLAND_SIDEWALK_RIGHT - HIGHLAND_RIGHT, WORLD_H);
+    // Cross-street sidewalks (full height, flanking each cross road)
+    for (const cs of CROSS_STREETS) {
+      ctx.fillRect(cs.x - CS_HALF, 0, CS_HALF - CS_ROAD_HALF, WORLD_H);
+      ctx.fillRect(cs.x + CS_ROAD_HALF, 0, CS_HALF - CS_ROAD_HALF, WORLD_H);
+    }
 
     ctx.strokeStyle = "#847e70";
     ctx.lineWidth = 1;
@@ -547,15 +559,6 @@ export class HollywoodRenderer {
       ctx.beginPath();
       ctx.moveTo(x, SOUTH_SIDEWALK_TOP);
       ctx.lineTo(x, SOUTH_SIDEWALK_BOTTOM);
-      ctx.stroke();
-    }
-    // seams across the Highland sidewalks
-    for (let y = 0; y < WORLD_H; y += 40) {
-      ctx.beginPath();
-      ctx.moveTo(HIGHLAND_SIDEWALK_LEFT, y);
-      ctx.lineTo(HIGHLAND_LEFT, y);
-      ctx.moveTo(HIGHLAND_RIGHT, y);
-      ctx.lineTo(HIGHLAND_SIDEWALK_RIGHT, y);
       ctx.stroke();
     }
     this.drawWalkOfFame(NORTH_SIDEWALK_TOP + 20);
