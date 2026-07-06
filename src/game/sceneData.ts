@@ -31,8 +31,9 @@ export interface Building {
   skew?: number;
   baseY?: number;
   dim?: number;
-  ch?: number;
-  sprite?: string;
+  ch?: number; // building height in character-heights (1 CH = 84 units)
+  sprite?: string; // public/buildings/<sprite>.png facade art
+  aspect?: number; // nominal w/h of the art (fallback until the image loads; live aspect wins)
 }
 
 // The whole block. Bigger than any phone viewport → the camera pans/zooms within it.
@@ -66,52 +67,153 @@ export function canWalk(x: number, y: number): boolean {
 export const NORTH_FRONTAGE_Y = NORTH_SIDEWALK_TOP + 28; // 1028
 export const SOUTH_FRONTAGE_Y = ROAD_BOTTOM + 28; // 1208
 
-// ---- the 14 landmarks at their real geographic slots (west → east) ----
-// x/width are the on-screen footprint (width = ch·84 · image aspect), so adjacent
-// facades sit side-by-side with a gap and never overlap.
-export const NORTH_BUILDINGS: Building[] = [
-  { x: 120, width: 386, height: 420, ch: 5, side: "north", facadeColor: "#8a7a6a", roofColor: "#5f5346", label: "MADAME ROUSSEAU'S", marquee: "WAX MUSEUM", marqueeColor: "#c9962c", sprite: "madame-rousseau" },
-  { x: 596, width: 681, height: 588, ch: 7, side: "north", facadeColor: "#7a2320", roofColor: "#1f5c47", label: "JADE PAGODA", marquee: "THEATRE", marqueeColor: "#c9a34a", sprite: "jade-pagoda" },
-  { x: 1717, width: 1010, height: 504, ch: 6, side: "north", facadeColor: "#5b5546", roofColor: "#3f3a30", label: "OVERTURE HOLLYWOOD", marquee: "SHOPS · DINE", marqueeColor: "#c9962c", sprite: "overture-hollywood" },
-  { x: 2817, width: 493, height: 504, ch: 6, side: "north", facadeColor: "#4a5560", roofColor: "#333b44", label: "VANTAGE", marquee: "THEATRE", marqueeColor: "#c9a34a", sprite: "vantage-theatre" },
-  { x: 3400, width: 434, height: 378, ch: 4.5, side: "north", facadeColor: "#7a3b2e", roofColor: "#4a2019", label: "THUNDERCLAP", marquee: "ROCK CAFE", marqueeColor: "#e0b23a", sprite: "thunderclap-cafe" },
-  { x: 3924, width: 580, height: 924, ch: 11, side: "north", facadeColor: "#c8b48a", roofColor: "#9a8258", label: "CRESCENDO", marquee: "HOTEL", marqueeColor: "#d8b25a", sprite: "crescendo-hotel" },
-  { x: 4594, width: 255, height: 840, ch: 10, side: "north", facadeColor: "#2f3540", roofColor: "#20242c", label: "MERIDIAN", marquee: "HOTEL", marqueeColor: "#d8a24a", sprite: "meridian-hotel" },
+// ============================================================================
+// REAL-ESTATE LAYOUT — buildings are authored as ordered LOTS on a frontage, and
+// their on-screen x/width are computed at draw time by layoutFrontage(). Nothing is
+// hand-placed: a frontage is a strip of buildable land between two cross-streets, and
+// its buildings are packed left→right and JUSTIFIED so they sit shoulder-to-shoulder
+// with even gaps, edge to edge. Each building's rendered width = ch·84·aspect where
+// aspect is the live image ratio (or the nominal `aspect` fallback below). Regenerate
+// any facade at a new shape and the whole street re-flows tidy — zero manual math.
+// ============================================================================
+
+export interface Frontage {
+  key: string;
+  x0: number; // west edge of buildable land
+  x1: number; // east edge of buildable land
+  side: "north" | "south";
+  baseY?: number; // overrides the side's default baseline (used by the back-street row)
+  align?: "justify" | "center" | "left"; // justify = fill edge-to-edge with even gaps
+  minGap: number; // floor on the gap between neighbours (units)
+  buildings: Building[]; // ordered west→east; x + width are assigned by layoutFrontage
+}
+
+// Rendered width of a building for a given art aspect (w/h).
+export function buildingWidth(b: Building, aspect: number): number {
+  return (b.ch ?? (b.height ?? 90) / 84) * 84 * aspect;
+}
+
+// Assign each building's x (left edge) + width (footprint) so the row fills its frontage.
+// aspectOf resolves the live image ratio; falls back to the building's nominal `aspect`.
+export function layoutFrontage(f: Frontage, aspectOf: (b: Building) => number): void {
+  const n = f.buildings.length;
+  if (n === 0) return;
+  const ws = f.buildings.map((b) => buildingWidth(b, aspectOf(b)));
+  const total = ws.reduce((a, c) => a + c, 0);
+  const span = f.x1 - f.x0;
+  const align = f.align ?? "justify";
+
+  let gap: number;
+  let x: number;
+  if (align === "justify") {
+    gap = (span - total) / (n + 1); // n+1 gaps: one at each end + between each pair
+    if (gap < f.minGap) gap = f.minGap; // overflow → pack tight rather than overlap
+    x = f.x0 + gap;
+  } else {
+    gap = f.minGap;
+    const used = total + gap * (n - 1);
+    x = align === "center" ? f.x0 + (span - used) / 2 : f.x0;
+  }
+
+  for (let i = 0; i < n; i++) {
+    f.buildings[i].width = ws[i];
+    f.buildings[i].x = x;
+    x += ws[i] + gap;
+  }
+}
+
+// Buildable-land bounds: the block is split by the Highland Ave corridor into a WEST
+// segment and a much larger EAST segment (matching the real intersection).
+const LOT_MARGIN = 60;
+const WEST_X0 = LOT_MARGIN;
+const WEST_X1 = HIGHLAND_SIDEWALK_LEFT - 30; // 1337
+const EAST_X0 = HIGHLAND_SIDEWALK_RIGHT + 30; // 1657
+const EAST_X1 = WORLD_W - LOT_MARGIN; // 5040
+
+// A landmark lot: art + fictional signage + character-height scale + nominal aspect.
+function lot(sprite: string, ch: number, aspect: number, label: string, marquee: string, marqueeColor: string, side: "north" | "south"): Building {
+  return { x: 0, ch, aspect, side, sprite, label, marquee, marqueeColor };
+}
+// A plain filler lot (shop / apartment / parking): art + scale + aspect only.
+function fill(sprite: string, ch: number, aspect: number, side: "north" | "south", baseY?: number): Building {
+  return { x: 0, ch, aspect, side, sprite, baseY };
+}
+
+// ---- North side of Hollywood Blvd (the hero row, facades grow UP toward the sky) ----
+export const NORTH_FRONTAGES: Frontage[] = [
+  {
+    key: "n-west", x0: WEST_X0, x1: WEST_X1, side: "north", minGap: 40,
+    buildings: [
+      lot("madame-rousseau", 5, 0.918, "MADAME ROUSSEAU'S", "WAX MUSEUM", "#c9962c", "north"),
+      lot("jade-pagoda", 7, 1.159, "JADE PAGODA", "THEATRE", "#c9a34a", "north"),
+    ],
+  },
+  {
+    key: "n-east", x0: EAST_X0, x1: EAST_X1, side: "north", minGap: 40,
+    buildings: [
+      lot("overture-hollywood", 6, 2.004, "OVERTURE HOLLYWOOD", "SHOPS · DINE", "#c9962c", "north"),
+      lot("vantage-theatre", 6, 0.979, "VANTAGE", "THEATRE", "#c9a34a", "north"),
+      lot("thunderclap-cafe", 4.5, 1.148, "THUNDERCLAP", "ROCK CAFE", "#e0b23a", "north"),
+      lot("crescendo-hotel", 11, 0.628, "CRESCENDO", "HOTEL", "#d8b25a", "north"),
+      lot("meridian-hotel", 10, 0.304, "MERIDIAN", "HOTEL", "#d8a24a", "north"),
+    ],
+  },
 ];
 
-export const SOUTH_BUILDINGS: Building[] = [
-  { x: 120, width: 428, height: 588, ch: 7, side: "south", facadeColor: "#c9b78a", roofColor: "#9a8258", label: "SOVEREIGN", marquee: "HOTEL", marqueeColor: "#d8b25a", sprite: "sovereign-hotel" },
-  { x: 1717, width: 454, height: 546, ch: 6.5, side: "south", facadeColor: "#b89b52", roofColor: "#8a6a2c", label: "WONDERLAND", marquee: "THEATRE", marqueeColor: "#e0b23a", sprite: "wonderland-theatre" },
-  { x: 2261, width: 374, height: 420, ch: 5, side: "south", facadeColor: "#c79aa0", roofColor: "#9a6f76", label: "GLAMOUR ARCHIVE", marquee: "MUSEUM", marqueeColor: "#d8b25a", sprite: "glamour-archive" },
-  { x: 2725, width: 504, height: 420, ch: 5, side: "south", facadeColor: "#3a3346", roofColor: "#241f2c", label: "BLACKWOOD'S", marquee: "ODDITORIUM", marqueeColor: "#b06fd8", sprite: "blackwood-odditorium" },
-  { x: 3319, width: 281, height: 420, ch: 5, side: "south", facadeColor: "#3f4a6a", roofColor: "#2a3348", label: "APEX WORLD RECORDS", marquee: "MUSEUM", marqueeColor: "#e0b23a", sprite: "apex-records" },
-  { x: 3690, width: 248, height: 336, ch: 4, side: "south", facadeColor: "#233a30", roofColor: "#16261f", label: "MARCHETTI & VANE", marquee: "GRILL · 1919", marqueeColor: "#d8b25a", sprite: "marchetti-vane-grill" },
-  { x: 4028, width: 234, height: 294, ch: 3.5, side: "south", facadeColor: "#5a6a3a", roofColor: "#3f4a28", label: "THE REEL PAGE", marquee: "BOOKS", marqueeColor: "#e0b23a", sprite: "reel-page-bookshop" },
+// ---- South side of Hollywood Blvd (near row, facades grow DOWN toward the camera) ----
+export const SOUTH_FRONTAGES: Frontage[] = [
+  {
+    key: "s-west", x0: WEST_X0, x1: WEST_X1, side: "south", minGap: 40,
+    buildings: [
+      lot("sovereign-hotel", 7, 0.728, "SOVEREIGN", "HOTEL", "#d8b25a", "south"),
+      fill("shop-slice", 2.6, 1.72, "south"),
+      fill("shop-cage", 2.6, 1.631, "south"),
+    ],
+  },
+  {
+    key: "s-east", x0: EAST_X0, x1: EAST_X1, side: "south", minGap: 40,
+    buildings: [
+      lot("wonderland-theatre", 6.5, 0.832, "WONDERLAND", "THEATRE", "#e0b23a", "south"),
+      lot("glamour-archive", 5, 0.891, "GLAMOUR ARCHIVE", "MUSEUM", "#d8b25a", "south"),
+      lot("blackwood-odditorium", 5, 1.2, "BLACKWOOD'S", "ODDITORIUM", "#b06fd8", "south"),
+      lot("apex-records", 5, 0.668, "APEX WORLD RECORDS", "MUSEUM", "#e0b23a", "south"),
+      lot("marchetti-vane-grill", 4, 0.737, "MARCHETTI & VANE", "GRILL · 1919", "#d8b25a", "south"),
+      lot("reel-page-bookshop", 3.5, 0.797, "THE REEL PAGE", "BOOKS", "#e0b23a", "south"),
+      fill("shop-cage", 2.6, 1.631, "south"),
+      fill("shop-slice", 2.6, 1.72, "south"),
+    ],
+  },
 ];
 
-// ---- ordinary storefronts / apartments (sliced from the filler sheets) ----
-// A residential back-street row below the boulevard, plus shops dropped into the two big
-// boulevard lots (SW between Sovereign and Highland, SE east of Reel Page). Same Building
-// shape → renders through drawBuilding/drawBuildingSprite like the landmarks.
-export const FILLER_BUILDINGS: Building[] = [
-  // residential back-street row below the boulevard
-  { x: 40, width: 342, height: 269, ch: 3.2, side: "south", sprite: "apt-palm-court", baseY: 1860 },
-  { x: 442, width: 351, height: 269, ch: 3.2, side: "south", sprite: "apt-sunset-arms", baseY: 1860 },
-  { x: 853, width: 784, height: 143, ch: 1.7, side: "south", sprite: "parking-a", baseY: 1860 },
-  { x: 1697, width: 326, height: 269, ch: 3.2, side: "south", sprite: "apt-el-camino", baseY: 1860 },
-  { x: 2083, width: 412, height: 269, ch: 3.2, side: "south", sprite: "apt-corner-slice", baseY: 1860 },
-  { x: 2555, width: 413, height: 269, ch: 3.2, side: "south", sprite: "apt-vine-terrace", baseY: 1860 },
-  { x: 3028, width: 784, height: 143, ch: 1.7, side: "south", sprite: "parking-b", baseY: 1860 },
-  { x: 3872, width: 392, height: 269, ch: 3.2, side: "south", sprite: "apt-el-camino-2", baseY: 1860 },
-  { x: 4324, width: 342, height: 269, ch: 3.2, side: "south", sprite: "apt-palm-court", baseY: 1860 },
-  { x: 4726, width: 351, height: 269, ch: 3.2, side: "south", sprite: "apt-sunset-arms", baseY: 1860 },
-  // SW boulevard lot (between Sovereign and Highland)
-  { x: 600, width: 324, height: 218, ch: 2.6, side: "south", sprite: "shop-slice" },
-  { x: 984, width: 334, height: 218, ch: 2.6, side: "south", sprite: "shop-cage" },
-  // SE boulevard lot (east of Reel Page)
-  { x: 4320, width: 334, height: 218, ch: 2.6, side: "south", sprite: "shop-cage" },
-  { x: 4714, width: 324, height: 218, ch: 2.6, side: "south", sprite: "shop-slice" },
+// ---- Residential back-street below the boulevard (apartments + parking, sliced art) ----
+const BACK_Y = 1860;
+export const RES_FRONTAGES: Frontage[] = [
+  {
+    key: "res-west", x0: WEST_X0, x1: WEST_X1, side: "south", baseY: BACK_Y, minGap: 30,
+    buildings: [
+      fill("apt-palm-court", 3.2, 1.733, "south", BACK_Y),
+      fill("apt-sunset-arms", 3.2, 1.872, "south", BACK_Y),
+      fill("parking-a", 1.7, 5.741, "south", BACK_Y),
+    ],
+  },
+  {
+    key: "res-east", x0: EAST_X0, x1: EAST_X1, side: "south", baseY: BACK_Y, minGap: 30,
+    buildings: [
+      fill("apt-el-camino", 3.2, 1.603, "south", BACK_Y),
+      fill("apt-corner-slice", 3.2, 1.4, "south", BACK_Y),
+      fill("apt-vine-terrace", 3.2, 1.445, "south", BACK_Y),
+      fill("parking-b", 1.7, 5.041, "south", BACK_Y),
+      fill("apt-el-camino-2", 3.2, 1.359, "south", BACK_Y),
+      fill("apt-palm-court", 3.2, 1.733, "south", BACK_Y),
+      fill("apt-sunset-arms", 3.2, 1.872, "south", BACK_Y),
+    ],
+  },
 ];
+
+// All frontages, in back-to-front paint order (north hero row is drawn behind the
+// street; south near row + residential back-street in front). The renderer lays each
+// out then draws it, so a swapped facade re-justifies its whole row automatically.
+export const ALL_FRONTAGES: Frontage[] = [...NORTH_FRONTAGES, ...SOUTH_FRONTAGES, ...RES_FRONTAGES];
 
 // ---- procedural backdrop + residential rows (deterministic, no randomness) ----
 

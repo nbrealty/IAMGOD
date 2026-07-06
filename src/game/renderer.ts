@@ -21,12 +21,14 @@ import {
   NORTH_FRONTAGE_Y,
   SOUTH_FRONTAGE_Y,
   canWalk,
-  NORTH_BUILDINGS,
-  SOUTH_BUILDINGS,
-  FILLER_BUILDINGS,
+  NORTH_FRONTAGES,
+  SOUTH_FRONTAGES,
+  RES_FRONTAGES,
+  layoutFrontage,
   BACKDROP_BUILDINGS,
   RESIDENTIAL_BUILDINGS,
   type Building,
+  type Frontage,
 } from "./sceneData";
 import type { Soul } from "../soul/types";
 import { auraColor } from "../soul/appearance";
@@ -420,13 +422,13 @@ export class HollywoodRenderer {
     ctx.fillRect(0, 0, WORLD_W, WORLD_H);
 
     for (const b of BACKDROP_BUILDINGS) this.drawBuilding(b);
-    for (const b of NORTH_BUILDINGS) this.drawBuilding(b);
+    this.drawFrontages(NORTH_FRONTAGES);
     this.drawSidewalks();
     this.drawRoad();
     this.drawCars();
-    for (const b of SOUTH_BUILDINGS) this.drawBuilding(b);
+    this.drawFrontages(SOUTH_FRONTAGES);
     for (const b of RESIDENTIAL_BUILDINGS) this.drawBuilding(b);
-    for (const b of FILLER_BUILDINGS) this.drawBuilding(b);
+    this.drawFrontages(RES_FRONTAGES);
     for (const npc of this.npcs) this.drawNPC(npc, t);
 
     const tint = ctx.createLinearGradient(0, 0, 0, WORLD_H);
@@ -558,6 +560,25 @@ export class HollywoodRenderer {
     }
     this.drawWalkOfFame(NORTH_SIDEWALK_TOP + 20);
     this.drawWalkOfFame(SOUTH_SIDEWALK_TOP + 20);
+  }
+
+  // Live art ratio (w/h) for a building's facade — the true image aspect once loaded,
+  // else the nominal `aspect` authored on the lot (so layout is right on the first frame
+  // and headless). This is what makes the row re-flow when a facade is regenerated.
+  private aspectOf = (b: Building): number => {
+    if (b.sprite) {
+      const img = this.getBuildingSprite(b.sprite);
+      if (img && img.complete && img.naturalWidth > 0) return img.naturalWidth / img.naturalHeight;
+    }
+    return b.aspect ?? (b.width && b.height ? b.width / b.height : 0.9);
+  };
+
+  // Justify each frontage to its buildable land, then paint its buildings in order.
+  private drawFrontages(frontages: Frontage[]) {
+    for (const f of frontages) {
+      layoutFrontage(f, this.aspectOf);
+      for (const b of f.buildings) this.drawBuilding(b);
+    }
   }
 
   private drawBuilding(b: Building) {
