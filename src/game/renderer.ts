@@ -102,18 +102,22 @@ function groundHash(x: number, y: number): number {
 }
 
 // Ambient overlay colour+alpha by minute-of-day (0–1439). The scene is tinted TOWARD this
-// colour: cold blue at night, warm amber at golden hours, near-neutral at midday.
+// colour: a saturated *magical* blue at night (not grey), amber at sunrise, and a rich
+// magenta-over-orange at dusk, near-neutral at midday. Hues keyed to sunset/sunrise/night
+// palettes (see lighting research). Alpha is the darkness lever; keep midday tiny.
 const AMBIENT_KEYS: { m: number; c: RGBA }[] = [
-  { m: 0, c: { r: 18, g: 22, b: 48, a: 0.62 } }, // deep night
-  { m: 300, c: { r: 20, g: 24, b: 50, a: 0.6 } }, // 05:00 still night
-  { m: 372, c: { r: 74, g: 52, b: 66, a: 0.4 } }, // 06:12 dawn
-  { m: 432, c: { r: 255, g: 178, b: 108, a: 0.17 } }, // 07:12 golden AM
-  { m: 780, c: { r: 255, g: 244, b: 224, a: 0.04 } }, // 13:00 midday, near-neutral
-  { m: 1080, c: { r: 255, g: 202, b: 128, a: 0.13 } }, // 18:00 afternoon warmth
-  { m: 1140, c: { r: 255, g: 150, b: 70, a: 0.2 } }, // 19:00 golden dusk
-  { m: 1218, c: { r: 70, g: 46, b: 74, a: 0.42 } }, // 20:18 dusk→night
-  { m: 1260, c: { r: 30, g: 26, b: 60, a: 0.5 } }, // 21:00 blue night
-  { m: 1440, c: { r: 18, g: 22, b: 48, a: 0.62 } }, // wrap
+  { m: 0, c: { r: 14, g: 20, b: 56, a: 0.66 } }, // deep magical night
+  { m: 300, c: { r: 18, g: 24, b: 60, a: 0.63 } }, // 05:00 pre-dawn
+  { m: 366, c: { r: 96, g: 72, b: 104, a: 0.44 } }, // 06:06 dawn — cool cobalt→violet
+  { m: 420, c: { r: 255, g: 190, b: 124, a: 0.19 } }, // 07:00 sunrise amber
+  { m: 600, c: { r: 255, g: 238, b: 216, a: 0.06 } }, // 10:00 warm morning
+  { m: 780, c: { r: 255, g: 247, b: 230, a: 0.03 } }, // 13:00 midday, near-neutral
+  { m: 1050, c: { r: 255, g: 214, b: 150, a: 0.11 } }, // 17:30 afternoon warmth
+  { m: 1140, c: { r: 255, g: 138, b: 66, a: 0.22 } }, // 19:00 hot golden dusk
+  { m: 1200, c: { r: 132, g: 62, b: 116, a: 0.4 } }, // 20:00 magenta dusk
+  { m: 1245, c: { r: 58, g: 42, b: 98, a: 0.5 } }, // 20:45 violet→night
+  { m: 1305, c: { r: 22, g: 26, b: 70, a: 0.6 } }, // 21:45 blue night
+  { m: 1440, c: { r: 14, g: 20, b: 56, a: 0.66 } }, // wrap
 ];
 function ambientAt(minutes: number): RGBA {
   const m = ((minutes % 1440) + 1440) % 1440;
@@ -143,6 +147,13 @@ function nightAt(minutes: number): number {
   if (m < 1110) return 0; // day
   if (m < 1200) return smoothstep(1110, 1200, m); // dusk
   return 1; // 20:00–24:00 full night
+}
+// 0..1 golden-hour scalar, a smooth bump peaking at sunrise (~06:40) and sunset (~19:00).
+// Drives the warm horizon glow that makes dawn/dusk feel directional and wonderful.
+function goldenAt(minutes: number): number {
+  const m = ((minutes % 1440) + 1440) % 1440;
+  const bump = (a: number, peak: number, c: number) => smoothstep(a, peak, m) - smoothstep(peak, c, m);
+  return Math.max(bump(330, 400, 500), bump(1050, 1140, 1230));
 }
 
 export class HollywoodRenderer {
@@ -505,6 +516,8 @@ export class HollywoodRenderer {
 
     // day/night ambient grade — the whole city takes on a time of day
     this.drawAmbientGrade();
+    // warm horizon glow at sunrise/sunset (additive; free otherwise)
+    this.drawGoldenHour();
     // night light sources punch through the darkened scene (additive)
     this.drawLights();
   }
@@ -598,6 +611,15 @@ export class HollywoodRenderer {
       ctx.beginPath();
       ctx.ellipse(x, baseY, pr, pr * 0.4, 0, 0, Math.PI * 2);
       ctx.fill();
+      // bloom — a big soft halo over the whole lamp head so the light blooms into the dark
+      const br = 104;
+      const bg = ctx.createRadialGradient(x, gy, 4, x, gy, br);
+      bg.addColorStop(0, `rgba(255,214,150,${0.12 * night})`);
+      bg.addColorStop(1, "rgba(255,214,150,0)");
+      ctx.fillStyle = bg;
+      ctx.beginPath();
+      ctx.arc(x, gy, br, 0, Math.PI * 2);
+      ctx.fill();
     });
 
     // 2. building light — a tight warm glow at the shop-window band (low on the facade, where
@@ -664,12 +686,26 @@ export class HollywoodRenderer {
       ctx.fill();
     }
 
+    // moonlight: a faint cool wash from the top of the frame on deep, non-golden nights, so
+    // the darkness reads silvery-magical rather than flat black.
+    const moon = night * (1 - goldenAt(this.engine.clockMinutes));
+    if (moon > 0.02) {
+      const vy = this.cam.y;
+      const vh = this.cssH / this.cam.zoom;
+      const mw = ctx.createLinearGradient(0, vy, 0, vy + vh * 0.55);
+      mw.addColorStop(0, `rgba(150,178,220,${0.07 * moon})`);
+      mw.addColorStop(1, "rgba(150,178,220,0)");
+      ctx.fillStyle = mw;
+      ctx.fillRect(vL, vy, vR - vL, vh);
+    }
+
     ctx.restore();
   }
 
-  // Tint the whole visible frame toward the current time-of-day ambient colour. Warm/low-
-  // alpha washes by day use source-over (coloured light); the dark cool night tint uses
-  // multiply so it darkens without a milky flatten. Only fills the visible world rect.
+  // Tint the whole visible frame toward the current time-of-day ambient colour, as a real
+  // vertical gradient: cooler & bluer up top (sky-ward), the base ambient across the middle,
+  // and a slightly deeper foreground. Warm/low-alpha day washes use source-over (coloured
+  // light); the dark cool night tint uses multiply so it darkens without a milky flatten.
   private drawAmbientGrade() {
     const ctx = this.ctx;
     const amb = ambientAt(this.engine.clockMinutes);
@@ -680,11 +716,40 @@ export class HollywoodRenderer {
     const vw = this.cssW / this.cam.zoom;
     const vh = this.cssH / this.cam.zoom;
     const r = amb.r | 0, g = amb.g | 0, b = amb.b | 0;
+    const rgba = (rr: number, gg: number, bb: number, aa: number) =>
+      `rgba(${clamp255(rr)},${clamp255(gg)},${clamp255(bb)},${aa})`;
     const grad = ctx.createLinearGradient(0, vy, 0, vy + vh);
-    grad.addColorStop(0, `rgba(${r},${g},${b},${amb.a})`);
-    grad.addColorStop(1, `rgba(${clamp255(r - 8)},${clamp255(g - 6)},${clamp255(b + 3)},${amb.a})`);
+    grad.addColorStop(0, rgba(r - 16, g - 8, b + 14, amb.a)); // sky: cooler, bluer
+    grad.addColorStop(0.55, rgba(r, g, b, amb.a)); // horizon: the base ambient
+    grad.addColorStop(1, rgba(r - 10, g - 10, b - 2, amb.a * 1.06)); // foreground: deeper
     ctx.save();
     ctx.globalCompositeOperation = night > 0.15 ? "multiply" : "source-over";
+    ctx.fillStyle = grad;
+    ctx.fillRect(vx, vy, vw, vh);
+    ctx.restore();
+  }
+
+  // Golden-hour horizon glow: a warm additive band raking across the boulevard at sunrise and
+  // sunset — the low sun on the street. Zero (and free) at midday and deep night. Dawn skews
+  // pinker/cooler, dusk hotter/oranger.
+  private drawGoldenHour() {
+    const golden = goldenAt(this.engine.clockMinutes);
+    if (golden <= 0.001) return;
+    const ctx = this.ctx;
+    const vx = this.cam.x;
+    const vy = this.cam.y;
+    const vw = this.cssW / this.cam.zoom;
+    const vh = this.cssH / this.cam.zoom;
+    const dusk = ((this.engine.clockMinutes % 1440) + 1440) % 1440 > 720;
+    const [wr, wg, wb] = dusk ? [255, 122, 58] : [255, 178, 130];
+    const hy = (ROAD_TOP + ROAD_BOTTOM) / 2; // the street horizon the glow peaks on
+    const span = 640;
+    const grad = ctx.createLinearGradient(0, hy - span, 0, hy + span);
+    grad.addColorStop(0, `rgba(${wr},${wg},${wb},0)`);
+    grad.addColorStop(0.5, `rgba(${wr},${wg},${wb},${0.17 * golden})`);
+    grad.addColorStop(1, `rgba(${wr},${wg},${wb},0)`);
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
     ctx.fillStyle = grad;
     ctx.fillRect(vx, vy, vw, vh);
     ctx.restore();
