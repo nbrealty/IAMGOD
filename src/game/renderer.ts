@@ -1009,22 +1009,10 @@ export class HollywoodRenderer {
       ctx.globalAlpha = 1;
     }
 
-    // residential yards: a grass-or-dirt lot per house (drawn behind the house art, which
-    // grows up from BACK_Y and lands on top). layoutFrontage first so x/width are current.
+    // residential back-street: one continuous grass lawn (the houses grow up from BACK_Y and land
+    // on top). Uniform grass — no per-lot soil pick — so there's no hard seam between neighbours.
     const yardTop = SOUTH_SIDEWALK_BOTTOM + 4;
-    for (const f of RES_FRONTAGES) {
-      layoutFrontage(f, this.aspectOf);
-      const half = f.gap / 2;
-      for (const b of f.buildings) {
-        const bx = b.x ?? 0;
-        const bw = b.width ?? 0;
-        const lx = bx - half;
-        const lw = bw + f.gap;
-        if (lx + lw < vx - 40 || lx > vR + 40) continue;
-        const grass = groundHash(Math.round(lx), 917) > 0.34;
-        this.fillTiled(lx, yardTop, lx + lw, WORLD_H, grass ? "grass.jpg" : "soil.jpg");
-      }
-    }
+    this.fillTiled(0, yardTop, WORLD_W, WORLD_H, "grass.jpg");
   }
 
   // Concrete aprons at every storefront's foot, and richer terrazzo plazas at the landmarks.
