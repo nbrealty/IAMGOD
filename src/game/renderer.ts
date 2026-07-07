@@ -26,9 +26,7 @@ import {
   ALL_FRONTAGES,
   layoutFrontage,
   BACKDROP_BUILDINGS,
-  RESIDENTIAL_BUILDINGS,
   type Building,
-  type Frontage,
 } from "./sceneData";
 import type { Soul } from "../soul/types";
 import { auraColor } from "../soul/appearance";
@@ -61,8 +59,14 @@ interface AmbientPed {
   sprite: number; // index into the ped pool
   bob: number; // phase offset so they don't bob in sync
 }
-const NPC_POOL_SIZE = 44; // ped_000 .. ped_043
 const AMBIENT_PED_COUNT = 54;
+// The pedestrian pool holds both front- and back-view art. Ambient peds walk the sidewalks
+// horizontally (mirrored L/R), so they must use only FRONT-facing sprites — otherwise a
+// back-view slot renders as someone always walking away. Hand-classified from the pool montage;
+// the remaining indices are back views (reserved for future toward/away wanderers).
+const PED_FRONT = [
+  0, 2, 5, 6, 8, 9, 10, 11, 12, 15, 16, 17, 19, 21, 23, 24, 26, 28, 31, 34, 37, 38, 42, 43,
+];
 
 // One entry in the unified depth pass: an upright actor keyed by its foot-Y (baseline), with a
 // closure that draws it. Sorted ascending → far (small y) drawn first, near (large y) on top.
@@ -317,7 +321,7 @@ export class HollywoodRenderer {
         y: bandTop + Math.random() * bandH,
         dir: Math.random() > 0.5 ? 1 : -1,
         speed: 18 + Math.random() * 26,
-        sprite: Math.floor(Math.random() * NPC_POOL_SIZE),
+        sprite: PED_FRONT[Math.floor(Math.random() * PED_FRONT.length)],
         bob: Math.random() * 1000,
       });
     }
