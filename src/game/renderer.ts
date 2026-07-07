@@ -921,7 +921,7 @@ export class HollywoodRenderer {
         const bw = b.width ?? 0;
         if (bx + bw < vx - 40 || bx > vR + 40 || bw <= 0) continue;
         const landmark = !!b.marquee;
-        ctx.fillStyle = landmark ? "#b6a877" : "#8b857a";
+        ctx.fillStyle = landmark ? "#b6a877" : "#7a746b";
         ctx.fillRect(bx + 6, walkTop + 1, bw - 12, 13);
         if (landmark) {
           // terrazzo flecks scattered across the plaza pad (fixed count, hashed positions)
@@ -936,29 +936,59 @@ export class HollywoodRenderer {
     }
   }
 
-  private drawSidewalks() {
+  // Paint a rectangle of Hollywood-terrazzo pavement: a warm dark-stone base, a per-tile shade
+  // variation on a square grid, and grid seams — so sidewalks read as real tiled stone rather
+  // than flat concrete. Culled to the visible rect; tile detail is zoom-gated for cost.
+  private paintPavement(x0: number, y0: number, x1: number, y1: number, base: string) {
     const ctx = this.ctx;
-    ctx.fillStyle = "#9a9488";
+    const vx = this.cam.x;
+    const vy = this.cam.y;
+    const vR = vx + this.cssW / this.cam.zoom;
+    const vB = vy + this.cssH / this.cam.zoom;
+    const cx0 = Math.max(x0, vx);
+    const cy0 = Math.max(y0, vy);
+    const cx1 = Math.min(x1, vR);
+    const cy1 = Math.min(y1, vB);
+    if (cx1 <= cx0 || cy1 <= cy0) return;
+    ctx.fillStyle = base;
+    ctx.fillRect(cx0, cy0, cx1 - cx0, cy1 - cy0);
+    if (this.cam.zoom <= 0.45) return; // too far out to read the tiling — skip the detail
+    const TILE = 44;
+    const sx = Math.floor(cx0 / TILE) * TILE;
+    const sy = Math.floor(cy0 / TILE) * TILE;
+    for (let gx = sx; gx < cx1; gx += TILE) {
+      for (let gy = sy; gy < cy1; gy += TILE) {
+        const tx = Math.max(gx, cx0);
+        const ty = Math.max(gy, cy0);
+        const tw = Math.min(gx + TILE, cx1) - tx;
+        const th = Math.min(gy + TILE, cy1) - ty;
+        ctx.fillStyle = shade(base, Math.round((groundHash(gx, gy) - 0.5) * 14));
+        ctx.fillRect(tx, ty, tw, th);
+      }
+    }
+    ctx.strokeStyle = shade(base, -24);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let gx = sx; gx <= cx1; gx += TILE) {
+      ctx.moveTo(gx, cy0);
+      ctx.lineTo(gx, cy1);
+    }
+    for (let gy = sy; gy <= cy1; gy += TILE) {
+      ctx.moveTo(cx0, gy);
+      ctx.lineTo(cx1, gy);
+    }
+    ctx.stroke();
+  }
+
+  private drawSidewalks() {
+    const base = "#6b665d"; // warm dark terrazzo — the real Walk-of-Fame stone tone
     // Hollywood Blvd sidewalks (full width)
-    ctx.fillRect(0, NORTH_SIDEWALK_TOP, WORLD_W, NORTH_SIDEWALK_BOTTOM - NORTH_SIDEWALK_TOP);
-    ctx.fillRect(0, SOUTH_SIDEWALK_TOP, WORLD_W, SOUTH_SIDEWALK_BOTTOM - SOUTH_SIDEWALK_TOP);
+    this.paintPavement(0, NORTH_SIDEWALK_TOP, WORLD_W, NORTH_SIDEWALK_BOTTOM, base);
+    this.paintPavement(0, SOUTH_SIDEWALK_TOP, WORLD_W, SOUTH_SIDEWALK_BOTTOM, base);
     // Cross-street sidewalks (full height, flanking each cross road)
     for (const cs of CROSS_STREETS) {
-      ctx.fillRect(cs.x - CS_HALF, 0, CS_HALF - CS_ROAD_HALF, WORLD_H);
-      ctx.fillRect(cs.x + CS_ROAD_HALF, 0, CS_HALF - CS_ROAD_HALF, WORLD_H);
-    }
-
-    ctx.strokeStyle = "#847e70";
-    ctx.lineWidth = 1;
-    for (let x = 0; x < WORLD_W; x += 40) {
-      ctx.beginPath();
-      ctx.moveTo(x, NORTH_SIDEWALK_TOP);
-      ctx.lineTo(x, NORTH_SIDEWALK_BOTTOM);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(x, SOUTH_SIDEWALK_TOP);
-      ctx.lineTo(x, SOUTH_SIDEWALK_BOTTOM);
-      ctx.stroke();
+      this.paintPavement(cs.x - CS_HALF, 0, cs.x - CS_ROAD_HALF, WORLD_H, base);
+      this.paintPavement(cs.x + CS_ROAD_HALF, 0, cs.x + CS_HALF, WORLD_H, base);
     }
     this.drawWalkOfFame(NORTH_SIDEWALK_TOP + 20);
     this.drawWalkOfFame(SOUTH_SIDEWALK_TOP + 20);
