@@ -51,6 +51,19 @@ interface CarRuntime {
   type: string;
 }
 
+// Ambient background pedestrians (public/npc/ped_NNN.png) — autonomous crowd filler that walks
+// the sidewalks. Not playable, not tappable; pure atmosphere behind the named cast.
+interface AmbientPed {
+  x: number;
+  y: number;
+  dir: number;
+  speed: number;
+  sprite: number; // index into the ped pool
+  bob: number; // phase offset so they don't bob in sync
+}
+const NPC_POOL_SIZE = 44; // ped_000 .. ped_043
+const AMBIENT_PED_COUNT = 54;
+
 // Vehicle sprites (public/vehicles/<type>.png), drawn feet(wheels)-anchored to a road lane.
 // Art faces LEFT; a car travelling right (dir +1) is mirrored. `h` is the draw height in world
 // units (width follows the loaded image aspect).
@@ -226,6 +239,7 @@ export class HollywoodRenderer {
   private lastTime: number | null = null;
   private npcs: NpcRuntime[];
   private cars: CarRuntime[];
+  private peds: AmbientPed[] = [];
   private engine: SoulEngine;
 
   private cam: Camera = { x: 0, y: 0, zoom: 0.1 };
@@ -283,6 +297,23 @@ export class HollywoodRenderer {
         type: VEHICLE_TYPES[i % VEHICLE_TYPES.length],
       });
     }
+
+    // Ambient crowd: pedestrians spread along both boulevard sidewalks, at varied depth within
+    // each walk band so the street reads as busy rather than a single conga line.
+    this.peds = [];
+    for (let i = 0; i < AMBIENT_PED_COUNT; i++) {
+      const north = i % 2 === 0;
+      const bandTop = north ? NORTH_SIDEWALK_TOP + 8 : SOUTH_SIDEWALK_TOP + 6;
+      const bandH = north ? NORTH_SIDEWALK_BOTTOM - NORTH_SIDEWALK_TOP - 20 : SOUTH_SIDEWALK_BOTTOM - SOUTH_SIDEWALK_TOP - 14;
+      this.peds.push({
+        x: 120 + Math.random() * (WORLD_W - 240),
+        y: bandTop + Math.random() * bandH,
+        dir: Math.random() > 0.5 ? 1 : -1,
+        speed: 18 + Math.random() * 26,
+        sprite: Math.floor(Math.random() * NPC_POOL_SIZE),
+        bob: Math.random() * 1000,
+      });
+    }
   }
 
   // ---- lifecycle ----
@@ -310,6 +341,13 @@ export class HollywoodRenderer {
           s.x = s.soul.xMin;
           s.dir = 1;
         }
+      }
+
+      // ambient crowd — walk the sidewalks, turn around at the world edges
+      for (const ped of this.peds) {
+        ped.x += ped.dir * ped.speed * dt * moveScale;
+        if (ped.x > WORLD_W - 100) ped.dir = -1;
+        else if (ped.x < 100) ped.dir = 1;
       }
 
       // player-controlled character: WASD / arrows / on-screen D-pad. Real-time speed
@@ -590,6 +628,8 @@ export class HollywoodRenderer {
     this.drawStreetLamps();
     // sidewalk props — palms, benches, planters, set-pieces, signals (behind the NPCs)
     this.drawProps();
+    // ambient crowd behind the named cast
+    this.drawPeds(t);
     for (const npc of this.npcs) this.drawNPC(npc, t);
 
     // day/night ambient grade — the whole city takes on a time of day
@@ -1185,6 +1225,48 @@ export class HollywoodRenderer {
       this.drawProp("traffic-signal", cs.x - CS_ROAD_HALF - 16, NORTH_SIDEWALK_TOP + 50);
       this.drawProp("traffic-signal", cs.x + CS_ROAD_HALF + 16, SOUTH_SIDEWALK_BOTTOM - 6);
     }
+  }
+
+  private getPed(index: number): HTMLImageElement | null {
+    const key = `n:${index}`;
+    const cached = this.sprites.get(key);
+    if (cached !== undefined) return cached;
+    const img = new Image();
+    img.onerror = () => this.sprites.set(key, null);
+    img.src = `/npc/ped_${String(index).padStart(3, "0")}.png`;
+    this.sprites.set(key, img);
+    return img;
+  }
+
+  // Ambient pedestrians: feet-anchored, mirrored to face travel, with a gentle walk bob. No
+  // aura/ring/foot-smear — they're background, kept cheaper than the named cast. Viewport-culled.
+  private drawPeds(t: number): void {
+    if (this.cam.zoom < 0.18) return;
+    const ctx = this.ctx;
+    const vx = this.cam.x;
+    const vR = vx + this.cssW / this.cam.zoom;
+    const prev = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    const H = 74;
+    for (const ped of this.peds) {
+      if (ped.x < vx - 60 || ped.x > vR + 60) continue;
+      const img = this.getPed(ped.sprite);
+      if (!img || !img.complete || img.naturalWidth === 0) continue;
+      const w = H * (img.naturalWidth / img.naturalHeight);
+      const bob = Math.sin((t + ped.bob) / 150) * 1.6;
+      const top = ped.y - H + 10 + bob;
+      ctx.save();
+      if (ped.dir < 0) {
+        ctx.translate(ped.x, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(img, -w / 2, top, w, H);
+      } else {
+        ctx.drawImage(img, ped.x - w / 2, top, w, H);
+      }
+      ctx.restore();
+    }
+    ctx.imageSmoothingEnabled = prev;
   }
 
   private drawCars() {
