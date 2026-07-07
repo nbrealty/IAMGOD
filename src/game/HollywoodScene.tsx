@@ -11,12 +11,26 @@ function chipLabel(name: string): string {
   return name.split(/\s+/)[0];
 }
 
-// Every soul is playable — step into any of them. `id: null` is Observer Mode (free
-// pan/zoom, nobody driven), pinned first. Built from the live roster so new souls appear
-// automatically.
+// Only souls with real sprite art are playable — the rest live as autonomous NPCs (they
+// still spawn, walk, and open their Soul Profile on tap; they just can't be driven). This
+// is the user-owned allowlist: add an id here the moment a character becomes playable.
+const PLAYABLE_IDS = new Set([
+  "roxy_valente",
+  "lori",
+  "nia",
+  "kiki",
+  "maya",
+  "jordyn",
+  "dalia",
+  "nathaniel",
+  "elizabeth",
+]);
+
+// `id: null` is Observer Mode (free pan/zoom, nobody driven), pinned first. The rest are the
+// art-backed souls above, in roster order, so new playable characters appear automatically.
 export const PLAYABLE_CHARACTERS: { id: string | null; label: string }[] = [
   { id: null, label: "Observe" },
-  ...ROSTER.map((s) => ({ id: s.id, label: chipLabel(s.name) })),
+  ...ROSTER.filter((s) => PLAYABLE_IDS.has(s.id)).map((s) => ({ id: s.id, label: chipLabel(s.name) })),
 ];
 
 interface Props {

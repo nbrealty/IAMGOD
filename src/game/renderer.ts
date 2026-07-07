@@ -53,6 +53,11 @@ interface CarRuntime {
 const NORTH_SIDEWALK_BOTTOM = ROAD_TOP;
 const TAP_THRESHOLD = 7; // css px of movement below which a pointer-up counts as a tap
 
+// Boulevard street-lamp geometry (shared by the lamp prop pass and the night light pass).
+const LAMP_STEP = 156; // world-units between posts along each sidewalk
+const LAMP_POLE_H = 118; // post height up-screen from its foot on the sidewalk
+const LAMP_ARM = 13; // half-spacing of the twin globes on the cross-arm
+
 // Player-controlled character tuning. Movement is now bounded by the street "+" corridor
 // (see canWalk in sceneData) rather than a fixed y-band, so the player can walk the full
 // boulevard AND up/down Highland Ave and turn the corner at the intersection.
@@ -494,6 +499,8 @@ export class HollywoodRenderer {
     // concrete aprons at storefront feet + terrazzo plazas at landmarks (over the
     // sidewalks, in front of the now-laid-out N/S rows, beneath the NPCs)
     this.drawGroundDetail();
+    // street-lamp posts (day + night): a real fixture the night glow emanates from
+    this.drawStreetLamps();
     for (const npc of this.npcs) this.drawNPC(npc, t);
 
     // day/night ambient grade — the whole city takes on a time of day
@@ -502,8 +509,63 @@ export class HollywoodRenderer {
     this.drawLights();
   }
 
-  // Additive night lights: street lamps, glowing marquees, warm interior/window light, and
-  // NPC "lanterns". Skipped entirely by day (zero cost); everything culled to the viewport.
+  // Every boulevard street-lamp currently on screen. `baseY` is the foot on the sidewalk,
+  // `headY` the luminaire. Shared by the prop pass (drawStreetLamps) and the night light
+  // pass (drawLights) so the glow always sits on the actual fixture. Cross-street spans skip.
+  private forEachLamp(cb: (x: number, baseY: number, headY: number) => void): void {
+    const vL = this.cam.x - 170;
+    const vR = this.cam.x + this.cssW / this.cam.zoom + 170;
+    for (const baseY of [ROAD_TOP - 8, SOUTH_SIDEWALK_BOTTOM - 8]) {
+      for (let x = 78; x < WORLD_W; x += LAMP_STEP) {
+        if (x < vL || x > vR) continue;
+        if (CROSS_STREETS.some((cs) => x > cs.x - CS_HALF && x < cs.x + CS_HALF)) continue;
+        cb(x, baseY, baseY - LAMP_POLE_H);
+      }
+    }
+  }
+
+  // The physical lamp posts — vintage Hollywood twin-globe standards. Drawn day and night so
+  // the boulevard has a real fixture; at night drawLights adds the glow at these same globes.
+  private drawStreetLamps(): void {
+    const ctx = this.ctx;
+    this.forEachLamp((x, baseY, headY) => {
+      // foot shadow + base
+      ctx.fillStyle = "#171310";
+      ctx.beginPath();
+      ctx.ellipse(x, baseY, 8, 3, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // tapered pole
+      ctx.fillStyle = "#2b2620";
+      ctx.beginPath();
+      ctx.moveTo(x - 3.4, baseY);
+      ctx.lineTo(x - 2, headY);
+      ctx.lineTo(x + 2, headY);
+      ctx.lineTo(x + 3.4, baseY);
+      ctx.closePath();
+      ctx.fill();
+      // cross-arm
+      ctx.fillStyle = "#342d23";
+      ctx.fillRect(x - LAMP_ARM, headY - 2, LAMP_ARM * 2, 3.2);
+      // three warm glass globes (two on the arm ends, one crowning the top)
+      for (const [gx, gy] of [
+        [x - LAMP_ARM, headY - 4] as const,
+        [x + LAMP_ARM, headY - 4] as const,
+        [x, headY - 9] as const,
+      ]) {
+        ctx.fillStyle = "#3a3227";
+        ctx.fillRect(gx - 3, gy - 1, 6, 4); // fitter cap
+        ctx.fillStyle = "#ffe9b8";
+        ctx.beginPath();
+        ctx.arc(gx, gy - 4, 5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    });
+  }
+
+  // Additive night lighting (composited with `lighter`): warm light radiating from each lamp
+  // globe with a pool on the sidewalk, a tight glow at each storefront's window band, a
+  // contained neon bloom on landmark marquees, and a faint contact pool under each person.
+  // Skipped entirely by day (zero cost); everything viewport-culled.
   private drawLights() {
     const night = nightAt(this.engine.clockMinutes);
     if (night <= 0.001) return;
@@ -513,73 +575,92 @@ export class HollywoodRenderer {
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
 
-    // 1. street lamps along both boulevard sidewalks (skip cross-street spans)
-    const LAMP_STEP = 156;
-    for (const ly of [NORTH_SIDEWALK_TOP + 18, SOUTH_SIDEWALK_TOP + 18]) {
-      for (let x = 78; x < WORLD_W; x += LAMP_STEP) {
-        if (x < vL - 130 || x > vR + 130) continue;
-        if (CROSS_STREETS.some((cs) => x > cs.x - CS_HALF && x < cs.x + CS_HALF)) continue;
-        const r = 95;
-        const g = ctx.createRadialGradient(x, ly, 2, x, ly, r);
-        g.addColorStop(0, `rgba(255,196,120,${0.42 * night})`);
+    // 1. street lamps — light from each globe, and a warm pool cast on the sidewalk below
+    this.forEachLamp((x, baseY, headY) => {
+      const gy = headY - 8;
+      for (const gx of [x - LAMP_ARM, x + LAMP_ARM, x]) {
+        const rr = 48;
+        const g = ctx.createRadialGradient(gx, gy, 1, gx, gy, rr);
+        g.addColorStop(0, `rgba(255,216,152,${0.5 * night})`);
+        g.addColorStop(0.45, `rgba(255,196,120,${0.16 * night})`);
         g.addColorStop(1, "rgba(255,196,120,0)");
         ctx.fillStyle = g;
         ctx.beginPath();
-        ctx.arc(x, ly, r, 0, Math.PI * 2);
+        ctx.arc(gx, gy, rr, 0, Math.PI * 2);
         ctx.fill();
       }
-    }
+      // ground pool at the foot
+      const pr = 74;
+      const pg = ctx.createRadialGradient(x, baseY, 2, x, baseY, pr);
+      pg.addColorStop(0, `rgba(255,190,110,${0.32 * night})`);
+      pg.addColorStop(1, "rgba(255,190,110,0)");
+      ctx.fillStyle = pg;
+      ctx.beginPath();
+      ctx.ellipse(x, baseY, pr, pr * 0.4, 0, 0, Math.PI * 2);
+      ctx.fill();
+    });
 
-    // 2. building glow — a warm interior blob per building, plus a neon halo on landmark
-    // marquees. Footprint math mirrors drawBuildingSprite so glows land on the art.
+    // 2. building light — a tight warm glow at the shop-window band (low on the facade, where
+    // the storefront actually is) plus a contained neon bloom on landmark marquees. Radii are
+    // capped and hug the base, so tall buildings no longer get sky-sized halos overhead.
     for (const f of ALL_FRONTAGES) {
       for (const b of f.buildings) {
         const bx = b.x ?? 0;
         const bw = b.width ?? 0;
-        if (bx + bw < vL - 220 || bx > vR + 220) continue;
+        if (bw <= 0 || bx + bw < vL - 80 || bx > vR + 80) continue;
         const side = b.side ?? "north";
         const growUp = b.growUp ?? true;
         const baseY = b.baseY ?? (side === "north" ? NORTH_BASELINE : SOUTH_BASELINE);
         const H = (b.ch ?? (b.height ?? 90) / 84) * 84;
-        const w = H * this.aspectOf(b);
         const cx = bx + bw / 2;
-        const top = growUp ? baseY - H : baseY;
-        // interior warm glow (taller buildings glow a touch brighter)
-        const gy = top + H * 0.62;
-        const wa = (0.09 + Math.min(0.08, H / 2400)) * night;
-        const gr = ctx.createRadialGradient(cx, gy, 4, cx, gy, Math.max(w, H) * 0.5);
-        gr.addColorStop(0, `rgba(255,205,135,${wa})`);
-        gr.addColorStop(1, "rgba(255,205,135,0)");
+        const dir = growUp ? -1 : 1;
+        // storefront window glow, near the base
+        const band = Math.min(H, 150);
+        const gy = baseY + dir * band * 0.5;
+        const rad = Math.min(bw * 0.55, 150);
+        const gr = ctx.createRadialGradient(cx, gy, 2, cx, gy, rad);
+        gr.addColorStop(0, `rgba(255,206,140,${0.14 * night})`);
+        gr.addColorStop(1, "rgba(255,206,140,0)");
         ctx.fillStyle = gr;
         ctx.beginPath();
-        ctx.ellipse(cx, gy, w * 0.5, H * 0.42, 0, 0, Math.PI * 2);
+        ctx.ellipse(cx, gy, rad, Math.min(band * 0.6, 88), 0, 0, Math.PI * 2);
         ctx.fill();
-        // marquee neon halo (landmarks only)
+        // marquee bloom, on the sign band (kept on the facade, not overhead)
         if (b.marquee) {
-          const my = top + H * 0.16;
+          const my = baseY + dir * Math.min(H * 0.55, 210);
           const mc = b.marqueeColor ?? "#e0b23a";
-          const mg = ctx.createRadialGradient(cx, my, 4, cx, my, w * 0.6);
-          mg.addColorStop(0, hexAlpha(mc, 0.55 * night));
+          const mr = Math.min(bw * 0.5, 150);
+          const mg = ctx.createRadialGradient(cx, my, 2, cx, my, mr);
+          mg.addColorStop(0, hexAlpha(mc, 0.5 * night));
           mg.addColorStop(1, hexAlpha(mc, 0));
           ctx.fillStyle = mg;
           ctx.beginPath();
-          ctx.ellipse(cx, my, w * 0.62, H * 0.18, 0, 0, Math.PI * 2);
+          ctx.ellipse(cx, my, mr, Math.min(H * 0.12, 44), 0, 0, Math.PI * 2);
           ctx.fill();
         }
       }
     }
 
-    // 3. NPC lanterns — each soul glows their aura colour after dark
+    // 3. people — a faint contact pool at the feet (not a body halo); the character you're
+    // driving gets a warmer, larger under-glow so you can always find yourself in the dark.
     for (const s of this.npcs) {
       if (s.x < vL - 60 || s.x > vR + 60) continue;
-      const aura = auraColor(s.soul);
-      const r = 42;
-      const g = ctx.createRadialGradient(s.x, s.y, 2, s.x, s.y, r);
-      g.addColorStop(0, hexAlpha(aura, 0.5 * night));
-      g.addColorStop(1, hexAlpha(aura, 0));
+      const isPC = s.soul.id === this.controlledId;
+      const r = isPC ? 40 : 20;
+      const a = (isPC ? 0.4 : 0.12) * night;
+      const fy = s.y + 6;
+      const g = ctx.createRadialGradient(s.x, fy, 1, s.x, fy, r);
+      if (isPC) {
+        g.addColorStop(0, `rgba(255,240,207,${a})`);
+        g.addColorStop(1, "rgba(255,240,207,0)");
+      } else {
+        const aura = auraColor(s.soul);
+        g.addColorStop(0, hexAlpha(aura, a));
+        g.addColorStop(1, hexAlpha(aura, 0));
+      }
       ctx.fillStyle = g;
       ctx.beginPath();
-      ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
+      ctx.ellipse(s.x, fy, r, r * 0.45, 0, 0, Math.PI * 2);
       ctx.fill();
     }
 
