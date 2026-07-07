@@ -58,6 +58,11 @@ const LAMP_STEP = 156; // world-units between posts along each sidewalk
 const LAMP_POLE_H = 118; // post height up-screen from its foot on the sidewalk
 const LAMP_ARM = 13; // half-spacing of the twin globes on the cross-arm
 
+// Sprite art convention: a walking character faces RIGHT by default and is mirrored to face
+// left. A couple of the provided sprites were drawn facing LEFT instead, so their mirror is
+// inverted here — otherwise they'd turn the wrong way relative to travel.
+const SPRITE_FACES_LEFT = new Set(["nathaniel", "elizabeth"]);
+
 // Player-controlled character tuning. Movement is now bounded by the street "+" corridor
 // (see canWalk in sceneData) rather than a fixed y-band, so the player can walk the full
 // boulevard AND up/down Highland Ave and turn the corner at the intersection.
@@ -663,23 +668,17 @@ export class HollywoodRenderer {
       }
     }
 
-    // 3. people — a faint contact pool at the feet (not a body halo); the character you're
-    // driving gets a warmer, larger under-glow so you can always find yourself in the dark.
+    // 3. people — a faint aura-tinted contact pool at the feet after dark (no bright halo).
+    // The controlled character is marked by the "you are here" ring in drawNPC, not a glow.
     for (const s of this.npcs) {
       if (s.x < vL - 60 || s.x > vR + 60) continue;
-      const isPC = s.soul.id === this.controlledId;
-      const r = isPC ? 40 : 20;
-      const a = (isPC ? 0.4 : 0.12) * night;
+      const aura = auraColor(s.soul);
+      const r = 20;
+      const a = 0.12 * night;
       const fy = s.y + 6;
       const g = ctx.createRadialGradient(s.x, fy, 1, s.x, fy, r);
-      if (isPC) {
-        g.addColorStop(0, `rgba(255,240,207,${a})`);
-        g.addColorStop(1, "rgba(255,240,207,0)");
-      } else {
-        const aura = auraColor(s.soul);
-        g.addColorStop(0, hexAlpha(aura, a));
-        g.addColorStop(1, hexAlpha(aura, 0));
-      }
+      g.addColorStop(0, hexAlpha(aura, a));
+      g.addColorStop(1, hexAlpha(aura, 0));
       ctx.fillStyle = g;
       ctx.beginPath();
       ctx.ellipse(s.x, fy, r, r * 0.45, 0, 0, Math.PI * 2);
@@ -1159,7 +1158,8 @@ export class HollywoodRenderer {
     if (sprite && sprite.complete && sprite.naturalWidth > 0) {
       const targetH = 84; // bigger, Gaia-style — shows the sprite detail
       const w = targetH * (sprite.naturalWidth / sprite.naturalHeight);
-      const flip = s.soul.id === this.controlledId ? this.facingLeft : s.dir < 0;
+      let flip = s.soul.id === this.controlledId ? this.facingLeft : s.dir < 0;
+      if (SPRITE_FACES_LEFT.has(s.soul.id)) flip = !flip; // this sprite's art faces left by default
       const top = y - targetH + 12;
       const prev = ctx.imageSmoothingEnabled;
       ctx.imageSmoothingEnabled = true; // smooth downscale — these are painted, not pixel art
