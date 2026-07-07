@@ -63,6 +63,28 @@ const LAMP_ARM = 13; // half-spacing of the twin globes on the cross-arm
 // inverted here — otherwise they'd turn the wrong way relative to travel.
 const SPRITE_FACES_LEFT = new Set(["nathaniel", "elizabeth"]);
 
+// ---- Ground tile textures (public/tiles) ----------------------------------------------
+// Seamless daylight-lit textures repeated across each surface. TILE_WORLD is how many world
+// units one copy of the image spans (so terrazzo squares / asphalt aggregate read at a real
+// size regardless of source resolution). GROUND_FALLBACK is the flat tone used when the
+// image hasn't loaded yet or when zoomed too far out to bother tiling.
+const TILE_WORLD: Record<string, number> = {
+  "asphalt.jpg": 200,
+  "sidewalk.jpg": 120, // art carries a 4×4 brass grid → ~30u terrazzo squares
+  "grass.jpg": 230,
+  "soil.jpg": 140,
+  "plaza.jpg": 210,
+};
+const GROUND_FALLBACK: Record<string, string> = {
+  "asphalt.jpg": "#33322f",
+  "sidewalk.jpg": "#6b665d",
+  "grass.jpg": "#3b4a2e",
+  "soil.jpg": "#38301f",
+  "plaza.jpg": "#b6a877",
+};
+// Below this zoom the whole district is in frame; skip pattern tiling and just flat-fill.
+const TILE_ZOOM_GATE = 0.24;
+
 // Player-controlled character tuning. Movement is now bounded by the street "+" corridor
 // (see canWalk in sceneData) rather than a fixed y-band, so the player can walk the full
 // boulevard AND up/down Highland Ave and turn the corner at the intersection.
@@ -183,6 +205,8 @@ export class HollywoodRenderer {
   private facingUp = false; // moving away from camera → show the back sprite
 
   private sprites = new Map<string, HTMLImageElement | null>();
+  private tiles = new Map<string, HTMLImageElement | null>();
+  private patterns = new Map<string, CanvasPattern>();
   private tapHandler: ((cssX: number, cssY: number) => void) | null = null;
 
   // input state
@@ -756,8 +780,7 @@ export class HollywoodRenderer {
 
   private drawRoad() {
     const ctx = this.ctx;
-    ctx.fillStyle = "#33322f";
-    ctx.fillRect(0, ROAD_TOP, WORLD_W, ROAD_BOTTOM - ROAD_TOP);
+    this.fillTiled(0, ROAD_TOP, WORLD_W, ROAD_BOTTOM, "asphalt.jpg");
 
     ctx.strokeStyle = "#d8c96a";
     ctx.setLineDash([26, 20]);
@@ -779,11 +802,12 @@ export class HollywoodRenderer {
 
     // Cross streets — each a full-height vertical road with flanking sidewalks, dashed
     // centre line, crosswalk stripes at the Blvd intersection, and a rotated street label.
+    const crosswalk = this.getTile("crosswalk.jpg");
+    const cwReady = crosswalk && crosswalk.complete && crosswalk.naturalWidth > 0;
     for (const cs of CROSS_STREETS) {
       const roadL = cs.x - CS_ROAD_HALF;
       const roadR = cs.x + CS_ROAD_HALF;
-      ctx.fillStyle = "#2c2b28";
-      ctx.fillRect(roadL, 0, roadR - roadL, WORLD_H);
+      this.fillTiled(roadL, 0, roadR, WORLD_H, "asphalt.jpg");
       ctx.strokeStyle = "#d8c96a";
       ctx.setLineDash([22, 18]);
       ctx.lineWidth = 3;
@@ -793,12 +817,14 @@ export class HollywoodRenderer {
       ctx.stroke();
       ctx.setLineDash([]);
 
-      ctx.fillStyle = "#e7e2d2";
-      for (let px = roadL - 6; px < roadR + 6; px += 14) {
-        ctx.fillRect(px, ROAD_TOP + 6, 8, ROAD_BOTTOM - ROAD_TOP - 12);
-      }
-      for (let py = ROAD_TOP - 6; py < ROAD_BOTTOM + 6; py += 14) {
-        ctx.fillRect(roadL + 6, py, roadR - roadL - 12, 8);
+      // Zebra crosswalk across the boulevard, aligned to the cross-street corridor.
+      if (cwReady && cs.x + CS_ROAD_HALF > this.cam.x && cs.x - CS_ROAD_HALF < this.cam.x + this.cssW / this.cam.zoom) {
+        ctx.drawImage(crosswalk!, roadL, ROAD_TOP + 2, roadR - roadL, ROAD_BOTTOM - ROAD_TOP - 4);
+      } else if (!cwReady) {
+        ctx.fillStyle = "#e7e2d2";
+        for (let px = roadL - 6; px < roadR + 6; px += 14) {
+          ctx.fillRect(px, ROAD_TOP + 6, 8, ROAD_BOTTOM - ROAD_TOP - 12);
+        }
       }
 
       ctx.save();
@@ -843,13 +869,23 @@ export class HollywoodRenderer {
 
   private drawWalkOfFame(y: number) {
     const ctx = this.ctx;
-    for (let x = 70; x < WORLD_W - 70; x += 78) {
+    const star = this.getTile("star.png");
+    const ready = star && star.complete && star.naturalWidth > 0;
+    const vx = this.cam.x;
+    const vR = vx + this.cssW / this.cam.zoom;
+    const S = 40; // world-units per star plaque
+    for (let x = 70; x < WORLD_W - 70; x += 72) {
+      if (x < vx - S || x > vR + S) continue;
       if (CROSS_STREETS.some((cs) => x > cs.x - CS_HALF - 20 && x < cs.x + CS_HALF + 20)) continue;
-      ctx.fillStyle = "#6b4a86";
-      ctx.beginPath();
-      ctx.ellipse(x, y, 20, 9, 0, 0, Math.PI * 2);
-      ctx.fill();
-      this.drawStar(x, y, 8, 3.6, "#e9c96b");
+      if (ready) {
+        ctx.drawImage(star!, x - S / 2, y - S / 2, S, S);
+      } else {
+        ctx.fillStyle = "#6b4a86";
+        ctx.beginPath();
+        ctx.ellipse(x, y, 20, 9, 0, 0, Math.PI * 2);
+        ctx.fill();
+        this.drawStar(x, y, 8, 3.6, "#e9c96b");
+      }
     }
   }
 
@@ -897,12 +933,7 @@ export class HollywoodRenderer {
         const lw = bw + f.gap;
         if (lx + lw < vx - 40 || lx > vR + 40) continue;
         const grass = groundHash(Math.round(lx), 917) > 0.34;
-        const base = grass ? "#3b4a2e" : "#38301f";
-        ctx.fillStyle = base;
-        ctx.fillRect(lx, yardTop, lw, WORLD_H - yardTop);
-        // a mown/path seam down the middle of the lot for a touch of variation
-        ctx.fillStyle = shade(base, grass ? -8 : 9);
-        ctx.fillRect(bx + bw * 0.5 - 9, yardTop, 18, WORLD_H - yardTop);
+        this.fillTiled(lx, yardTop, lx + lw, WORLD_H, grass ? "grass.jpg" : "soil.jpg");
       }
     }
   }
@@ -921,77 +952,30 @@ export class HollywoodRenderer {
         const bw = b.width ?? 0;
         if (bx + bw < vx - 40 || bx > vR + 40 || bw <= 0) continue;
         const landmark = !!b.marquee;
-        ctx.fillStyle = landmark ? "#b6a877" : "#7a746b";
-        ctx.fillRect(bx + 6, walkTop + 1, bw - 12, 13);
         if (landmark) {
-          // terrazzo flecks scattered across the plaza pad (fixed count, hashed positions)
-          for (let i = 0; i < 16; i++) {
-            const px = bx + 10 + groundHash(Math.round(bx) + i * 7, i) * (bw - 20);
-            const py = walkTop + 2 + groundHash(i, Math.round(bx) + i * 5) * 10;
-            ctx.fillStyle = i % 3 === 0 ? "#d9c583" : "#9a8f6a";
-            ctx.fillRect(px, py, 3, 3);
-          }
+          // ornate terrazzo forecourt across the landmark's whole sidewalk frontage
+          this.fillTiled(bx + 4, walkTop, bx + bw - 4, walkTop + 58, "plaza.jpg");
+        } else {
+          // a subtle concrete apron/curb at plain storefront feet
+          ctx.fillStyle = "#7a746b";
+          ctx.fillRect(bx + 6, walkTop + 1, bw - 12, 12);
         }
       }
     }
   }
 
-  // Paint a rectangle of Hollywood-terrazzo pavement: a warm dark-stone base, a per-tile shade
-  // variation on a square grid, and grid seams — so sidewalks read as real tiled stone rather
-  // than flat concrete. Culled to the visible rect; tile detail is zoom-gated for cost.
-  private paintPavement(x0: number, y0: number, x1: number, y1: number, base: string) {
-    const ctx = this.ctx;
-    const vx = this.cam.x;
-    const vy = this.cam.y;
-    const vR = vx + this.cssW / this.cam.zoom;
-    const vB = vy + this.cssH / this.cam.zoom;
-    const cx0 = Math.max(x0, vx);
-    const cy0 = Math.max(y0, vy);
-    const cx1 = Math.min(x1, vR);
-    const cy1 = Math.min(y1, vB);
-    if (cx1 <= cx0 || cy1 <= cy0) return;
-    ctx.fillStyle = base;
-    ctx.fillRect(cx0, cy0, cx1 - cx0, cy1 - cy0);
-    if (this.cam.zoom <= 0.45) return; // too far out to read the tiling — skip the detail
-    const TILE = 44;
-    const sx = Math.floor(cx0 / TILE) * TILE;
-    const sy = Math.floor(cy0 / TILE) * TILE;
-    for (let gx = sx; gx < cx1; gx += TILE) {
-      for (let gy = sy; gy < cy1; gy += TILE) {
-        const tx = Math.max(gx, cx0);
-        const ty = Math.max(gy, cy0);
-        const tw = Math.min(gx + TILE, cx1) - tx;
-        const th = Math.min(gy + TILE, cy1) - ty;
-        ctx.fillStyle = shade(base, Math.round((groundHash(gx, gy) - 0.5) * 14));
-        ctx.fillRect(tx, ty, tw, th);
-      }
-    }
-    ctx.strokeStyle = shade(base, -24);
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    for (let gx = sx; gx <= cx1; gx += TILE) {
-      ctx.moveTo(gx, cy0);
-      ctx.lineTo(gx, cy1);
-    }
-    for (let gy = sy; gy <= cy1; gy += TILE) {
-      ctx.moveTo(cx0, gy);
-      ctx.lineTo(cx1, gy);
-    }
-    ctx.stroke();
-  }
 
   private drawSidewalks() {
-    const base = "#6b665d"; // warm dark terrazzo — the real Walk-of-Fame stone tone
-    // Hollywood Blvd sidewalks (full width)
-    this.paintPavement(0, NORTH_SIDEWALK_TOP, WORLD_W, NORTH_SIDEWALK_BOTTOM, base);
-    this.paintPavement(0, SOUTH_SIDEWALK_TOP, WORLD_W, SOUTH_SIDEWALK_BOTTOM, base);
+    // Hollywood Blvd sidewalks (full width) — real tiled terrazzo
+    this.fillTiled(0, NORTH_SIDEWALK_TOP, WORLD_W, NORTH_SIDEWALK_BOTTOM, "sidewalk.jpg");
+    this.fillTiled(0, SOUTH_SIDEWALK_TOP, WORLD_W, SOUTH_SIDEWALK_BOTTOM, "sidewalk.jpg");
     // Cross-street sidewalks (full height, flanking each cross road)
     for (const cs of CROSS_STREETS) {
-      this.paintPavement(cs.x - CS_HALF, 0, cs.x - CS_ROAD_HALF, WORLD_H, base);
-      this.paintPavement(cs.x + CS_ROAD_HALF, 0, cs.x + CS_HALF, WORLD_H, base);
+      this.fillTiled(cs.x - CS_HALF, 0, cs.x - CS_ROAD_HALF, WORLD_H, "sidewalk.jpg");
+      this.fillTiled(cs.x + CS_ROAD_HALF, 0, cs.x + CS_HALF, WORLD_H, "sidewalk.jpg");
     }
-    this.drawWalkOfFame(NORTH_SIDEWALK_TOP + 20);
-    this.drawWalkOfFame(SOUTH_SIDEWALK_TOP + 20);
+    this.drawWalkOfFame(NORTH_SIDEWALK_TOP + 30);
+    this.drawWalkOfFame(SOUTH_SIDEWALK_TOP + 30);
   }
 
   // Live art ratio (w/h) for a building's facade — the true image aspect once loaded,
@@ -1131,6 +1115,55 @@ export class HollywoodRenderer {
     img.src = `/buildings/${stem}.png`;
     this.sprites.set(key, img);
     return img;
+  }
+
+  // Seamless ground texture from /tiles/<name>. Cached; null once it 404s.
+  private getTile(name: string): HTMLImageElement | null {
+    const cached = this.tiles.get(name);
+    if (cached !== undefined) return cached;
+    const img = new Image();
+    img.onerror = () => this.tiles.set(name, null);
+    img.src = `/tiles/${name}`;
+    this.tiles.set(name, img);
+    return img;
+  }
+
+  // A cached repeating CanvasPattern for a tile, or null until the image has decoded.
+  private getTilePattern(name: string): CanvasPattern | null {
+    const cached = this.patterns.get(name);
+    if (cached) return cached;
+    const img = this.getTile(name);
+    if (!img || !img.complete || img.naturalWidth === 0) return null;
+    const pat = this.ctx.createPattern(img, "repeat");
+    if (!pat) return null;
+    this.patterns.set(name, pat);
+    return pat;
+  }
+
+  // Fill a world-space rect with a repeating ground texture, viewport-culled. One copy of the
+  // image spans TILE_WORLD[name] world units; the pattern is anchored to the world origin so
+  // adjacent surfaces (road ↔ cross-street) tile seamlessly. Flat-fills when the texture isn't
+  // ready or when zoomed too far out to read the detail.
+  private fillTiled(x0: number, y0: number, x1: number, y1: number, name: string): void {
+    const ctx = this.ctx;
+    const vx = this.cam.x;
+    const vy = this.cam.y;
+    const cx0 = Math.max(x0, vx);
+    const cy0 = Math.max(y0, vy);
+    const cx1 = Math.min(x1, vx + this.cssW / this.cam.zoom);
+    const cy1 = Math.min(y1, vy + this.cssH / this.cam.zoom);
+    if (cx1 <= cx0 || cy1 <= cy0) return;
+    const pat = this.cam.zoom > TILE_ZOOM_GATE ? this.getTilePattern(name) : null;
+    if (!pat) {
+      ctx.fillStyle = GROUND_FALLBACK[name] ?? "#2a2620";
+      ctx.fillRect(cx0, cy0, cx1 - cx0, cy1 - cy0);
+      return;
+    }
+    const img = this.getTile(name)!;
+    const k = (TILE_WORLD[name] ?? 160) / img.naturalWidth;
+    pat.setTransform(new DOMMatrix([k, 0, 0, k, 0, 0]));
+    ctx.fillStyle = pat;
+    ctx.fillRect(cx0, cy0, cx1 - cx0, cy1 - cy0);
   }
 
   // Composite a facade image at its character-height scale, feet-anchored to the
