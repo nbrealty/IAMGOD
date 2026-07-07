@@ -65,6 +65,27 @@ const VEHICLES: Record<string, number> = {
 };
 const VEHICLE_TYPES = Object.keys(VEHICLES);
 
+// Street props (public/props/<name>.png), stood foot-anchored on a sidewalk. Value = draw
+// height in world units (width follows the image aspect).
+const PROP_H: Record<string, number> = {
+  palm: 150,
+  bench: 34,
+  planter: 30,
+  trashcan: 40,
+  hydrant: 46,
+  fountain: 62,
+  "bike-rack": 30,
+  newsstand: 116,
+  "bus-shelter": 82,
+  valet: 108,
+  "traffic-signal": 120,
+};
+// Deterministic scatter along the sidewalks (palms weighted for that Hollywood look), with an
+// occasional larger set-piece; traffic signals are placed separately at the intersections.
+const PROP_SCATTER = ["palm", "bench", "palm", "planter", "hydrant", "palm", "trashcan", "planter", "bench", "palm"];
+const PROP_SETPIECES = ["newsstand", "bus-shelter", "valet", "fountain", "bike-rack"];
+const PROP_STEP = 152; // world-units between prop slots
+
 const NORTH_SIDEWALK_BOTTOM = ROAD_TOP;
 const TAP_THRESHOLD = 7; // css px of movement below which a pointer-up counts as a tap
 
@@ -567,6 +588,8 @@ export class HollywoodRenderer {
     this.drawGroundDetail();
     // street-lamp posts (day + night): a real fixture the night glow emanates from
     this.drawStreetLamps();
+    // sidewalk props — palms, benches, planters, set-pieces, signals (behind the NPCs)
+    this.drawProps();
     for (const npc of this.npcs) this.drawNPC(npc, t);
 
     // day/night ambient grade — the whole city takes on a time of day
@@ -1113,6 +1136,55 @@ export class HollywoodRenderer {
     img.src = `/vehicles/${type}.png`;
     this.sprites.set(key, img);
     return img;
+  }
+
+  private getProp(name: string): HTMLImageElement | null {
+    const key = `p:${name}`;
+    const cached = this.sprites.get(key);
+    if (cached !== undefined) return cached;
+    const img = new Image();
+    img.onerror = () => this.sprites.set(key, null);
+    img.src = `/props/${name}.png`;
+    this.sprites.set(key, img);
+    return img;
+  }
+
+  private drawProp(name: string, x: number, footY: number): void {
+    const img = this.getProp(name);
+    if (!img || !img.complete || img.naturalWidth === 0) return;
+    const h = PROP_H[name] ?? 40;
+    const w = h * (img.naturalWidth / img.naturalHeight);
+    this.ctx.drawImage(img, x - w / 2, footY - h, w, h);
+  }
+
+  // Deterministic sidewalk furniture along both boulevard walks: a palm-heavy scatter with an
+  // occasional set-piece, plus a traffic signal at each intersection corner. Viewport-culled,
+  // zoom-gated, drawn behind the NPCs. No randomness — placement is a pure function of x.
+  private drawProps(): void {
+    if (this.cam.zoom < 0.16) return;
+    const vx = this.cam.x;
+    const vR = vx + this.cssW / this.cam.zoom;
+    const feet = [NORTH_SIDEWALK_TOP + 50, SOUTH_SIDEWALK_BOTTOM - 6];
+    for (let si = 0; si < feet.length; si++) {
+      const footY = feet[si];
+      let slot = 0;
+      for (let x = 130; x < WORLD_W - 130; x += PROP_STEP, slot++) {
+        if (x < vx - 260 || x > vR + 260) continue;
+        if (CROSS_STREETS.some((cs) => x > cs.x - CS_HALF - 34 && x < cs.x + CS_HALF + 34)) continue;
+        const jitter = (groundHash(slot * 5 + si * 61, 3) - 0.5) * 40;
+        const name =
+          (slot + si) % 8 === 5
+            ? PROP_SETPIECES[(slot + si * 2) % PROP_SETPIECES.length]
+            : PROP_SCATTER[(slot * 2 + si) % PROP_SCATTER.length];
+        this.drawProp(name, x + jitter, footY);
+      }
+    }
+    // traffic signals at the boulevard corners of each cross street
+    for (const cs of CROSS_STREETS) {
+      if (cs.x + 200 < vx || cs.x - 200 > vR) continue;
+      this.drawProp("traffic-signal", cs.x - CS_ROAD_HALF - 16, NORTH_SIDEWALK_TOP + 50);
+      this.drawProp("traffic-signal", cs.x + CS_ROAD_HALF + 16, SOUTH_SIDEWALK_BOTTOM - 6);
+    }
   }
 
   private drawCars() {
