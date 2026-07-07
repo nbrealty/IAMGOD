@@ -48,7 +48,22 @@ interface CarRuntime {
   y: number;
   dir: number;
   speed: number;
+  type: string;
 }
+
+// Vehicle sprites (public/vehicles/<type>.png), drawn feet(wheels)-anchored to a road lane.
+// Art faces LEFT; a car travelling right (dir +1) is mirrored. `h` is the draw height in world
+// units (width follows the loaded image aspect).
+const VEHICLES: Record<string, number> = {
+  sedan: 52,
+  police: 52,
+  convertible: 50,
+  limo: 58,
+  van: 64,
+  bus: 60,
+  tourbus: 60,
+};
+const VEHICLE_TYPES = Object.keys(VEHICLES);
 
 const NORTH_SIDEWALK_BOTTOM = ROAD_TOP;
 const TAP_THRESHOLD = 7; // css px of movement below which a pointer-up counts as a tap
@@ -231,11 +246,22 @@ export class HollywoodRenderer {
       moving: false,
     }));
 
-    this.cars = [
-      { x: 40, y: ROAD_TOP + 25, dir: 1, speed: 90 },
-      { x: 900, y: ROAD_TOP + 25, dir: 1, speed: 70 },
-      { x: 700, y: ROAD_BOTTOM - 25, dir: -1, speed: 80 },
-    ];
+    // Traffic: two lanes down the boulevard, cars spread across the world so several are on
+    // screen at any pan. Upper lane travels right, lower lane left; types/speeds vary.
+    const upperY = ROAD_TOP + 48;
+    const lowerY = ROAD_BOTTOM - 42;
+    this.cars = [];
+    const N = 16;
+    for (let i = 0; i < N; i++) {
+      const upper = i % 2 === 0;
+      this.cars.push({
+        x: (WORLD_W / N) * i + (i % 3) * 140,
+        y: upper ? upperY : lowerY,
+        dir: upper ? 1 : -1,
+        speed: 62 + (i % 5) * 12,
+        type: VEHICLE_TYPES[i % VEHICLE_TYPES.length],
+      });
+    }
   }
 
   // ---- lifecycle ----
@@ -1078,10 +1104,41 @@ export class HollywoodRenderer {
     }
   }
 
+  private getVehicle(type: string): HTMLImageElement | null {
+    const key = `v:${type}`;
+    const cached = this.sprites.get(key);
+    if (cached !== undefined) return cached;
+    const img = new Image();
+    img.onerror = () => this.sprites.set(key, null);
+    img.src = `/vehicles/${type}.png`;
+    this.sprites.set(key, img);
+    return img;
+  }
+
   private drawCars() {
     const ctx = this.ctx;
+    const vx = this.cam.x;
+    const vR = vx + this.cssW / this.cam.zoom;
     const colors = ["#b23b3b", "#3b5fb2", "#c9c9c9", "#e0a733"];
     this.cars.forEach((car, i) => {
+      const img = this.getVehicle(car.type);
+      if (img && img.complete && img.naturalWidth > 0) {
+        const h = VEHICLES[car.type] ?? 54;
+        const w = h * (img.naturalWidth / img.naturalHeight);
+        if (car.x + w < vx - 40 || car.x - w > vR + 40) return;
+        ctx.save();
+        // art faces LEFT; mirror when travelling right. Wheels sit on car.y.
+        if (car.dir > 0) {
+          ctx.translate(car.x + w / 2, car.y - h);
+          ctx.scale(-1, 1);
+          ctx.drawImage(img, -w / 2, 0, w, h);
+        } else {
+          ctx.drawImage(img, car.x - w / 2, car.y - h, w, h);
+        }
+        ctx.restore();
+        return;
+      }
+      // fallback box until the sprite loads
       ctx.fillStyle = colors[i % colors.length];
       ctx.fillRect(car.x, car.y - 10, 46, 20);
       ctx.fillStyle = "#dff0ff";
