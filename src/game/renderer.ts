@@ -1292,6 +1292,8 @@ export class HollywoodRenderer {
     const w = H * (img.naturalWidth / img.naturalHeight);
     const bob = Math.sin((t + ped.bob) / 150) * 1.6;
     const top = ped.y - H + 10 + bob;
+    // smoky walk FX behind the ped (they're always walking)
+    this.drawWalkFX(ped.x, ped.y + 10, w, ped.dir, t, (ped.bob % 1000) / 1000);
     const prev = ctx.imageSmoothingEnabled;
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
@@ -1431,6 +1433,74 @@ export class HollywoodRenderer {
     ctx.imageSmoothingEnabled = prev;
   }
 
+  // Shared smoky walk FX — drawn behind a moving character's body. Three ingredients (research:
+  // Gaia's leg-blur + smear "multiples" + smoke): a trailing leg-height blur, a couple of soft
+  // dark smoke puffs that rise/expand/fade drifting behind travel, and a grounded contact
+  // crescent. Time-tinted — cooler/bluish at night, warmer/amber at golden hour, darker overall.
+  // `x`/`footY` = the feet in world space, `w` = sprite width, `dir` = travel (±1), `phase` 0..1.
+  private drawWalkFX(x: number, footY: number, w: number, dir: number, t: number, phase: number): void {
+    const ctx = this.ctx;
+    const mins = this.engine.clockMinutes;
+    const night = nightAt(mins);
+    const golden = goldenAt(mins);
+    // Cool slate smoke — dark & moody, but light enough to read on the asphalt; bluer/brighter
+    // after dark (moonlit smoke), warmer at golden hour.
+    // Cool slate smoke — dark & moody but light enough to read on the asphalt; bluer after dark
+    // (moonlit), warmer at golden hour.
+    const rr = Math.round(60 + golden * 34 - night * 8);
+    const gg = Math.round(62 + golden * 14 + night * 8);
+    const bb = Math.round(72 + night * 30);
+    const back = dir >= 0 ? -1 : 1; // trailing side (behind travel)
+    const step = 6 + 3 * Math.abs(Math.sin(t / 80));
+
+    // (1) trailing leg-blur — fading smears streaking behind the shins (visible to the trailing side)
+    const legY = footY - 13;
+    for (let k = 1; k <= 4; k++) {
+      const a = 0.34 / k;
+      ctx.fillStyle = `rgba(${rr},${gg},${bb},${a})`;
+      ctx.beginPath();
+      ctx.ellipse(x + back * (w * 0.28 + k * step * 1.4), legY, w * 0.34, 8, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // (2) smoke puffs — kicked up at the feet, TRAILING BACK along the ground (so they read behind
+    // the body instead of being hidden by the torso), rising only a little as they expand + fade.
+    for (let k = 0; k < 5; k++) {
+      const p = (t / 560 + phase + k / 5) % 1;
+      const px = x + back * (w * 0.3 + p * 46);
+      const py = footY - 2 - p * 12;
+      const rad = 5 + p * 16;
+      const a = (1 - p) * (0.42 + 0.14 * night);
+      const g = ctx.createRadialGradient(px, py, 0, px, py, rad);
+      g.addColorStop(0, `rgba(${rr},${gg},${bb},${a})`);
+      g.addColorStop(0.55, `rgba(${rr},${gg},${bb},${a * 0.5})`);
+      g.addColorStop(1, `rgba(${rr},${gg},${bb},0)`);
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(px, py, rad, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // (3) contact crescent — the grounded dark "boat" fanning out under the feet
+    const hw = w * 0.55 + step + 4;
+    const lift = 7;
+    const by = footY - lift;
+    for (const layer of [
+      { s: 1, a: 0.3 },
+      { s: 0.7, a: 0.3 },
+      { s: 0.45, a: 0.3 },
+    ]) {
+      const h = hw * layer.s;
+      ctx.fillStyle = `rgba(${Math.round(rr * 0.6)},${Math.round(gg * 0.6)},${Math.round(bb * 0.75)},${layer.a})`;
+      ctx.beginPath();
+      ctx.moveTo(x - h, by);
+      ctx.quadraticCurveTo(x, footY + 7, x + h, by);
+      ctx.quadraticCurveTo(x, by - 6, x - h, by);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
   private drawNPC(s: NpcRuntime, t: number) {
     const ctx = this.ctx;
     // Gaia-style: planted when idle, a light step-bounce ONLY while moving.
@@ -1485,46 +1555,9 @@ export class HollywoodRenderer {
         ctx.restore();
       };
 
-      // Gaia-style walk: the body stays crisp down to the ankles, and the FEET
-      // dissolve into a soft "boat" — a smear that curves UP at the ends. Each foot
-      // copy is fanned out horizontally and lifted by offset^2 (edges rise), so the
-      // union forms a concave-up crescent. Feet render ONLY as this smear while moving.
-      const footTop = top + targetH * 0.83;
-      if (s.moving) {
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(s.x - w, top - 2, w * 2, footTop - top + 2);
-        ctx.clip();
-        drawAt(s.x, 1); // crisp head-to-ankles
-        ctx.restore();
-
-        const spread = 8 + 4 * Math.abs(Math.sin(t / 80));
-        const lift = 7;
-        const footBaseY = y + 12;
-
-        // ONE motion blur spanning BOTH feet: a single soft dark crescent (concave-up),
-        // built from a few stacked translucent layers so it reads as one fused blur
-        // instead of two feet. Its width/curve pulse with the step.
-        const hw = w * 0.5 + spread;
-        ctx.save();
-        for (const layer of [
-          { s: 1, a: 0.24 },
-          { s: 0.72, a: 0.24 },
-          { s: 0.46, a: 0.24 },
-        ]) {
-          const h = hw * layer.s;
-          ctx.fillStyle = `rgba(14, 12, 9, ${layer.a})`;
-          ctx.beginPath();
-          ctx.moveTo(s.x - h, footBaseY - lift);
-          ctx.quadraticCurveTo(s.x, footBaseY + 6, s.x + h, footBaseY - lift);
-          ctx.quadraticCurveTo(s.x, footBaseY - lift - 5, s.x - h, footBaseY - lift);
-          ctx.closePath();
-          ctx.fill();
-        }
-        ctx.restore();
-      } else {
-        drawAt(s.x, 1);
-      }
+      // Smoky Gaia-style walk FX behind the body, then the crisp body on top.
+      if (s.moving) this.drawWalkFX(s.x, y + 12, w, s.dir, t, (s.x * 0.0131) % 1);
+      drawAt(s.x, 1);
       ctx.imageSmoothingEnabled = prev;
       return;
     }
