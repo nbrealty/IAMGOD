@@ -64,6 +64,13 @@ interface AmbientPed {
 const NPC_POOL_SIZE = 44; // ped_000 .. ped_043
 const AMBIENT_PED_COUNT = 54;
 
+// One entry in the unified depth pass: an upright actor keyed by its foot-Y (baseline), with a
+// closure that draws it. Sorted ascending → far (small y) drawn first, near (large y) on top.
+interface Actor {
+  y: number;
+  draw: () => void;
+}
+
 // Vehicle sprites (public/vehicles/<type>.png), drawn feet(wheels)-anchored to a road lane.
 // Art faces LEFT; a car travelling right (dir +1) is mirrored. `h` is the draw height in world
 // units (width follows the loaded image aspect).
@@ -610,34 +617,86 @@ export class HollywoodRenderer {
     const s = this.dpr * this.cam.zoom;
     ctx.setTransform(s, 0, 0, s, -this.cam.x * s, -this.cam.y * s);
 
-    // ground plane (no sky): base tone, texture mottle, and residential yards
-    this.drawGround();
+    // Lay out every frontage once so both the ground detail and the actor pass read current
+    // building x/width.
+    for (const f of NORTH_FRONTAGES) layoutFrontage(f, this.aspectOf);
+    for (const f of SOUTH_FRONTAGES) layoutFrontage(f, this.aspectOf);
+    for (const f of RES_FRONTAGES) layoutFrontage(f, this.aspectOf);
 
-    for (const b of BACKDROP_BUILDINGS) this.drawBuilding(b);
-    this.drawFrontages(NORTH_FRONTAGES);
+    // (a) GROUND pre-pass — flat surfaces, always beneath every actor.
+    this.drawGround();
     this.drawSidewalks();
     this.drawRoad();
-    this.drawCars();
-    this.drawFrontages(SOUTH_FRONTAGES);
-    for (const b of RESIDENTIAL_BUILDINGS) this.drawBuilding(b);
-    this.drawFrontages(RES_FRONTAGES);
-    // concrete aprons at storefront feet + terrazzo plazas at landmarks (over the
-    // sidewalks, in front of the now-laid-out N/S rows, beneath the NPCs)
-    this.drawGroundDetail();
-    // street-lamp posts (day + night): a real fixture the night glow emanates from
-    this.drawStreetLamps();
-    // sidewalk props — palms, benches, planters, set-pieces, signals (behind the NPCs)
-    this.drawProps();
-    // ambient crowd behind the named cast
-    this.drawPeds(t);
-    for (const npc of this.npcs) this.drawNPC(npc, t);
+    this.drawGroundDetail(); // aprons + landmark plazas on the walks
 
-    // day/night ambient grade — the whole city takes on a time of day
+    // distant skyline silhouette — always furthest back
+    for (const b of BACKDROP_BUILDINGS) this.drawBuilding(b);
+
+    // (b) UNIFIED DEPTH PASS — every upright actor (buildings, cars, lamps, props, peds, souls)
+    // collected, viewport-culled, sorted by foot-Y (baseline), and drawn far→near. This is what
+    // makes a character pass BEHIND a lamp/palm on the sidewalk and IN FRONT once on the street,
+    // and keeps cars correctly layered against the sidewalks.
+    const actors: Actor[] = [];
+    this.collectActors(actors, t);
+    actors.sort((a, b) => a.y - b.y);
+    for (const a of actors) a.draw();
+
+    // (c) OVERLAY post-pass — full-screen day/night grade, golden hour, night lights.
     this.drawAmbientGrade();
-    // warm horizon glow at sunrise/sunset (additive; free otherwise)
     this.drawGoldenHour();
-    // night light sources punch through the darkened scene (additive)
     this.drawLights();
+  }
+
+  // Gather every upright actor as a { footY, draw } pair for the sorted depth pass. Each type is
+  // viewport-culled here so the sort stays small; the actual drawing reuses the existing per-
+  // instance draw methods unchanged.
+  private collectActors(out: Actor[], t: number): void {
+    const vx = this.cam.x;
+    const vy = this.cam.y;
+    const vR = vx + this.cssW / this.cam.zoom;
+    const vB = vy + this.cssH / this.cam.zoom;
+    const zoom = this.cam.zoom;
+
+    // frontage buildings (N / S / residential)
+    for (const f of [...NORTH_FRONTAGES, ...SOUTH_FRONTAGES, ...RES_FRONTAGES]) {
+      for (const b of f.buildings) {
+        const bw = b.width ?? 120;
+        if ((b.x ?? 0) + bw < vx - 60 || (b.x ?? 0) > vR + 60) continue;
+        out.push({ y: this.buildingBaseY(b), draw: () => this.drawBuilding(b) });
+      }
+    }
+    // cars
+    this.cars.forEach((car, i) => {
+      if (car.x < vx - 260 || car.x > vR + 260) return;
+      out.push({ y: car.y, draw: () => this.drawCar(car, i) });
+    });
+    // street lamps
+    this.forEachLamp((x, baseY, headY) => {
+      out.push({ y: baseY, draw: () => this.drawLamp(x, baseY, headY) });
+    });
+    // sidewalk props
+    if (zoom >= 0.16) {
+      this.forEachProp((name, x, footY) => {
+        out.push({ y: footY, draw: () => this.drawProp(name, x, footY) });
+      });
+    }
+    // ambient pedestrians
+    if (zoom >= 0.18) {
+      for (const ped of this.peds) {
+        if (ped.x < vx - 60 || ped.x > vR + 60) continue;
+        out.push({ y: ped.y, draw: () => this.drawPed(ped, t) });
+      }
+    }
+    // named soul cast
+    for (const npc of this.npcs) {
+      if (npc.x < vx - 120 || npc.x > vR + 120 || npc.y < vy - 200 || npc.y > vB + 120) continue;
+      out.push({ y: npc.y, draw: () => this.drawNPC(npc, t) });
+    }
+  }
+
+  // A building's foot/baseline Y (the depth key) — matches the anchor drawBuilding uses.
+  private buildingBaseY(b: Building): number {
+    return b.baseY ?? (b.side === "north" ? NORTH_BASELINE : SOUTH_BASELINE);
   }
 
   // Every boulevard street-lamp currently on screen. `baseY` is the foot on the sidewalk,
@@ -655,11 +714,12 @@ export class HollywoodRenderer {
     }
   }
 
-  // The physical lamp posts — vintage Hollywood twin-globe standards. Drawn day and night so
-  // the boulevard has a real fixture; at night drawLights adds the glow at these same globes.
-  private drawStreetLamps(): void {
+  // One physical lamp post — a vintage Hollywood twin-globe standard. Drawn day and night so the
+  // boulevard has a real fixture; at night drawLights adds the glow at these same globes. Called
+  // per-lamp from the depth pass so pedestrians sort in front of / behind it correctly.
+  private drawLamp(x: number, baseY: number, headY: number): void {
     const ctx = this.ctx;
-    this.forEachLamp((x, baseY, headY) => {
+    {
       // foot shadow + base
       ctx.fillStyle = "#171310";
       ctx.beginPath();
@@ -690,7 +750,7 @@ export class HollywoodRenderer {
         ctx.arc(gx, gy - 4, 5, 0, Math.PI * 2);
         ctx.fill();
       }
-    });
+    }
   }
 
   // Additive night lighting (composited with `lighter`): warm light radiating from each lamp
@@ -1066,14 +1126,6 @@ export class HollywoodRenderer {
     return b.aspect ?? (b.width && b.height ? b.width / b.height : 0.9);
   };
 
-  // Justify each frontage to its buildable land, then paint its buildings in order.
-  private drawFrontages(frontages: Frontage[]) {
-    for (const f of frontages) {
-      layoutFrontage(f, this.aspectOf);
-      for (const b of f.buildings) this.drawBuilding(b);
-    }
-  }
-
   private drawBuilding(b: Building) {
     const ctx = this.ctx;
 
@@ -1185,11 +1237,11 @@ export class HollywoodRenderer {
     this.ctx.drawImage(img, x - w / 2, footY - h, w, h);
   }
 
-  // Deterministic sidewalk furniture along both boulevard walks: a palm-heavy scatter with an
+  // Enumerate every sidewalk prop placement (name, x, footY): a palm-heavy scatter with an
   // occasional set-piece, plus a traffic signal at each intersection corner. Viewport-culled,
-  // zoom-gated, drawn behind the NPCs. No randomness — placement is a pure function of x.
-  private drawProps(): void {
-    if (this.cam.zoom < 0.16) return;
+  // deterministic (placement is a pure function of x). Fed into the depth pass so props sort
+  // against pedestrians.
+  private forEachProp(cb: (name: string, x: number, footY: number) => void): void {
     const vx = this.cam.x;
     const vR = vx + this.cssW / this.cam.zoom;
     const feet = [NORTH_SIDEWALK_TOP + 50, SOUTH_SIDEWALK_BOTTOM - 6];
@@ -1204,14 +1256,14 @@ export class HollywoodRenderer {
           (slot + si) % 8 === 5
             ? PROP_SETPIECES[(slot + si * 2) % PROP_SETPIECES.length]
             : PROP_SCATTER[(slot * 2 + si) % PROP_SCATTER.length];
-        this.drawProp(name, x + jitter, footY);
+        cb(name, x + jitter, footY);
       }
     }
     // traffic signals at the boulevard corners of each cross street
     for (const cs of CROSS_STREETS) {
       if (cs.x + 200 < vx || cs.x - 200 > vR) continue;
-      this.drawProp("traffic-signal", cs.x - CS_ROAD_HALF - 16, NORTH_SIDEWALK_TOP + 50);
-      this.drawProp("traffic-signal", cs.x + CS_ROAD_HALF + 16, SOUTH_SIDEWALK_BOTTOM - 6);
+      cb("traffic-signal", cs.x - CS_ROAD_HALF - 16, NORTH_SIDEWALK_TOP + 50);
+      cb("traffic-signal", cs.x + CS_ROAD_HALF + 16, SOUTH_SIDEWALK_BOTTOM - 6);
     }
   }
 
@@ -1226,67 +1278,57 @@ export class HollywoodRenderer {
     return img;
   }
 
-  // Ambient pedestrians: feet-anchored, mirrored to face travel, with a gentle walk bob. No
-  // aura/ring/foot-smear — they're background, kept cheaper than the named cast. Viewport-culled.
-  private drawPeds(t: number): void {
-    if (this.cam.zoom < 0.18) return;
+  // One ambient pedestrian: feet-anchored, mirrored to face travel, with a gentle walk bob. No
+  // aura/ring — background, cheaper than the named cast. Drawn from the depth pass.
+  private drawPed(ped: AmbientPed, t: number): void {
+    const img = this.getPed(ped.sprite);
+    if (!img || !img.complete || img.naturalWidth === 0) return;
     const ctx = this.ctx;
-    const vx = this.cam.x;
-    const vR = vx + this.cssW / this.cam.zoom;
+    const H = 74;
+    const w = H * (img.naturalWidth / img.naturalHeight);
+    const bob = Math.sin((t + ped.bob) / 150) * 1.6;
+    const top = ped.y - H + 10 + bob;
     const prev = ctx.imageSmoothingEnabled;
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
-    const H = 74;
-    for (const ped of this.peds) {
-      if (ped.x < vx - 60 || ped.x > vR + 60) continue;
-      const img = this.getPed(ped.sprite);
-      if (!img || !img.complete || img.naturalWidth === 0) continue;
-      const w = H * (img.naturalWidth / img.naturalHeight);
-      const bob = Math.sin((t + ped.bob) / 150) * 1.6;
-      const top = ped.y - H + 10 + bob;
-      ctx.save();
-      if (ped.dir < 0) {
-        ctx.translate(ped.x, 0);
-        ctx.scale(-1, 1);
-        ctx.drawImage(img, -w / 2, top, w, H);
-      } else {
-        ctx.drawImage(img, ped.x - w / 2, top, w, H);
-      }
-      ctx.restore();
+    ctx.save();
+    if (ped.dir < 0) {
+      ctx.translate(ped.x, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(img, -w / 2, top, w, H);
+    } else {
+      ctx.drawImage(img, ped.x - w / 2, top, w, H);
     }
+    ctx.restore();
     ctx.imageSmoothingEnabled = prev;
   }
 
-  private drawCars() {
+  private static CAR_FALLBACK = ["#b23b3b", "#3b5fb2", "#c9c9c9", "#e0a733"];
+  // One vehicle, wheel-anchored to its lane and mirrored to face travel. Drawn from the depth pass.
+  private drawCar(car: CarRuntime, i: number): void {
     const ctx = this.ctx;
-    const vx = this.cam.x;
-    const vR = vx + this.cssW / this.cam.zoom;
-    const colors = ["#b23b3b", "#3b5fb2", "#c9c9c9", "#e0a733"];
-    this.cars.forEach((car, i) => {
-      const img = this.getVehicle(car.type);
-      if (img && img.complete && img.naturalWidth > 0) {
-        const h = VEHICLES[car.type] ?? 54;
-        const w = h * (img.naturalWidth / img.naturalHeight);
-        if (car.x + w < vx - 40 || car.x - w > vR + 40) return;
-        ctx.save();
-        // art faces LEFT; mirror when travelling right. Wheels sit on car.y.
-        if (car.dir > 0) {
-          ctx.translate(car.x + w / 2, car.y - h);
-          ctx.scale(-1, 1);
-          ctx.drawImage(img, -w / 2, 0, w, h);
-        } else {
-          ctx.drawImage(img, car.x - w / 2, car.y - h, w, h);
-        }
-        ctx.restore();
-        return;
+    const img = this.getVehicle(car.type);
+    if (img && img.complete && img.naturalWidth > 0) {
+      const h = VEHICLES[car.type] ?? 54;
+      const w = h * (img.naturalWidth / img.naturalHeight);
+      ctx.save();
+      // art faces LEFT; mirror when travelling right. Wheels sit on car.y.
+      if (car.dir > 0) {
+        ctx.translate(car.x + w / 2, car.y - h);
+        ctx.scale(-1, 1);
+        ctx.drawImage(img, -w / 2, 0, w, h);
+      } else {
+        ctx.drawImage(img, car.x - w / 2, car.y - h, w, h);
       }
-      // fallback box until the sprite loads
-      ctx.fillStyle = colors[i % colors.length];
-      ctx.fillRect(car.x, car.y - 10, 46, 20);
-      ctx.fillStyle = "#dff0ff";
-      ctx.fillRect(car.x + 8, car.y - 7, 12, 8);
-      ctx.fillRect(car.x + 26, car.y - 7, 12, 8);
-    });
+      ctx.restore();
+      return;
+    }
+    // fallback box until the sprite loads
+    ctx.fillStyle = HollywoodRenderer.CAR_FALLBACK[i % HollywoodRenderer.CAR_FALLBACK.length];
+    ctx.fillRect(car.x, car.y - 10, 46, 20);
+    ctx.fillStyle = "#dff0ff";
+    ctx.fillRect(car.x + 8, car.y - 7, 12, 8);
+    ctx.fillRect(car.x + 26, car.y - 7, 12, 8);
   }
 
   // Load a spirit sprite once; returns the <img> (which may still be loading), or null
