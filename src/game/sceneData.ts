@@ -222,7 +222,10 @@ const blockX1 = (i: number) => CROSS_STREETS[i + 1].x - CS_HALF - 24;
 function buildFace(i: number, side: "north" | "south", lmKeys: string[]): Frontage {
   const x0 = blockX0(i), x1 = blockX1(i);
   const target = x1 - x0;
-  const gap = 34;
+  // Tight seam so the row reads as one continuous streetwall (like the reference). The art is
+  // isolated-on-magenta with its own margin, so a small seam already gives visible separation —
+  // 34px read as vacant lots between every building.
+  const gap = 12;
   const out: Building[] = [];
   let used = -gap;
   const push = (b: Building, w: number) => { out.push(b); used += w + gap; };
@@ -231,7 +234,9 @@ function buildFace(i: number, side: "north" | "south", lmKeys: string[]): Fronta
     push(lot(k, s.ch, s.aspect, s.label, s.marquee, s.mc, side), s.ch * 84 * s.aspect);
   }
   let towerPlaced = false;
-  while (used < target - 260) {
+  // Fill closer to the block edge so the frontage doesn't leave a wide dead margin at each
+  // cross-street corner (was -260, which left ~one storefront of empty land per block end).
+  while (used < target - 130) {
     // scatter one mid-rise tower onto some north blocks for skyline variety
     if (side === "north" && !towerPlaced && i % 3 === 1 && out.length > lmKeys.length) {
       towerPlaced = true;
