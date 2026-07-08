@@ -32,6 +32,17 @@ feet-anchored to one ground-Y, which is the sort key.
    which lists only the front-facing pool indices; a back view left in that list
    shows as someone permanently walking away.
 
+6. **Every character faces its horizontal travel direction.** Walking left shows
+   the left-facing orientation, walking right the right-facing — the renderer
+   horizontally mirrors the single front sprite based on travel (`facingLeft`
+   for the controlled soul, `dir` for everyone else). The base convention is
+   *art faces right when unflipped*; any sprite whose art's native lean already
+   faces **left** must be listed in `SPRITE_FACES_LEFT` (renderer.ts) so the flip
+   stays correct (e.g. `nathaniel`/Sorriso, `elizabeth`). When you add a
+   character, drive them left and right once and, if they face against travel,
+   add their soul id to that set. (These are front billboards, so this is a
+   mirror, not a true side-profile turn — a real profile would need new art.)
+
 5. **Uniform character height.** Every character (named soul + ambient ped)
    renders at one shared body height (`CHAR_BODY_H`), feet planted. Source art
    carries different amounts of empty frame and comes in different styles (the
