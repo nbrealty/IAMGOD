@@ -1558,6 +1558,57 @@ export class HollywoodRenderer {
     }
   }
 
+  // Gaia-style leg-blur overlay (research: the "rapid blur standard walk animation" — a static
+  // body that glides while an animated smear buzzes at the feet). We take the bottom band of the
+  // character (the legs) and redraw it a few times, each vertically stretched a little more and
+  // offset, at halving alpha, on a FAST cycle — a vertical motion-smear pinned at the feet, drawn
+  // UNDER the crisp body. Feet stay anchored (we stretch upward from footY). Moving-only.
+  private drawLegBlur(
+    img: HTMLImageElement,
+    b: { t: number; b: number },
+    cx: number,
+    feetY: number,
+    w: number,
+    flip: boolean,
+    dir: number,
+    t: number,
+  ): void {
+    const ctx = this.ctx;
+    const legFrac = 0.34; // fraction of the body height that is "legs"
+    const contentFrac = b.b - b.t;
+    const nH = img.naturalHeight;
+    // source leg band (bottom slice of the sprite's non-transparent content: shins, hem, feet)
+    const sy0 = (b.b - legFrac * contentFrac) * nH;
+    const sH = legFrac * contentFrac * nH;
+    const destLegH = legFrac * CHAR_BODY_H;
+    const back = dir >= 0 ? -1 : 1; // trailing side (behind travel), in screen space
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    // Ghosted "multiples" of the legs, fanning out BEHIND travel and buzzing vertically — the
+    // Gaia leg-smear. Drawn in screen space so the trailing offset reads regardless of L/R flip;
+    // each copy carries the body's own flip so the legs face the right way.
+    for (let i = 4; i >= 1; i--) {
+      const ph = t / 40 + i * 1.7; // fast buzz, phase-shifted per copy
+      const alpha = 0.5 / i; // fading afterimage
+      const xoff = back * i * 6.5; // horizontal trail (visible beside the body)
+      const stretch = 1 + 0.14 * i + 0.12 * Math.sin(ph); // gentle vertical shimmer
+      const yoff = Math.sin(ph) * 1.2 * i;
+      const dH = destLegH * stretch;
+      const dcx = cx + xoff;
+      ctx.globalAlpha = alpha;
+      ctx.save();
+      if (flip) {
+        ctx.translate(dcx, 0);
+        ctx.scale(-1, 1);
+        ctx.translate(-dcx, 0);
+      }
+      ctx.drawImage(img, 0, sy0, img.naturalWidth, sH, dcx - w / 2, feetY - dH + yoff, w, dH);
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
   private drawNPC(s: NpcRuntime, t: number) {
     const ctx = this.ctx;
     // Gaia-style: planted when idle, a light step-bounce ONLY while moving.
@@ -1619,8 +1670,12 @@ export class HollywoodRenderer {
         ctx.restore();
       };
 
-      // Smoky Gaia-style walk FX behind the body, then the crisp body on top.
+      // Smoky Gaia-style walk FX behind the body, the leg-blur smear at the feet, then the crisp
+      // body on top. Leg-blur is a Lori-only prototype for now (see drawLegBlur).
       if (s.moving) this.drawWalkFX(s.x, feetY, w, s.dir, t, (s.x * 0.0131) % 1);
+      if (s.moving && s.soul.id === "lori") {
+        this.drawLegBlur(sprite, b, s.x, feetY, w, flip, s.dir, t);
+      }
       drawAt(s.x, 1);
       ctx.imageSmoothingEnabled = prev;
       return;
