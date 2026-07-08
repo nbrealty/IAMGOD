@@ -62,11 +62,19 @@ interface AmbientPed {
 const AMBIENT_PED_COUNT = 54;
 // The pedestrian pool holds both front- and back-view art. Ambient peds walk the sidewalks
 // horizontally (mirrored L/R), so they must use only FRONT-facing sprites — otherwise a
-// back-view slot renders as someone always walking away. Hand-classified from the pool montage;
-// the remaining indices are back views (reserved for future toward/away wanderers).
+// back-view slot renders as someone always walking away. Hand-classified from the pool montage
+// (face/skin cluster high-center = front; hair-dominated head, no face = back); the remaining
+// indices are back views (reserved for future toward/away wanderers).
 const PED_FRONT = [
-  0, 2, 5, 6, 8, 9, 10, 11, 12, 15, 16, 17, 19, 21, 23, 24, 26, 28, 31, 34, 37, 38, 42, 43,
+  0, 2, 5, 6, 8, 9, 10, 11, 15, 16, 19, 21, 23, 24, 26, 28, 31, 34, 37, 38, 42, 43,
 ];
+
+// Every character (ambient ped + named soul) is normalized to one visible body height so the
+// crowd reads as a consistent scale, regardless of how much empty frame the source art carries.
+// We measure each sprite's non-transparent bounds once (spriteBounds) and scale so the content —
+// head-top to sole — spans CHAR_BODY_H, then anchor the content bottom (feet) at y + FEET_DROP.
+const CHAR_BODY_H = 78;
+const FEET_DROP = 10;
 
 // One entry in the unified depth pass: an upright actor keyed by its foot-Y (baseline), with a
 // closure that draws it. Sorted ascending → far (small y) drawn first, near (large y) on top.
@@ -268,6 +276,10 @@ export class HollywoodRenderer {
   private sprites = new Map<string, HTMLImageElement | null>();
   private tiles = new Map<string, HTMLImageElement | null>();
   private patterns = new Map<string, CanvasPattern>();
+  // Cached non-transparent vertical bounds per character sprite ({ t, b } as fractions of natural
+  // height), so we normalize every actor to one body height. Measured once, lazily, on first draw.
+  private boundsCache = new Map<string, { t: number; b: number }>();
+  private measureCanvas?: HTMLCanvasElement;
   private tapHandler: ((cssX: number, cssY: number) => void) | null = null;
 
   // input state
@@ -1271,6 +1283,48 @@ export class HollywoodRenderer {
     }
   }
 
+  // Measure a character sprite's non-transparent vertical extent once and cache it. Returns the
+  // top/bottom of the visible body as fractions of natural height (t..b), so callers can scale the
+  // content to a uniform height and plant the feet. Downsamples for a cheap one-time alpha scan.
+  private spriteBounds(key: string, img: HTMLImageElement): { t: number; b: number } {
+    const hit = this.boundsCache.get(key);
+    if (hit) return hit;
+    const full = { t: 0, b: 1 };
+    if (!img.complete || img.naturalWidth === 0) return full; // not decoded yet — don't cache
+    const mc = (this.measureCanvas ??= document.createElement("canvas"));
+    const sw = Math.min(img.naturalWidth, 48);
+    const sh = Math.min(img.naturalHeight, 240);
+    mc.width = sw;
+    mc.height = sh;
+    const mx = mc.getContext("2d", { willReadFrequently: true });
+    if (!mx) return full;
+    mx.clearRect(0, 0, sw, sh);
+    mx.drawImage(img, 0, 0, sw, sh);
+    let top = -1;
+    let bot = -1;
+    try {
+      const px = mx.getImageData(0, 0, sw, sh).data;
+      for (let y = 0; y < sh; y++) {
+        let row = false;
+        for (let x = 0; x < sw; x++) {
+          if (px[(y * sw + x) * 4 + 3] > 16) {
+            row = true;
+            break;
+          }
+        }
+        if (row) {
+          if (top < 0) top = y;
+          bot = y;
+        }
+      }
+    } catch {
+      return full; // tainted canvas (shouldn't happen same-origin) — fall back to full frame
+    }
+    const res = top < 0 ? full : { t: top / sh, b: (bot + 1) / sh };
+    this.boundsCache.set(key, res);
+    return res;
+  }
+
   private getPed(index: number): HTMLImageElement | null {
     const key = `n:${index}`;
     const cached = this.sprites.get(key);
@@ -1288,12 +1342,15 @@ export class HollywoodRenderer {
     const img = this.getPed(ped.sprite);
     if (!img || !img.complete || img.naturalWidth === 0) return;
     const ctx = this.ctx;
-    const H = 74;
-    const w = H * (img.naturalWidth / img.naturalHeight);
+    // Normalize to a uniform body height, feet planted (see spriteBounds / CHAR_BODY_H).
+    const b = this.spriteBounds(`n:${ped.sprite}`, img);
+    const frameH = CHAR_BODY_H / Math.max(0.5, b.b - b.t);
+    const w = frameH * (img.naturalWidth / img.naturalHeight);
     const bob = Math.sin((t + ped.bob) / 150) * 1.6;
-    const top = ped.y - H + 10 + bob;
+    const feetY = ped.y + FEET_DROP + bob;
+    const top = feetY - b.b * frameH;
     // smoky walk FX behind the ped (they're always walking)
-    this.drawWalkFX(ped.x, ped.y + 10, w, ped.dir, t, (ped.bob % 1000) / 1000);
+    this.drawWalkFX(ped.x, ped.y + FEET_DROP, w, ped.dir, t, (ped.bob % 1000) / 1000);
     const prev = ctx.imageSmoothingEnabled;
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
@@ -1301,9 +1358,9 @@ export class HollywoodRenderer {
     if (ped.dir < 0) {
       ctx.translate(ped.x, 0);
       ctx.scale(-1, 1);
-      ctx.drawImage(img, -w / 2, top, w, H);
+      ctx.drawImage(img, -w / 2, top, w, frameH);
     } else {
-      ctx.drawImage(img, ped.x - w / 2, top, w, H);
+      ctx.drawImage(img, ped.x - w / 2, top, w, frameH);
     }
     ctx.restore();
     ctx.imageSmoothingEnabled = prev;
@@ -1528,17 +1585,24 @@ export class HollywoodRenderer {
     }
 
     let sprite = this.getSprite(s.soul.id);
+    let spriteKey = s.soul.id;
     // player facing away from the camera → use the back sprite if one exists
     if (s.soul.id === this.controlledId && this.facingUp) {
       const back = this.getSprite(`${s.soul.id}_back`);
-      if (back && back.complete && back.naturalWidth > 0) sprite = back;
+      if (back && back.complete && back.naturalWidth > 0) {
+        sprite = back;
+        spriteKey = `${s.soul.id}_back`;
+      }
     }
     if (sprite && sprite.complete && sprite.naturalWidth > 0) {
-      const targetH = 84; // bigger, Gaia-style — shows the sprite detail
-      const w = targetH * (sprite.naturalWidth / sprite.naturalHeight);
+      // Normalize to the same body height as every other character, feet planted (spriteBounds).
+      const b = this.spriteBounds(spriteKey, sprite);
+      const frameH = CHAR_BODY_H / Math.max(0.5, b.b - b.t);
+      const w = frameH * (sprite.naturalWidth / sprite.naturalHeight);
       let flip = s.soul.id === this.controlledId ? this.facingLeft : s.dir < 0;
       if (SPRITE_FACES_LEFT.has(s.soul.id)) flip = !flip; // this sprite's art faces left by default
-      const top = y - targetH + 12;
+      const feetY = s.y + FEET_DROP + bob;
+      const top = feetY - b.b * frameH;
       const prev = ctx.imageSmoothingEnabled;
       ctx.imageSmoothingEnabled = true; // smooth downscale — these are painted, not pixel art
       ctx.imageSmoothingQuality = "high";
@@ -1551,12 +1615,12 @@ export class HollywoodRenderer {
           ctx.scale(-1, 1);
           ctx.translate(-cx, 0);
         }
-        ctx.drawImage(sprite, cx - w / 2, top, w, targetH);
+        ctx.drawImage(sprite, cx - w / 2, top, w, frameH);
         ctx.restore();
       };
 
       // Smoky Gaia-style walk FX behind the body, then the crisp body on top.
-      if (s.moving) this.drawWalkFX(s.x, y + 12, w, s.dir, t, (s.x * 0.0131) % 1);
+      if (s.moving) this.drawWalkFX(s.x, feetY, w, s.dir, t, (s.x * 0.0131) % 1);
       drawAt(s.x, 1);
       ctx.imageSmoothingEnabled = prev;
       return;

@@ -28,7 +28,17 @@ feet-anchored to one ground-Y, which is the sort key.
 3. **Every character has a front and a back.** Show the back sprite only when
    the character is moving up/away from the camera; otherwise show the front
    (front mirrored L/R is fine for sideways travel). Ambient peds walk
-   horizontally, so they use the front set (see `PED_FRONT` in `renderer.ts`).
+   horizontally, so they use the front set (see `PED_FRONT` in `renderer.ts`) —
+   which lists only the front-facing pool indices; a back view left in that list
+   shows as someone permanently walking away.
+
+5. **Uniform character height.** Every character (named soul + ambient ped)
+   renders at one shared body height (`CHAR_BODY_H`), feet planted. Source art
+   carries different amounts of empty frame and comes in different styles (the
+   chibi souls fill ~91% of frame, the pixel-art souls and peds ~100%), so we
+   never draw the raw frame at a fixed height — `spriteBounds()` measures each
+   sprite's non-transparent extent once and we scale the *content* to the target
+   and anchor the content-bottom at `y + FEET_DROP`.
 
 4. **Every moving character gets the smoky walk FX.** Named cast and ambient
    crowd both call the shared `drawWalkFX()` when moving — a darker contact
