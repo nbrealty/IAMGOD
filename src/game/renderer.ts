@@ -1559,10 +1559,11 @@ export class HollywoodRenderer {
   }
 
   // Gaia-style leg-blur overlay (research: the "rapid blur standard walk animation" — a static
-  // body that glides while an animated smear buzzes at the feet). We take the bottom band of the
-  // character (the legs) and redraw it a few times, each vertically stretched a little more and
-  // offset, at halving alpha, on a FAST cycle — a vertical motion-smear pinned at the feet, drawn
-  // UNDER the crisp body. Feet stay anchored (we stretch upward from footY). Moving-only.
+  // body that glides while the legs buzz). The legs swing like PENDULUMS from the hip: we slice
+  // the bottom band of the sprite (the legs) and redraw it as a fan of fading copies, each
+  // horizontally SHEARED so the top (hip) stays planted while the bottom (feet) sweeps left↔right.
+  // The fan spans the full swing arc (the persistent blur); alpha peaks at the current swing angle
+  // (a bright copy that tracks the legs actually moving). Drawn UNDER the crisp body. Moving-only.
   private drawLegBlur(
     img: HTMLImageElement,
     b: { t: number; b: number },
@@ -1570,40 +1571,39 @@ export class HollywoodRenderer {
     feetY: number,
     w: number,
     flip: boolean,
-    dir: number,
     t: number,
   ): void {
     const ctx = this.ctx;
-    const legFrac = 0.34; // fraction of the body height that is "legs"
+    const legFrac = 0.36; // fraction of the body height that is "legs" (shins, hem, feet)
     const contentFrac = b.b - b.t;
+    const nW = img.naturalWidth;
     const nH = img.naturalHeight;
-    // source leg band (bottom slice of the sprite's non-transparent content: shins, hem, feet)
     const sy0 = (b.b - legFrac * contentFrac) * nH;
     const sH = legFrac * contentFrac * nH;
     const destLegH = legFrac * CHAR_BODY_H;
-    const back = dir >= 0 ? -1 : 1; // trailing side (behind travel), in screen space
+    const pivotY = feetY - destLegH; // hip line — top of the leg band, stays put
+    const footSweep = 9; // px the feet swing to each side
+    const shxMax = footSweep / destLegH; // shear so foot offset = footSweep at the swing extreme
+    const base = shxMax * Math.sin(t / 85); // current pendulum position (legs actually moving)
     ctx.save();
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
-    // Ghosted "multiples" of the legs, fanning out BEHIND travel and buzzing vertically — the
-    // Gaia leg-smear. Drawn in screen space so the trailing offset reads regardless of L/R flip;
-    // each copy carries the body's own flip so the legs face the right way.
-    for (let i = 4; i >= 1; i--) {
-      const ph = t / 40 + i * 1.7; // fast buzz, phase-shifted per copy
-      const alpha = 0.5 / i; // fading afterimage
-      const xoff = back * i * 6.5; // horizontal trail (visible beside the body)
-      const stretch = 1 + 0.14 * i + 0.12 * Math.sin(ph); // gentle vertical shimmer
-      const yoff = Math.sin(ph) * 1.2 * i;
-      const dH = destLegH * stretch;
-      const dcx = cx + xoff;
+    if (flip) {
+      ctx.translate(cx, 0);
+      ctx.scale(-1, 1);
+      ctx.translate(-cx, 0);
+    }
+    const N = 7; // copies across the swing arc
+    for (let k = 0; k < N; k++) {
+      const f = k / (N - 1); // 0..1
+      const shx = (f * 2 - 1) * shxMax; // -shxMax .. +shxMax (left foot-sweep .. right)
+      const d = Math.abs(shx - base) / (2 * shxMax); // distance from the current swing angle
+      const alpha = 0.08 + 0.24 * (1 - d); // faint across the arc, brightest where the legs are now
       ctx.globalAlpha = alpha;
       ctx.save();
-      if (flip) {
-        ctx.translate(dcx, 0);
-        ctx.scale(-1, 1);
-        ctx.translate(-dcx, 0);
-      }
-      ctx.drawImage(img, 0, sy0, img.naturalWidth, sH, dcx - w / 2, feetY - dH + yoff, w, dH);
+      ctx.translate(cx, pivotY);
+      ctx.transform(1, 0, shx, 1, 0, 0); // horizontal shear by y → pendulum from the hip
+      ctx.drawImage(img, 0, sy0, nW, sH, -w / 2, 0, w, destLegH);
       ctx.restore();
     }
     ctx.restore();
@@ -1674,7 +1674,7 @@ export class HollywoodRenderer {
       // body on top. Leg-blur is a Lori-only prototype for now (see drawLegBlur).
       if (s.moving) this.drawWalkFX(s.x, feetY, w, s.dir, t, (s.x * 0.0131) % 1);
       if (s.moving && s.soul.id === "lori") {
-        this.drawLegBlur(sprite, b, s.x, feetY, w, flip, s.dir, t);
+        this.drawLegBlur(sprite, b, s.x, feetY, w, flip, t);
       }
       drawAt(s.x, 1);
       ctx.imageSmoothingEnabled = prev;
