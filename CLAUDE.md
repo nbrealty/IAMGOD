@@ -40,11 +40,17 @@ feet-anchored to one ground-Y, which is the sort key.
    sprite's non-transparent extent once and we scale the *content* to the target
    and anchor the content-bottom at `y + FEET_DROP`.
 
-4. **Every moving character gets the smoky walk FX.** Named cast and ambient
-   crowd both call the shared `drawWalkFX()` when moving — a darker contact
-   crescent, trailing leg-blur ghost echoes, and a few soft smoke puffs that
-   trail back along the ground and fade. Time-tinted: cooler/bluer at night,
-   warmer at golden hour.
+4. **Every moving character gets the walk FX — smoke + pendulum leg-blur.**
+   Named cast and ambient crowd both call, when moving, the shared
+   `drawWalkFX()` (a darker contact crescent, trailing ground smears, and soft
+   smoke puffs that trail back and fade — time-tinted cooler/bluer at night,
+   warmer at golden hour) **and** `drawLegBlur()` — the Gaia-style walk: the
+   crisp body stays a static billboard while the legs (bottom ~36% of the
+   sprite) shear from the hip and **swing left↔right like a pendulum**, drawn as
+   a fan of fading copies with the bright copy tracking the current swing.
+   Because it's sliced from the sprite at runtime, **any new character (soul or
+   ped) gets the leg-blur automatically** — no per-character art or wiring. Give
+   each mover a distinct `phase` so a crowd doesn't swing in sync.
 
 ## Asset pipeline
 
@@ -54,6 +60,12 @@ feet-anchored to one ground-Y, which is the sort key.
 - Keying: flood-fill the key color from the image borders; slice multi-item
   sheets by connected-component blob detection + bbox merge (avoid grid-splits
   that leave neighbor bleed).
+- **New ped uploads must be classified front vs back.** The `public/npc/` pool
+  mixes both; only face-visible FRONT sprites go in `PED_FRONT` (renderer.ts) —
+  a back-view left in that list walks the sidewalk permanently facing away.
+  Verify by eye at large size (render each candidate ~500px and confirm a face
+  is visible — small montages hide backwards caps/hoods; this has bitten us
+  repeatedly). Back sprites stay in the pool for future toward/away wanderers.
 
 ## Verification
 

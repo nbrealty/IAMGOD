@@ -66,7 +66,7 @@ const AMBIENT_PED_COUNT = 54;
 // (face/skin cluster high-center = front; hair-dominated head, no face = back); the remaining
 // indices are back views (reserved for future toward/away wanderers).
 const PED_FRONT = [
-  0, 2, 5, 6, 8, 9, 10, 11, 15, 16, 19, 21, 23, 24, 26, 28, 31, 34, 37, 38, 42, 43,
+  0, 2, 5, 6, 9, 10, 15, 16, 19, 21, 23, 24, 26, 28, 31, 34, 37, 38, 42, 43,
 ];
 
 // Every character (ambient ped + named soul) is normalized to one visible body height so the
@@ -1349,8 +1349,9 @@ export class HollywoodRenderer {
     const bob = Math.sin((t + ped.bob) / 150) * 1.6;
     const feetY = ped.y + FEET_DROP + bob;
     const top = feetY - b.b * frameH;
-    // smoky walk FX behind the ped (they're always walking)
+    // smoky walk FX + pendulum leg-blur behind the ped (they're always walking)
     this.drawWalkFX(ped.x, ped.y + FEET_DROP, w, ped.dir, t, (ped.bob % 1000) / 1000);
+    this.drawLegBlur(img, b, ped.x, feetY, w, ped.dir < 0, t, ped.bob);
     const prev = ctx.imageSmoothingEnabled;
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
@@ -1572,6 +1573,7 @@ export class HollywoodRenderer {
     w: number,
     flip: boolean,
     t: number,
+    phase: number,
   ): void {
     const ctx = this.ctx;
     const legFrac = 0.36; // fraction of the body height that is "legs" (shins, hem, feet)
@@ -1584,7 +1586,7 @@ export class HollywoodRenderer {
     const pivotY = feetY - destLegH; // hip line — top of the leg band, stays put
     const footSweep = 9; // px the feet swing to each side
     const shxMax = footSweep / destLegH; // shear so foot offset = footSweep at the swing extreme
-    const base = shxMax * Math.sin(t / 85); // current pendulum position (legs actually moving)
+    const base = shxMax * Math.sin(t / 85 + phase); // current pendulum position (legs actually moving)
     ctx.save();
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
@@ -1670,11 +1672,11 @@ export class HollywoodRenderer {
         ctx.restore();
       };
 
-      // Smoky Gaia-style walk FX behind the body, the leg-blur smear at the feet, then the crisp
-      // body on top. Leg-blur is a Lori-only prototype for now (see drawLegBlur).
-      if (s.moving) this.drawWalkFX(s.x, feetY, w, s.dir, t, (s.x * 0.0131) % 1);
-      if (s.moving && s.soul.id === "lori") {
-        this.drawLegBlur(sprite, b, s.x, feetY, w, flip, t);
+      // Smoky Gaia-style walk FX behind the body, the pendulum leg-blur at the feet, then the
+      // crisp body on top. Every moving character gets both (see drawLegBlur).
+      if (s.moving) {
+        this.drawWalkFX(s.x, feetY, w, s.dir, t, (s.x * 0.0131) % 1);
+        this.drawLegBlur(sprite, b, s.x, feetY, w, flip, t, s.x * 0.05);
       }
       drawAt(s.x, 1);
       ctx.imageSmoothingEnabled = prev;
