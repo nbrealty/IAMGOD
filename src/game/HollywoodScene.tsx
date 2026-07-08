@@ -2,8 +2,9 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } f
 import { HollywoodRenderer } from "./renderer";
 import type { SoulEngine } from "../soul/engine";
 import { SoulProfilePanel } from "../components/SoulProfilePanel";
+import { InventoryGrid } from "../components/InventoryGrid";
 import { ROSTER } from "../soul/roster";
-import { OUTFITS, outfitsFor } from "./outfits";
+import { equippedStem } from "./inventory";
 
 // A short chip label: the quoted nickname if the soul has one, else the first name.
 function chipLabel(name: string): string {
@@ -45,14 +46,12 @@ export function HollywoodScene({ engine, controlledId, onControlledChange }: Pro
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<HollywoodRenderer | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  // Wardrobe: the chosen outfit stem per soul (defaults to each soul's first/base outfit).
-  // Remembered across character switches so a look sticks until you change it again.
-  const [outfitByChar, setOutfitByChar] = useState<Record<string, string>>(() => {
-    const init: Record<string, string> = {};
-    for (const [id, list] of Object.entries(OUTFITS)) init[id] = list[0].stem;
-    return init;
-  });
-  const outfitRef = useRef(outfitByChar);
+  const [invOpen, setInvOpen] = useState(false); // inventory sheet for the controlled character
+  // Equipped outfit stem per soul (any soul absent here wears its default look). Remembered across
+  // character switches; applied live to the renderer. Drives both inventory grids.
+  const [equipped, setEquipped] = useState<Record<string, string>>({});
+  const equippedRef = useRef(equipped);
+  const equip = (soulId: string, stem: string) => setEquipped((m) => ({ ...m, [soulId]: stem }));
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -73,7 +72,7 @@ export function HollywoodScene({ engine, controlledId, onControlledChange }: Pro
     fit();
     renderer.attachInput();
     // Dress everyone in their remembered outfit before the first frame.
-    for (const [id, stem] of Object.entries(outfitRef.current)) renderer.setOutfit(id, stem);
+    for (const [id, stem] of Object.entries(equippedRef.current)) renderer.setOutfit(id, stem);
     renderer.start();
 
     const ro = new ResizeObserver(fit);
@@ -94,12 +93,12 @@ export function HollywoodScene({ engine, controlledId, onControlledChange }: Pro
     rendererRef.current?.setControlled(controlledId);
   }, [controlledId]);
 
-  // Push wardrobe changes to the renderer live and keep the mount-time ref in sync.
+  // Push equip changes to the renderer live and keep the mount-time ref in sync.
   useEffect(() => {
-    outfitRef.current = outfitByChar;
+    equippedRef.current = equipped;
     const r = rendererRef.current;
-    if (r) for (const [id, stem] of Object.entries(outfitByChar)) r.setOutfit(id, stem);
-  }, [outfitByChar]);
+    if (r) for (const [id, stem] of Object.entries(equipped)) r.setOutfit(id, stem);
+  }, [equipped]);
 
   const hold =
     (dir: "up" | "down" | "left" | "right", pressed: boolean) =>
@@ -125,19 +124,10 @@ export function HollywoodScene({ engine, controlledId, onControlledChange }: Pro
         ))}
       </div>
 
-      {outfitsFor(controlledId).length > 1 && (
-        <div className="outfit-switcher">
-          <span className="outfit-label">👗 Wardrobe</span>
-          {outfitsFor(controlledId).map((o) => (
-            <button
-              key={o.id}
-              className={`outfit-chip ${outfitByChar[controlledId!] === o.stem ? "active" : ""}`}
-              onClick={() => setOutfitByChar((m) => ({ ...m, [controlledId!]: o.stem }))}
-            >
-              {o.label}
-            </button>
-          ))}
-        </div>
+      {controlledId !== null && (
+        <button className="inv-open-btn" onClick={() => setInvOpen(true)}>
+          🎒 Inventory
+        </button>
       )}
 
       {controlledId !== null && (
@@ -195,7 +185,33 @@ export function HollywoodScene({ engine, controlledId, onControlledChange }: Pro
           －
         </button>
       </div>
-      <SoulProfilePanel engine={engine} soulId={selectedId} onClose={() => setSelectedId(null)} />
+      {invOpen && controlledId !== null && (
+        <div className="panel-overlay" onClick={(e) => e.target === e.currentTarget && setInvOpen(false)}>
+          <div className="panel-card inv-card">
+            <h2>
+              {PLAYABLE_CHARACTERS.find((c) => c.id === controlledId)?.label ?? "Inventory"}{" "}
+              <span className="dim">· Inventory</span>
+            </h2>
+            <p className="inv-hint">Tap an outfit to wear it. Empty slots hold future items.</p>
+            <InventoryGrid
+              soulId={controlledId}
+              equippedStem={equippedStem(controlledId, equipped)}
+              onEquip={(stem) => equip(controlledId, stem)}
+            />
+            <button className="panel-close" onClick={() => setInvOpen(false)}>
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      <SoulProfilePanel
+        engine={engine}
+        soulId={selectedId}
+        equipped={equipped}
+        onEquip={equip}
+        onClose={() => setSelectedId(null)}
+      />
     </div>
   );
 }

@@ -69,9 +69,16 @@ feet-anchored to one ground-Y, which is the sort key.
 - **Outfits / wardrobe (inventory).** A soul can own several looks. Drop the
   keyed art in `public/spirits/` as `<stem>.png` (+ optional `<stem>_back.png`)
   and add an entry to `OUTFITS` in `src/game/outfits.ts` (first entry = the
-  default, its stem = the soul id). The wardrobe chip row and the live sprite
-  swap are automatic — no renderer changes. `spriteBounds`/leg-blur/back-facing
-  all key off the active stem, so a new outfit inherits uniform height + walk FX.
+  default, its stem = the soul id). The inventory grid and the live sprite swap
+  are automatic — no renderer changes. `spriteBounds`/leg-blur/back-facing all
+  key off the active stem, so a new outfit inherits uniform height + walk FX.
+- **Inventory.** Every soul (playable + NPC) has a fixed `INVENTORY_SLOTS` (20)
+  grid — `src/game/inventory.ts` derives it from `OUTFITS` (owned outfits first,
+  then empty). The reusable `InventoryGrid` (tap-to-equip, worn highlight, dim
+  empty slots) is shown for the controlled character via the 🎒 button and
+  inside every soul's Soul Profile panel, so any NPC can be dressed too. Equip
+  state lives in `HollywoodScene` (`equipped: soulId→stem`) and is pushed to the
+  renderer with `setOutfit`. New item kinds beyond outfits slot in here later.
 
 ## Verification
 

@@ -249,49 +249,94 @@
   font-weight: 700;
 }
 
-/* ---------- wardrobe (outfit switcher for the controlled character) ----------
-   Appears just under the roster strip when the driven soul owns more than one
-   outfit. First step of an inventory: swap a look and it applies live. */
-.outfit-switcher {
+/* ---------- inventory (wardrobe) ----------
+   A touch-friendly button opens a 4×5 grid of slots. Tap an outfit to wear it;
+   the worn slot is highlighted, empty slots are dim placeholders. Used both for
+   the controlled character and inside any soul's profile. */
+.inv-open-btn {
   position: absolute;
   top: 46px;
   left: 10px;
-  right: 10px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
   z-index: 5;
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding: 2px;
-  scrollbar-width: none;
-}
-.outfit-switcher::-webkit-scrollbar {
-  display: none;
-}
-.outfit-label {
-  font-size: 11px;
-  color: #9a8a63;
-  white-space: nowrap;
-  flex: 0 0 auto;
-  padding-right: 2px;
-}
-.outfit-chip {
-  font-size: 11px;
-  padding: 4px 11px;
+  font-size: 12px;
+  padding: 6px 13px;
   border-radius: 20px;
-  background: rgba(20, 17, 12, 0.72);
-  border: 1px solid #4a3a22;
-  color: #cbb98f;
+  background: rgba(20, 17, 12, 0.82);
+  border: 1px solid #6b4ea6;
+  color: #e8def7;
   cursor: pointer;
-  white-space: nowrap;
-  flex: 0 0 auto;
+  font-weight: 600;
 }
-.outfit-chip.active {
-  background: #6b4ea6;
-  border-color: #a487d6;
-  color: #fff;
+.inv-card {
+  max-width: 440px;
+}
+.inv-hint {
+  margin: 2px 0 12px;
+  font-size: 12px;
+  color: #9a8a63;
+}
+.inv-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 7px;
+  margin: 6px 0 4px;
+}
+.inv-slot {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  border-radius: 10px;
+  border: 1px solid #3a3323;
+  background: rgba(12, 10, 7, 0.6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 4px;
+  cursor: pointer;
+  overflow: hidden;
+}
+.inv-slot.empty {
+  border-style: dashed;
+  border-color: #2c2618;
+  background: rgba(12, 10, 7, 0.3);
+  cursor: default;
+}
+.inv-slot.active {
+  border-color: #c9962c;
+  box-shadow: 0 0 0 1px #c9962c inset, 0 0 10px -2px rgba(201, 150, 44, 0.7);
+}
+.inv-thumb {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center top;
+  pointer-events: none;
+}
+.inv-label {
+  position: relative;
+  font-size: 9.5px;
+  line-height: 1.1;
+  color: #e6dcc4;
+  text-align: center;
+  background: rgba(8, 6, 4, 0.72);
+  border-radius: 5px;
+  padding: 2px 4px;
+  max-width: 100%;
+  z-index: 1;
+}
+.inv-worn {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  font-size: 8.5px;
   font-weight: 700;
+  color: #1a1206;
+  background: #c9962c;
+  border-radius: 4px;
+  padding: 1px 4px;
+  z-index: 1;
 }
 
 .footnote {
