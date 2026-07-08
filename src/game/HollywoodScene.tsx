@@ -26,6 +26,7 @@ const PLAYABLE_IDS = new Set([
   "dalia",
   "nathaniel",
   "elizabeth",
+  "vee_knox",
 ]);
 
 // `id: null` is Observer Mode (free pan/zoom, nobody driven), pinned first. The rest are the

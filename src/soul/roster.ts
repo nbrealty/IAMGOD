@@ -710,6 +710,33 @@ const RAW: Soul[] = [
     xMax: 450,
     baseSpeed: 18,
   }),
+  // Sorriso's love interest — an LA-native scene veteran. Mature and powerful, not "old":
+  // high Esteem/Actualization (self-assured), strong resilience (survived LA three times over),
+  // Kohlberg 5 (her own code), and enough Antagonism to see through ego instantly.
+  soul({
+    id: "vee_knox",
+    name: 'Valentina "Vee" Knox',
+    occupation: "Scene Veteran · Nightlife & Music",
+    archetype: "Street-Glam Survivor",
+    age: 45,
+    narrative:
+      "Born and raised in LA — she's watched this city reinvent itself three times, buried friends and fads both, and still walks like she owns the block. She knows the nightlife, the music, the club politics, the fake smiles, and every human disaster wearing sunglasses indoors. Sorriso is younger, intense, still proving himself; she likes him fine, but she clocked his ego in about four seconds. Somebody has to babysit male confidence before it becomes a felony.",
+    needs: { survival: 58, safety: 60, belonging: 52, esteem: 74, actualization: 66 },
+    traits: traits({ negativeAffectivity: 28, detachment: 40, antagonism: 44, disinhibition: 30, psychoticism: 12 }),
+    aceScore: 5,
+    resilience: 90,
+    kohlberg: 5,
+    soulAge: "Old",
+    initiationLevel: 4,
+    chakras: chakras([62, 58, 60, 66, 68, 60, 40]),
+    consciousAspiration: "Keep her corner of the scene real — spot the fakes, protect what's worth protecting, never get played",
+    soulPurpose: "Teach the hungry young ones that longevity beats a hot minute — and let herself be genuinely moved by someone again",
+    affinities: { socialize: 1.5, perform: 1.3, gaze: 1.3, hustle: 1.1, work: 1.0, rest: 1.0 },
+    row: "north",
+    xMin: 200,
+    xMax: 300,
+    baseSpeed: 15,
+  }),
 ];
 
 // The cast was authored for the old 1600-wide single boulevard. Phase 2b opened the

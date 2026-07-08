@@ -28,6 +28,12 @@ export const OUTFITS: Record<string, Outfit[]> = {
     { id: "varsity", label: "Varsity", stem: "nathaniel_varsity" },
     { id: "bomber", label: "Bomber", stem: "nathaniel_bomber" },
   ],
+  // Vee Knox. "Rock Forever" street-glam look is her default.
+  vee_knox: [
+    { id: "rock", label: "Rock", stem: "vee_knox" },
+    { id: "bodysuit", label: "Bodysuit", stem: "vee_knox_bodysuit" },
+    { id: "casual", label: "Casual", stem: "vee_knox_casual" },
+  ],
 };
 
 export function outfitsFor(soulId: string | null): Outfit[] {
