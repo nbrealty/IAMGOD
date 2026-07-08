@@ -674,26 +674,44 @@ export class HollywoodRenderer {
     this.drawPostGrade();
   }
 
-  // Final cohesion pass in SCREEN space (device pixels, independent of the world camera): a soft
-  // warm midtone unify that pulls disparate assets under one light, plus a vignette that frames
-  // the play area. Drawn last, over everything. Subtle by design — grade, not tint.
+  // Final cohesion pass in SCREEN space (device pixels, independent of the world camera): a real,
+  // VISIBLE grade so every asset reads under one light. Research-calibrated — the old 10%
+  // soft-light + edge-only vignette were below the just-noticeable threshold. Now: a contrast
+  // bump (widens the value range so shadows separate), a cinematic duotone (cool shadows / warm
+  // highlights), and a dual vignette (lift the center + darken the corners) so there's real
+  // center-to-edge contrast. Drawn last, over everything.
   private drawPostGrade(): void {
     const ctx = this.ctx;
     const night = nightAt(this.engine.clockMinutes);
-    ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    const golden = goldenAt(this.engine.clockMinutes);
     const W = this.canvas.width, Hh = this.canvas.height;
-    // gentle warm midtone unify (soft-light), backed off after dark so night stays cool
-    ctx.globalCompositeOperation = "soft-light";
-    ctx.fillStyle = `rgba(255,224,178,${0.1 * (1 - 0.6 * night)})`;
-    ctx.fillRect(0, 0, W, Hh);
-    // vignette — transparent center to darker corners, a touch heavier at night
-    ctx.globalCompositeOperation = "source-over";
     const cx = W / 2, cy = Hh * 0.5;
     const rad = Math.hypot(W, Hh) * 0.62;
-    const vg = ctx.createRadialGradient(cx, cy, rad * 0.44, cx, cy, rad);
-    vg.addColorStop(0, "rgba(6,5,3,0)");
-    vg.addColorStop(1, `rgba(6,5,3,${0.3 + 0.12 * night})`);
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    // (1) cool-shadow duotone — steal a little warmth from the darks so they read cinematic cool.
+    ctx.globalCompositeOperation = "multiply";
+    ctx.fillStyle = `rgba(150,170,205,${0.12 + 0.06 * night})`;
+    ctx.fillRect(0, 0, W, Hh);
+    // (2) warm highlight lift — a soft additive glow toward the center (the lit street), warmer at
+    // golden hour, cooler/dimmer at night.
+    ctx.globalCompositeOperation = "lighter";
+    const warm = ctx.createRadialGradient(cx, cy, rad * 0.15, cx, cy, rad);
+    warm.addColorStop(0, `rgba(255,206,150,${0.14 * (1 - 0.5 * night) + 0.06 * golden})`);
+    warm.addColorStop(1, "rgba(255,206,150,0)");
+    ctx.fillStyle = warm;
+    ctx.fillRect(0, 0, W, Hh);
+    // (3) overlay punch — widen contrast so the value structure (shadow / body / highlight)
+    // separates. `overlay` darkens darks and lightens lights around mid-grey.
+    ctx.globalCompositeOperation = "overlay";
+    ctx.fillStyle = "rgba(128,128,128,0.16)";
+    ctx.fillRect(0, 0, W, Hh);
+    // (4) dual vignette — darken the corners (heavier than before) AND the center push from (2)
+    // gives the center-to-edge contrast that makes a vignette actually read.
+    ctx.globalCompositeOperation = "source-over";
+    const vg = ctx.createRadialGradient(cx, cy, rad * 0.4, cx, cy, rad);
+    vg.addColorStop(0, "rgba(4,4,8,0)");
+    vg.addColorStop(1, `rgba(4,4,8,${0.42 + 0.14 * night})`);
     ctx.fillStyle = vg;
     ctx.fillRect(0, 0, W, Hh);
     ctx.restore();
@@ -1286,8 +1304,8 @@ export class HollywoodRenderer {
     if (!img || !img.complete || img.naturalWidth === 0) return;
     const h = PROP_H[name] ?? 40;
     const w = h * (img.naturalWidth / img.naturalHeight);
-    // Grounding contact shadow — tighter than a building's (props have a small footprint).
-    this.drawContactShadow(x, footY, w * 0.6, 0.26, 0.16);
+    // Grounding shadow stack — tighter/lighter than a building's (props have a small footprint).
+    this.drawContactShadow(x, footY, w * 0.7, h, 0.7);
     this.ctx.drawImage(img, x - w / 2, footY - h, w, h);
   }
 
@@ -1509,27 +1527,57 @@ export class HollywoodRenderer {
     ctx.fillRect(cx0, cy0, cx1 - cx0, cy1 - cy0);
   }
 
-  // A soft, dark ground-contact shadow ellipse under any upright actor, composited `multiply`
-  // so it darkens the pavement rather than painting grey over it. Drawn within the sorted pass
-  // (before the actor's sprite) so it sits on exactly the ground the actor stands on. `w` is the
-  // footprint width; `strength` the peak darkness; `ryF` the flatten (smaller = shallower).
-  private drawContactShadow(cx: number, footY: number, w: number, strength = 0.3, ryF = 0.1): void {
+  // Three-part grounding stack under any upright actor, drawn within the sorted pass (before the
+  // actor's sprite) so it sits on exactly the ground it stands on. Research-calibrated to READ in
+  // a dark, moody scene where a thin near-black multiply is invisible:
+  //   (1) a faint warm ground LIFT so a dark shadow has contrast to bite into;
+  //   (2) an offset, foreshortened cast BODY (the directional "sitting on the ground" cue) —
+  //       cool blue-black (hue-separates when value can't), thrown down+right for ONE consistent
+  //       light (upper-left), spilling forward onto the visible sidewalk;
+  //   (3) a crisp dark contact SEAM at the true foot line (the glue that kills the float).
+  // `w`/`h` = the actor's on-screen footprint width / height; `scale` fades it with depth.
+  private drawContactShadow(cx: number, footY: number, w: number, h: number, scale = 1): void {
     const ctx = this.ctx;
-    const rx = Math.max(9, w * 0.5);
-    const ry = Math.max(3, rx * ryF);
+    const rx = Math.max(10, w * 0.5);
+    // one light everywhere: upper-left → shadow falls down (+Y, toward camera) and right (+X).
+    const offX = Math.min(w * 0.1, 40);
+    const offY = Math.min(h * 0.1, 42);
+
+    // (1) ground lift — faint warm halo, `lighten` so it only ever raises the ground a touch.
+    ctx.save();
+    ctx.globalCompositeOperation = "lighten";
+    const lr = rx * 1.4;
+    const lift = ctx.createRadialGradient(cx, footY, 1, cx, footY, lr);
+    lift.addColorStop(0, `rgba(64,56,44,${0.09 * scale})`);
+    lift.addColorStop(1, "rgba(64,56,44,0)");
+    ctx.translate(cx, footY); ctx.scale(1, 0.22); ctx.translate(-cx, -footY);
+    ctx.fillStyle = lift;
+    ctx.beginPath(); ctx.arc(cx, footY, lr, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+
+    // (2) cast body — cool blue-black, offset down+right, foreshortened, soft falloff.
     ctx.save();
     ctx.globalCompositeOperation = "multiply";
-    const g = ctx.createRadialGradient(cx, footY, 1, cx, footY, rx);
-    g.addColorStop(0, `rgba(10,8,5,${strength})`);
-    g.addColorStop(0.62, `rgba(10,8,5,${strength * 0.46})`);
-    g.addColorStop(1, "rgba(10,8,5,0)");
-    ctx.translate(cx, footY);
-    ctx.scale(1, ry / rx);
-    ctx.translate(-cx, -footY);
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(cx, footY, rx, 0, Math.PI * 2);
-    ctx.fill();
+    const bcx = cx + offX, bcy = footY + offY, brx = rx * 1.2;
+    const body = ctx.createRadialGradient(bcx, bcy, 1, bcx, bcy, brx);
+    body.addColorStop(0, `rgba(8,7,16,${0.42 * scale})`);
+    body.addColorStop(0.7, `rgba(8,7,16,${0.2 * scale})`);
+    body.addColorStop(1, "rgba(8,7,16,0)");
+    ctx.translate(bcx, bcy); ctx.scale(1, 0.4); ctx.translate(-bcx, -bcy);
+    ctx.fillStyle = body;
+    ctx.beginPath(); ctx.arc(bcx, bcy, brx, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+
+    // (3) contact seam — crisp cool-black glue at the true foot line.
+    ctx.save();
+    ctx.globalCompositeOperation = "multiply";
+    const seam = ctx.createRadialGradient(cx, footY, 1, cx, footY, rx);
+    seam.addColorStop(0, `rgba(8,7,16,${0.6 * scale})`);
+    seam.addColorStop(0.55, `rgba(8,7,16,${0.3 * scale})`);
+    seam.addColorStop(1, "rgba(8,7,16,0)");
+    ctx.translate(cx, footY); ctx.scale(1, 0.15); ctx.translate(-cx, -footY);
+    ctx.fillStyle = seam;
+    ctx.beginPath(); ctx.arc(cx, footY, rx, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   }
 
@@ -1546,9 +1594,10 @@ export class HollywoodRenderer {
     const baseY = b.baseY ?? (side === "north" ? NORTH_BASELINE : SOUTH_BASELINE);
     const growUp = b.growUp ?? true;
     const top = growUp ? baseY - H : baseY;
-    // Grounding: a wide, shallow contact shadow so the facade sits on the pavement instead of
-    // floating — drawn before the sprite so it reads as ground the wall stands on.
-    this.drawContactShadow(cx, baseY, w * 0.94, 0.3, 0.05);
+    // Grounding: the three-part shadow stack, drawn before the sprite so it reads as ground the
+    // wall stands on. Fade with depth — far (north) row a touch lighter so it recedes.
+    const depthScale = side === "north" ? 0.85 : 1;
+    this.drawContactShadow(cx, baseY, w, H, depthScale);
     const prev = ctx.imageSmoothingEnabled;
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
@@ -1564,6 +1613,23 @@ export class HollywoodRenderer {
     sg.addColorStop(1, "rgba(16,12,8,0.32)");
     ctx.fillStyle = sg;
     ctx.fillRect(cx - w / 2, baseY - skirtH, w, skirtH);
+    ctx.restore();
+    // Inter-building AO: darken the facade's vertical side edges so two adjacent buildings form a
+    // shaded seam/valley between them — grounds the streetwall as one solid mass, not floating
+    // cards. (On isolated landmarks it just reads as gentle form shading on the sides.)
+    const edgeW = Math.max(6, w * 0.07);
+    ctx.save();
+    ctx.globalCompositeOperation = "multiply";
+    const lAO = ctx.createLinearGradient(cx - w / 2, 0, cx - w / 2 + edgeW, 0);
+    lAO.addColorStop(0, "rgba(10,10,20,0.34)");
+    lAO.addColorStop(1, "rgba(10,10,20,0)");
+    ctx.fillStyle = lAO;
+    ctx.fillRect(cx - w / 2, top, edgeW, H);
+    const rAO = ctx.createLinearGradient(cx + w / 2, 0, cx + w / 2 - edgeW, 0);
+    rAO.addColorStop(0, "rgba(10,10,20,0.34)");
+    rAO.addColorStop(1, "rgba(10,10,20,0)");
+    ctx.fillStyle = rAO;
+    ctx.fillRect(cx + w / 2 - edgeW, top, edgeW, H);
     ctx.restore();
     // Far-row atmospheric veil: wash the distant (north) streetwall toward a cool haze via a
     // light multiply, so the far row loses a little contrast and recedes from the near (south)
