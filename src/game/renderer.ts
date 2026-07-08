@@ -269,6 +269,9 @@ export class HollywoodRenderer {
 
   // player control
   private controlledId: string | null = null;
+  // Active outfit per soul: soulId → sprite stem (see outfits.ts). Absent → wears its default
+  // (stem = soul id). Swapping an entry changes which sprite (front + `_back`) drawNPC loads.
+  private outfits = new Map<string, string>();
   private held = new Set<string>();
   private facingLeft = false;
   private facingUp = false; // moving away from camera → show the back sprite
@@ -490,6 +493,12 @@ export class HollywoodRenderer {
 
   getControlled(): string | null {
     return this.controlledId;
+  }
+
+  // Dress a soul in one of its outfits (stem from outfits.ts). Takes effect on the next frame;
+  // the new sprite (and its `_back`) load lazily and swap in once decoded.
+  setOutfit(soulId: string, stem: string) {
+    this.outfits.set(soulId, stem);
   }
 
   // Hold / release a movement direction — called by the D-pad and keyboard.
@@ -1637,14 +1646,16 @@ export class HollywoodRenderer {
       ctx.stroke();
     }
 
-    let sprite = this.getSprite(s.soul.id);
-    let spriteKey = s.soul.id;
-    // player facing away from the camera → use the back sprite if one exists
+    // Active outfit → sprite stem (defaults to the soul id, i.e. the base look).
+    const stem = this.outfits.get(s.soul.id) ?? s.soul.id;
+    let sprite = this.getSprite(stem);
+    let spriteKey = stem;
+    // player facing away from the camera → use the back sprite for this outfit if one exists
     if (s.soul.id === this.controlledId && this.facingUp) {
-      const back = this.getSprite(`${s.soul.id}_back`);
+      const back = this.getSprite(`${stem}_back`);
       if (back && back.complete && back.naturalWidth > 0) {
         sprite = back;
-        spriteKey = `${s.soul.id}_back`;
+        spriteKey = `${stem}_back`;
       }
     }
     if (sprite && sprite.complete && sprite.naturalWidth > 0) {

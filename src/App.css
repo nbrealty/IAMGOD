@@ -249,6 +249,51 @@
   font-weight: 700;
 }
 
+/* ---------- wardrobe (outfit switcher for the controlled character) ----------
+   Appears just under the roster strip when the driven soul owns more than one
+   outfit. First step of an inventory: swap a look and it applies live. */
+.outfit-switcher {
+  position: absolute;
+  top: 46px;
+  left: 10px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  z-index: 5;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px;
+  scrollbar-width: none;
+}
+.outfit-switcher::-webkit-scrollbar {
+  display: none;
+}
+.outfit-label {
+  font-size: 11px;
+  color: #9a8a63;
+  white-space: nowrap;
+  flex: 0 0 auto;
+  padding-right: 2px;
+}
+.outfit-chip {
+  font-size: 11px;
+  padding: 4px 11px;
+  border-radius: 20px;
+  background: rgba(20, 17, 12, 0.72);
+  border: 1px solid #4a3a22;
+  color: #cbb98f;
+  cursor: pointer;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+.outfit-chip.active {
+  background: #6b4ea6;
+  border-color: #a487d6;
+  color: #fff;
+  font-weight: 700;
+}
+
 .footnote {
   text-align: center;
   font-size: 10px;
