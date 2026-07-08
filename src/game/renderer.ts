@@ -691,27 +691,27 @@ export class HollywoodRenderer {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     // (1) cool-shadow duotone — steal a little warmth from the darks so they read cinematic cool.
     ctx.globalCompositeOperation = "multiply";
-    ctx.fillStyle = `rgba(150,170,205,${0.12 + 0.06 * night})`;
+    ctx.fillStyle = `rgba(146,166,204,${0.16 + 0.08 * night})`;
     ctx.fillRect(0, 0, W, Hh);
     // (2) warm highlight lift — a soft additive glow toward the center (the lit street), warmer at
     // golden hour, cooler/dimmer at night.
     ctx.globalCompositeOperation = "lighter";
     const warm = ctx.createRadialGradient(cx, cy, rad * 0.15, cx, cy, rad);
-    warm.addColorStop(0, `rgba(255,206,150,${0.14 * (1 - 0.5 * night) + 0.06 * golden})`);
-    warm.addColorStop(1, "rgba(255,206,150,0)");
+    warm.addColorStop(0, `rgba(255,204,146,${0.2 * (1 - 0.5 * night) + 0.08 * golden})`);
+    warm.addColorStop(1, "rgba(255,204,146,0)");
     ctx.fillStyle = warm;
     ctx.fillRect(0, 0, W, Hh);
     // (3) overlay punch — widen contrast so the value structure (shadow / body / highlight)
     // separates. `overlay` darkens darks and lightens lights around mid-grey.
     ctx.globalCompositeOperation = "overlay";
-    ctx.fillStyle = "rgba(128,128,128,0.16)";
+    ctx.fillStyle = "rgba(128,128,128,0.26)";
     ctx.fillRect(0, 0, W, Hh);
     // (4) dual vignette — darken the corners (heavier than before) AND the center push from (2)
     // gives the center-to-edge contrast that makes a vignette actually read.
     ctx.globalCompositeOperation = "source-over";
-    const vg = ctx.createRadialGradient(cx, cy, rad * 0.4, cx, cy, rad);
+    const vg = ctx.createRadialGradient(cx, cy, rad * 0.38, cx, cy, rad);
     vg.addColorStop(0, "rgba(4,4,8,0)");
-    vg.addColorStop(1, `rgba(4,4,8,${0.42 + 0.14 * night})`);
+    vg.addColorStop(1, `rgba(4,4,8,${0.54 + 0.16 * night})`);
     ctx.fillStyle = vg;
     ctx.fillRect(0, 0, W, Hh);
     ctx.restore();
@@ -1540,16 +1540,16 @@ export class HollywoodRenderer {
     const ctx = this.ctx;
     const rx = Math.max(10, w * 0.5);
     // one light everywhere: upper-left → shadow falls down (+Y, toward camera) and right (+X).
-    const offX = Math.min(w * 0.1, 40);
-    const offY = Math.min(h * 0.1, 42);
+    const offX = Math.min(w * 0.12, 48);
+    const offY = Math.min(h * 0.12, 52);
 
     // (1) ground lift — faint warm halo, `lighten` so it only ever raises the ground a touch.
     ctx.save();
     ctx.globalCompositeOperation = "lighten";
     const lr = rx * 1.4;
     const lift = ctx.createRadialGradient(cx, footY, 1, cx, footY, lr);
-    lift.addColorStop(0, `rgba(64,56,44,${0.09 * scale})`);
-    lift.addColorStop(1, "rgba(64,56,44,0)");
+    lift.addColorStop(0, `rgba(70,60,46,${0.13 * scale})`);
+    lift.addColorStop(1, "rgba(70,60,46,0)");
     ctx.translate(cx, footY); ctx.scale(1, 0.22); ctx.translate(-cx, -footY);
     ctx.fillStyle = lift;
     ctx.beginPath(); ctx.arc(cx, footY, lr, 0, Math.PI * 2); ctx.fill();
@@ -1558,11 +1558,11 @@ export class HollywoodRenderer {
     // (2) cast body — cool blue-black, offset down+right, foreshortened, soft falloff.
     ctx.save();
     ctx.globalCompositeOperation = "multiply";
-    const bcx = cx + offX, bcy = footY + offY, brx = rx * 1.2;
+    const bcx = cx + offX, bcy = footY + offY, brx = rx * 1.25;
     const body = ctx.createRadialGradient(bcx, bcy, 1, bcx, bcy, brx);
-    body.addColorStop(0, `rgba(8,7,16,${0.42 * scale})`);
-    body.addColorStop(0.7, `rgba(8,7,16,${0.2 * scale})`);
-    body.addColorStop(1, "rgba(8,7,16,0)");
+    body.addColorStop(0, `rgba(7,6,15,${0.54 * scale})`);
+    body.addColorStop(0.7, `rgba(7,6,15,${0.26 * scale})`);
+    body.addColorStop(1, "rgba(7,6,15,0)");
     ctx.translate(bcx, bcy); ctx.scale(1, 0.4); ctx.translate(-bcx, -bcy);
     ctx.fillStyle = body;
     ctx.beginPath(); ctx.arc(bcx, bcy, brx, 0, Math.PI * 2); ctx.fill();
@@ -1572,9 +1572,9 @@ export class HollywoodRenderer {
     ctx.save();
     ctx.globalCompositeOperation = "multiply";
     const seam = ctx.createRadialGradient(cx, footY, 1, cx, footY, rx);
-    seam.addColorStop(0, `rgba(8,7,16,${0.6 * scale})`);
-    seam.addColorStop(0.55, `rgba(8,7,16,${0.3 * scale})`);
-    seam.addColorStop(1, "rgba(8,7,16,0)");
+    seam.addColorStop(0, `rgba(7,6,15,${0.74 * scale})`);
+    seam.addColorStop(0.55, `rgba(7,6,15,${0.38 * scale})`);
+    seam.addColorStop(1, "rgba(7,6,15,0)");
     ctx.translate(cx, footY); ctx.scale(1, 0.15); ctx.translate(-cx, -footY);
     ctx.fillStyle = seam;
     ctx.beginPath(); ctx.arc(cx, footY, rx, 0, Math.PI * 2); ctx.fill();
@@ -1617,17 +1617,17 @@ export class HollywoodRenderer {
     // Inter-building AO: darken the facade's vertical side edges so two adjacent buildings form a
     // shaded seam/valley between them — grounds the streetwall as one solid mass, not floating
     // cards. (On isolated landmarks it just reads as gentle form shading on the sides.)
-    const edgeW = Math.max(6, w * 0.07);
+    const edgeW = Math.max(6, w * 0.08);
     ctx.save();
     ctx.globalCompositeOperation = "multiply";
     const lAO = ctx.createLinearGradient(cx - w / 2, 0, cx - w / 2 + edgeW, 0);
-    lAO.addColorStop(0, "rgba(10,10,20,0.34)");
-    lAO.addColorStop(1, "rgba(10,10,20,0)");
+    lAO.addColorStop(0, "rgba(9,9,18,0.46)");
+    lAO.addColorStop(1, "rgba(9,9,18,0)");
     ctx.fillStyle = lAO;
     ctx.fillRect(cx - w / 2, top, edgeW, H);
     const rAO = ctx.createLinearGradient(cx + w / 2, 0, cx + w / 2 - edgeW, 0);
-    rAO.addColorStop(0, "rgba(10,10,20,0.34)");
-    rAO.addColorStop(1, "rgba(10,10,20,0)");
+    rAO.addColorStop(0, "rgba(9,9,18,0.46)");
+    rAO.addColorStop(1, "rgba(9,9,18,0)");
     ctx.fillStyle = rAO;
     ctx.fillRect(cx + w / 2 - edgeW, top, edgeW, H);
     ctx.restore();
