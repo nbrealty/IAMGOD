@@ -14,6 +14,7 @@ export const OUTFITS: Record<string, Outfit[]> = {
   roxy_valente: [
     { id: "everyday", label: "Everyday", stem: "roxy_valente" },
     { id: "beach", label: "Beach", stem: "roxy_valente_beach" },
+    { id: "floral", label: "Floral", stem: "roxy_valente_floral" },
   ],
   lori: [
     { id: "everyday", label: "Everyday", stem: "lori" },
