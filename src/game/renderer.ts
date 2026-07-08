@@ -152,6 +152,9 @@ const GROUND_FALLBACK: Record<string, string> = {
 };
 // Below this zoom the whole district is in frame; skip pattern tiling and just flat-fill.
 const TILE_ZOOM_GATE = 0.24;
+// One smooth low-frequency mottle tile spans this many world units (large = broad, organic
+// variation that never reads as a repeating stamp).
+const NOISE_WORLD = 420;
 
 // Player-controlled character tuning. Movement is now bounded by the street "+" corridor
 // (see canWalk in sceneData) rather than a fixed y-band, so the player can walk the full
@@ -653,6 +656,7 @@ export class HollywoodRenderer {
     this.drawSidewalks();
     this.drawRoad();
     this.drawGroundDetail(); // aprons + landmark plazas on the walks
+    this.drawSeamBlends(); // feather surface transitions + decal breakup (the "smudge")
 
     // distant skyline silhouette — always furthest back
     for (const b of BACKDROP_BUILDINGS) this.drawBuilding(b);
@@ -1108,35 +1112,127 @@ export class HollywoodRenderer {
     }
   }
 
-  // The ground plane, drawn first behind everything. A base tone, a zoom-gated mottle so the
-  // land between buildings has texture instead of a flat void, and a grass/dirt yard under
-  // each house of the residential back-street. All viewport-culled, all deterministic.
+  // A cached, bilinear-smoothed brown-tone noise pattern for the ground mottle. Baked once: a
+  // tiny 12×12 deterministic value-noise grid upscaled to 256px with smoothing (organic, no hard
+  // cells), then tiled at NOISE_WORLD units so the period is far larger than any building — it
+  // never reads as a stamp. `undefined` = not built yet; `null` = build failed (skip).
+  private noisePattern?: CanvasPattern | null;
+  private getNoisePattern(): CanvasPattern | null {
+    if (this.noisePattern !== undefined) return this.noisePattern;
+    const N = 12;
+    const lo = document.createElement("canvas");
+    lo.width = N; lo.height = N;
+    const lc = lo.getContext("2d");
+    if (!lc) return (this.noisePattern = null);
+    const id = lc.createImageData(N, N);
+    for (let y = 0; y < N; y++)
+      for (let x = 0; x < N; x++) {
+        const v = (groundHash(x * 7 + 3, y * 7 + 11) - 0.5) * 2; // -1..1
+        const k = 1 + v * 0.42; // brightness around the base tone
+        const i = (y * N + x) * 4;
+        id.data[i] = clamp255(0x24 * k + 5 * v);
+        id.data[i + 1] = clamp255(0x1f * k + 4 * v);
+        id.data[i + 2] = clamp255(0x18 * k + 3 * v);
+        id.data[i + 3] = 255;
+      }
+    lc.putImageData(id, 0, 0);
+    const hi = document.createElement("canvas");
+    hi.width = 256; hi.height = 256;
+    const hc = hi.getContext("2d");
+    if (!hc) return (this.noisePattern = null);
+    hc.imageSmoothingEnabled = true;
+    hc.imageSmoothingQuality = "high";
+    hc.drawImage(lo, 0, 0, N, N, 0, 0, 256, 256);
+    const pat = this.ctx.createPattern(hi, "repeat");
+    if (pat) pat.setTransform(new DOMMatrix([NOISE_WORLD / 256, 0, 0, NOISE_WORLD / 256, 0, 0]));
+    return (this.noisePattern = pat ?? null);
+  }
+
+  // Dissolve the hard line where two ground surfaces meet: bleed each surface's texture a short
+  // way across the seam with a stepped alpha fade, so the boundary "smudges" instead of cutting.
+  // `upperName`/`lowerName` are the tiles above/below the seam; pass null for a flat (base-fill)
+  // side (nothing to bleed). Drawn AFTER all ground surfaces are laid, before actors.
+  private featherSeam(y: number, upperName: string | null, lowerName: string | null, band = 26): void {
+    const ctx = this.ctx;
+    const steps = 6;
+    const h = band / steps;
+    // lower texture bleeds UP into [y-band, y] — strongest at the seam, fading upward.
+    if (lowerName)
+      for (let i = 0; i < steps; i++) {
+        ctx.globalAlpha = 0.5 * ((i + 0.5) / steps);
+        this.fillTiled(0, y - band + i * h, WORLD_W, y - band + i * h + h + 0.5, lowerName);
+      }
+    // upper texture bleeds DOWN into [y, y+band] — strongest at the seam, fading downward.
+    if (upperName)
+      for (let i = 0; i < steps; i++) {
+        ctx.globalAlpha = 0.5 * (1 - (i + 0.5) / steps);
+        this.fillTiled(0, y + i * h, WORLD_W, y + i * h + h + 0.5, upperName);
+      }
+    ctx.globalAlpha = 1;
+  }
+
+  // Scatter small deterministic specks straddling a seam (grass tufts / gravel) so no continuous
+  // hard line survives. Only when zoomed in enough to read them.
+  private scatterSeamDecals(y: number, kind: "grass" | "gravel"): void {
+    if (this.cam.zoom < 0.32) return;
+    const ctx = this.ctx;
+    const vx = this.cam.x;
+    const vR = vx + this.cssW / this.cam.zoom;
+    ctx.save();
+    for (let x = Math.floor(vx / 38) * 38; x < vR; x += 38) {
+      if (CROSS_STREETS.some((cs) => x > cs.x - CS_HALF && x < cs.x + CS_HALF)) continue;
+      const r = groundHash(x, y);
+      if (r < 0.45) continue;
+      const dx = (groundHash(x, 7) - 0.5) * 30;
+      const dy = (groundHash(x, 13) - 0.5) * 15;
+      const s = 1.6 + r * 2.8;
+      ctx.globalAlpha = 0.22 + 0.3 * groundHash(x, 3);
+      ctx.fillStyle = kind === "grass" ? (groundHash(x, 9) > 0.5 ? "#5f7a3e" : "#6d8747") : "#585047";
+      ctx.beginPath();
+      ctx.ellipse(x + dx, y + dy, s, s * 0.72, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  // Blend every boulevard ground seam: feather the textures across each other and litter the two
+  // most visible transitions (sidewalk↔road, sidewalk↔grass) with breakup decals.
+  private drawSeamBlends(): void {
+    this.featherSeam(NORTH_SIDEWALK_TOP, null, "sidewalk.jpg"); // north base ↔ sidewalk
+    this.featherSeam(ROAD_TOP, "sidewalk.jpg", "asphalt.jpg"); // north sidewalk ↔ road
+    this.featherSeam(ROAD_BOTTOM, "asphalt.jpg", null); // road ↔ south base
+    this.featherSeam(SOUTH_SIDEWALK_TOP, null, "sidewalk.jpg"); // south base ↔ sidewalk
+    this.featherSeam(SOUTH_SIDEWALK_BOTTOM, "sidewalk.jpg", "grass.jpg"); // sidewalk ↔ grass
+    this.scatterSeamDecals(ROAD_TOP, "gravel");
+    this.scatterSeamDecals(SOUTH_SIDEWALK_BOTTOM, "grass");
+  }
+
+  // The ground plane, drawn first behind everything. A base tone, a smooth all-zoom mottle so the
+  // land between buildings has organic texture instead of a flat void, and a grass yard under
+  // the residential back-street. All viewport-culled, all deterministic.
   private drawGround() {
     const ctx = this.ctx;
     const vx = this.cam.x;
     const vy = this.cam.y;
     const vw = this.cssW / this.cam.zoom;
     const vh = this.cssH / this.cam.zoom;
-    const vR = vx + vw;
-    const vB = vy + vh;
 
     ctx.fillStyle = "#241f18";
     ctx.fillRect(vx, vy, vw, vh);
 
-    // coarse mottle — only worth drawing (and paying for) when zoomed in enough to read it
-    if (this.cam.zoom > 0.5) {
-      const CELL = 92;
-      const x0 = Math.floor(vx / CELL) * CELL;
-      const y0 = Math.floor(vy / CELL) * CELL;
-      ctx.globalAlpha = 0.5;
-      for (let gx = x0; gx < vR; gx += CELL) {
-        for (let gy = y0; gy < vB; gy += CELL) {
-          const d = Math.round((groundHash(gx, gy) - 0.5) * 20);
-          ctx.fillStyle = shade("#241f18", d);
-          ctx.fillRect(gx, gy, CELL, CELL);
-        }
-      }
-      ctx.globalAlpha = 1;
+    // Smooth low-frequency mottle over the WHOLE ground at every zoom (replaces the old blocky
+    // 92px cells that only drew when zoomed in and left a flat void when out). A baked, bilinear-
+    // smoothed brown-tone noise tile drawn over the base fill — organic texture, no visible grid,
+    // no flat dead colour. The road/sidewalk/grass tiles draw on top of this afterwards, so it
+    // only shows through on the open ground between and behind the buildings.
+    const noise = this.getNoisePattern();
+    if (noise) {
+      ctx.save();
+      ctx.globalAlpha = 0.85;
+      ctx.fillStyle = noise;
+      ctx.fillRect(vx, vy, vw, vh);
+      ctx.restore();
     }
 
     // residential back-street: one continuous grass lawn (the houses grow up from BACK_Y and land
