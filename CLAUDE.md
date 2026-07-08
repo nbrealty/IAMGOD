@@ -25,6 +25,15 @@ feet-anchored to one ground-Y, which is the sort key.
    showing. Fallbacks may only appear while a sprite is still decoding, and
    should be neutral, not a dark box.
 
+   **Grounding (anti-sticker).** Every ground-standing object draws its own
+   `multiply` contact shadow at its foot-Y **inside its own draw, just before the
+   sprite** (`drawContactShadow` in `renderer.ts`) so the shadow sorts with the
+   actor and lands on the ground it stands on — never as a separate pass.
+   Buildings also get a base-skirt gradient (wall foot sinks into the pavement)
+   and the far/north row gets a light `multiply` haze veil so it recedes. A
+   final **screen-space** grade + vignette (`drawPostGrade`, reset to the
+   identity transform first) unifies every asset under one exposure.
+
 3. **Every character has a front and a back.** Show the back sprite only when
    the character is moving up/away from the camera; otherwise show the front
    (front mirrored L/R is fine for sideways travel). Ambient peds walk

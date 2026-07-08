@@ -666,10 +666,37 @@ export class HollywoodRenderer {
     actors.sort((a, b) => a.y - b.y);
     for (const a of actors) a.draw();
 
-    // (c) OVERLAY post-pass — full-screen day/night grade, golden hour, night lights.
+    // (c) OVERLAY post-pass — full-screen day/night grade, golden hour, night lights, then a
+    // final screen-space cohesion grade + vignette so every asset reads under one exposure.
     this.drawAmbientGrade();
     this.drawGoldenHour();
     this.drawLights();
+    this.drawPostGrade();
+  }
+
+  // Final cohesion pass in SCREEN space (device pixels, independent of the world camera): a soft
+  // warm midtone unify that pulls disparate assets under one light, plus a vignette that frames
+  // the play area. Drawn last, over everything. Subtle by design — grade, not tint.
+  private drawPostGrade(): void {
+    const ctx = this.ctx;
+    const night = nightAt(this.engine.clockMinutes);
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    const W = this.canvas.width, Hh = this.canvas.height;
+    // gentle warm midtone unify (soft-light), backed off after dark so night stays cool
+    ctx.globalCompositeOperation = "soft-light";
+    ctx.fillStyle = `rgba(255,224,178,${0.1 * (1 - 0.6 * night)})`;
+    ctx.fillRect(0, 0, W, Hh);
+    // vignette — transparent center to darker corners, a touch heavier at night
+    ctx.globalCompositeOperation = "source-over";
+    const cx = W / 2, cy = Hh * 0.5;
+    const rad = Math.hypot(W, Hh) * 0.62;
+    const vg = ctx.createRadialGradient(cx, cy, rad * 0.44, cx, cy, rad);
+    vg.addColorStop(0, "rgba(6,5,3,0)");
+    vg.addColorStop(1, `rgba(6,5,3,${0.3 + 0.12 * night})`);
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, W, Hh);
+    ctx.restore();
   }
 
   // Gather every upright actor as a { footY, draw } pair for the sorted depth pass. Each type is
@@ -1259,6 +1286,8 @@ export class HollywoodRenderer {
     if (!img || !img.complete || img.naturalWidth === 0) return;
     const h = PROP_H[name] ?? 40;
     const w = h * (img.naturalWidth / img.naturalHeight);
+    // Grounding contact shadow — tighter than a building's (props have a small footprint).
+    this.drawContactShadow(x, footY, w * 0.6, 0.26, 0.16);
     this.ctx.drawImage(img, x - w / 2, footY - h, w, h);
   }
 
@@ -1480,6 +1509,30 @@ export class HollywoodRenderer {
     ctx.fillRect(cx0, cy0, cx1 - cx0, cy1 - cy0);
   }
 
+  // A soft, dark ground-contact shadow ellipse under any upright actor, composited `multiply`
+  // so it darkens the pavement rather than painting grey over it. Drawn within the sorted pass
+  // (before the actor's sprite) so it sits on exactly the ground the actor stands on. `w` is the
+  // footprint width; `strength` the peak darkness; `ryF` the flatten (smaller = shallower).
+  private drawContactShadow(cx: number, footY: number, w: number, strength = 0.3, ryF = 0.1): void {
+    const ctx = this.ctx;
+    const rx = Math.max(9, w * 0.5);
+    const ry = Math.max(3, rx * ryF);
+    ctx.save();
+    ctx.globalCompositeOperation = "multiply";
+    const g = ctx.createRadialGradient(cx, footY, 1, cx, footY, rx);
+    g.addColorStop(0, `rgba(10,8,5,${strength})`);
+    g.addColorStop(0.62, `rgba(10,8,5,${strength * 0.46})`);
+    g.addColorStop(1, "rgba(10,8,5,0)");
+    ctx.translate(cx, footY);
+    ctx.scale(1, ry / rx);
+    ctx.translate(-cx, -footY);
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(cx, footY, rx, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
   // Composite a facade image at its character-height scale, feet-anchored to the
   // building's baseline and horizontally centered on its slot.
   private drawBuildingSprite(b: Building, img: HTMLImageElement) {
@@ -1493,11 +1546,37 @@ export class HollywoodRenderer {
     const baseY = b.baseY ?? (side === "north" ? NORTH_BASELINE : SOUTH_BASELINE);
     const growUp = b.growUp ?? true;
     const top = growUp ? baseY - H : baseY;
+    // Grounding: a wide, shallow contact shadow so the facade sits on the pavement instead of
+    // floating — drawn before the sprite so it reads as ground the wall stands on.
+    this.drawContactShadow(cx, baseY, w * 0.94, 0.3, 0.05);
     const prev = ctx.imageSmoothingEnabled;
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(img, cx - w / 2, top, w, H);
     ctx.imageSmoothingEnabled = prev;
+    // Base skirt: darken the wall's foot so it sinks into the ground seam rather than sitting
+    // on a clean shelf edge.
+    const skirtH = Math.min(16, H * 0.14);
+    ctx.save();
+    ctx.globalCompositeOperation = "multiply";
+    const sg = ctx.createLinearGradient(0, baseY - skirtH, 0, baseY);
+    sg.addColorStop(0, "rgba(16,12,8,0)");
+    sg.addColorStop(1, "rgba(16,12,8,0.32)");
+    ctx.fillStyle = sg;
+    ctx.fillRect(cx - w / 2, baseY - skirtH, w, skirtH);
+    ctx.restore();
+    // Far-row atmospheric veil: wash the distant (north) streetwall toward a cool haze via a
+    // light multiply, so the far row loses a little contrast and recedes from the near (south)
+    // row. Multiply keeps it correct day and night (scales with the pixel it's over). Near row
+    // untouched.
+    if (side === "north" && growUp) {
+      ctx.save();
+      ctx.globalCompositeOperation = "multiply";
+      ctx.globalAlpha = 0.16;
+      ctx.fillStyle = "rgb(150,162,185)";
+      ctx.fillRect(cx - w / 2, top, w, H);
+      ctx.restore();
+    }
   }
 
   // Shared smoky walk FX — drawn behind a moving character's body. Three ingredients (research:
