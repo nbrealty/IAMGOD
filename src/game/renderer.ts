@@ -129,7 +129,7 @@ const LAMP_ARM = 13; // half-spacing of the twin globes on the cross-arm
 // Sprite art convention: a walking character faces RIGHT by default and is mirrored to face
 // left. A couple of the provided sprites were drawn facing LEFT instead, so their mirror is
 // inverted here — otherwise they'd turn the wrong way relative to travel.
-const SPRITE_FACES_LEFT = new Set(["nathaniel", "elizabeth"]);
+const SPRITE_FACES_LEFT = new Set(["elizabeth"]);
 
 // ---- Ground tile textures (public/tiles) ----------------------------------------------
 // Seamless daylight-lit textures repeated across each surface. TILE_WORLD is how many world
