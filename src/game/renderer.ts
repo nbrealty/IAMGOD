@@ -1487,10 +1487,14 @@ export class HollywoodRenderer {
     const vR = vx + this.cssW / this.cam.zoom;
     const mouth: Array<[number, number]> = [[ROAD_TOP - 2, ROAD_BOTTOM + 2]]; // road curb: open at blvd
     const grassOnly: Array<[number, number]> = [[0, SOUTH_SIDEWALK_BOTTOM]]; // grass curb: yards only
-    const RE = 0.663; // road-corner elbow fraction (stroked bake)
-    const RC = 115; // road-corner world size (band matches the 46u straight)
-    const GE = 0.688; // grass-corner elbow fraction
-    const GC = 130; // grass-corner world size (band matches the 54u straight)
+    // Corner geometry comes from bake_stroke.js. The road corner is baked CURB-ONLY (the strip is
+    // cropped to just the concrete lip before stroking) so it never paints the flanking sidewalk/road
+    // — the world tiles show through on both sides, no bright patch, no street bleed. Elbow fraction +
+    // world size (curb radius ≈ 41u either way) are read straight from the bake output.
+    const RE = 0.838; // road-corner elbow fraction
+    const RC = 87; // road-corner world size
+    const GE = 0.655; // grass-corner elbow fraction
+    const GC = 148; // grass-corner world size
     for (const cs of CROSS_STREETS) {
       if (cs.x + CS_HALF < vx - 20 || cs.x - CS_HALF > vR + 20) continue;
       // vertical road curbs (road EAST of the west seam, WEST of the east seam), open at the blvd
