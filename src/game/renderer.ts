@@ -142,6 +142,7 @@ const TILE_WORLD: Record<string, number> = {
   "grass.jpg": 230,
   "soil.jpg": 140,
   "plaza.jpg": 210,
+  "backlot.jpg": 420, // the paved ground behind the buildings — large so its mirror-tile barely repeats
 };
 const GROUND_FALLBACK: Record<string, string> = {
   "asphalt.jpg": "#33322f",
@@ -149,6 +150,7 @@ const GROUND_FALLBACK: Record<string, string> = {
   "grass.jpg": "#3b4a2e",
   "soil.jpg": "#38301f",
   "plaza.jpg": "#b6a877",
+  "backlot.jpg": "#2a2724",
 };
 // Below this zoom the whole district is in frame; skip pattern tiling and just flat-fill.
 const TILE_ZOOM_GATE = 0.24;
@@ -1107,10 +1109,11 @@ export class HollywoodRenderer {
     }
   }
 
-  // A cached, bilinear-smoothed brown-tone noise pattern for the ground mottle. Baked once: a
+  // A cached, bilinear-smoothed NEUTRAL-grey noise pattern for the ground mottle. Baked once: a
   // tiny 12×12 deterministic value-noise grid upscaled to 256px with smoothing (organic, no hard
   // cells), then tiled at NOISE_WORLD units so the period is far larger than any building — it
-  // never reads as a stamp. `undefined` = not built yet; `null` = build failed (skip).
+  // never reads as a stamp. Neutral so it only breaks the asphalt mirror-tile's symmetry without
+  // adding a colour cast. `undefined` = not built yet; `null` = build failed (skip).
   private noisePattern?: CanvasPattern | null;
   private getNoisePattern(): CanvasPattern | null {
     if (this.noisePattern !== undefined) return this.noisePattern;
@@ -1125,9 +1128,9 @@ export class HollywoodRenderer {
         const v = (groundHash(x * 7 + 3, y * 7 + 11) - 0.5) * 2; // -1..1
         const k = 1 + v * 0.42; // brightness around the base tone
         const i = (y * N + x) * 4;
-        id.data[i] = clamp255(0x24 * k + 5 * v);
-        id.data[i + 1] = clamp255(0x1f * k + 4 * v);
-        id.data[i + 2] = clamp255(0x18 * k + 3 * v);
+        id.data[i] = clamp255(0x2c * k + 4 * v); // neutral grey — matches the asphalt base
+        id.data[i + 1] = clamp255(0x2a * k + 4 * v);
+        id.data[i + 2] = clamp255(0x27 * k + 4 * v);
         id.data[i + 3] = 255;
       }
     lc.putImageData(id, 0, 0);
@@ -1254,18 +1257,20 @@ export class HollywoodRenderer {
     const vw = this.cssW / this.cam.zoom;
     const vh = this.cssH / this.cam.zoom;
 
-    ctx.fillStyle = "#241f18";
+    // Real paved base — dark asphalt behind/around the buildings (user art). Flat-fills its
+    // neutral fallback while the texture decodes / when zoomed way out. The road, sidewalk, grass
+    // and plaza tiles all draw AFTER this, so the asphalt only shows through on the open ground
+    // between and behind the buildings — replacing the old ugly brown fill.
+    ctx.fillStyle = GROUND_FALLBACK["backlot.jpg"];
     ctx.fillRect(vx, vy, vw, vh);
+    this.fillTiled(vx, vy, vx + vw, vy + vh, "backlot.jpg");
 
-    // Smooth low-frequency mottle over the WHOLE ground at every zoom (replaces the old blocky
-    // 92px cells that only drew when zoomed in and left a flat void when out). A baked, bilinear-
-    // smoothed brown-tone noise tile drawn over the base fill — organic texture, no visible grid,
-    // no flat dead colour. The road/sidewalk/grass tiles draw on top of this afterwards, so it
-    // only shows through on the open ground between and behind the buildings.
+    // A faint smooth low-frequency mottle over the base for anti-repeat only (breaks the
+    // mirror-tile's symmetry without muddying the texture).
     const noise = this.getNoisePattern();
     if (noise) {
       ctx.save();
-      ctx.globalAlpha = 0.85;
+      ctx.globalAlpha = 0.22;
       ctx.fillStyle = noise;
       ctx.fillRect(vx, vy, vw, vh);
       ctx.restore();
