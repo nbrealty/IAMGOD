@@ -321,16 +321,17 @@ function genRow(o: RowOpts): Building[] {
   return out;
 }
 
-const BACKDROP_PALETTE = ["#39414e", "#454b56", "#4b4038", "#3f4a4a", "#4e463a", "#424a58"];
-const RESI_PALETTE = ["#5a4a3a", "#6a5544", "#4e4436", "#63513f", "#574a3c", "#4a4032"];
+// Low-contrast hazy blue-greys so the distant boxes read as one soft skyline silhouette on the
+// horizon rather than a row of individual placeholder buildings.
+const BACKDROP_PALETTE = ["#3a4250", "#3d4553", "#404857", "#394150", "#3e4654", "#3c4452"];
 
-// Receding skyline high above the north frontage (spans the full district width).
+// Receding skyline high above the north frontage (spans the full district width). Kept dim as a
+// hazy backdrop silhouette; real skyline art can drop in over this later.
 export const BACKDROP_BUILDINGS: Building[] = [
-  ...genRow({ baseY: 300, side: "north", count: 160, startX: -60, minW: 120, varW: 100, minH: 200, varH: 120, dim: 0.5, palette: BACKDROP_PALETTE, gapBase: 10, gapVar: 30 }),
-  ...genRow({ baseY: 520, side: "north", count: 175, startX: -30, minW: 100, varW: 90, minH: 150, varH: 100, dim: 0.72, palette: BACKDROP_PALETTE, gapBase: 12, gapVar: 26 }),
+  ...genRow({ baseY: 300, side: "north", count: 160, startX: -60, minW: 120, varW: 100, minH: 200, varH: 120, dim: 0.42, palette: BACKDROP_PALETTE, gapBase: 10, gapVar: 30 }),
+  ...genRow({ baseY: 520, side: "north", count: 175, startX: -30, minW: 100, varW: 90, minH: 150, varH: 100, dim: 0.6, palette: BACKDROP_PALETTE, gapBase: 12, gapVar: 26 }),
 ];
 
-// One very dim, distant row far behind the residential back-street for depth.
-export const RESIDENTIAL_BUILDINGS: Building[] = [
-  ...genRow({ baseY: 2000, side: "south", count: 185, startX: -20, minW: 84, varW: 60, minH: 60, varH: 48, dim: 0.5, palette: RESI_PALETTE, gapBase: 18, gapVar: 28, growUp: true }),
-];
+// Removed: the old code-drawn dark placeholder row behind the residential back-street. The real
+// house-casa sprites (RES_FRONTAGES) fill this row, so the placeholders only showed as dark boxes.
+export const RESIDENTIAL_BUILDINGS: Building[] = [];

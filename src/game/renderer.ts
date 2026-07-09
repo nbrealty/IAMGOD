@@ -26,9 +26,7 @@ import {
   ALL_FRONTAGES,
   layoutFrontage,
   BACKDROP_BUILDINGS,
-  RESIDENTIAL_BUILDINGS,
   type Building,
-  type Frontage,
 } from "./sceneData";
 import type { Soul } from "../soul/types";
 import { auraColor } from "../soul/appearance";
@@ -48,7 +46,77 @@ interface CarRuntime {
   y: number;
   dir: number;
   speed: number;
+  type: string;
 }
+
+// Ambient background pedestrians (public/npc/ped_NNN.png) — autonomous crowd filler that walks
+// the sidewalks. Not playable, not tappable; pure atmosphere behind the named cast.
+interface AmbientPed {
+  x: number;
+  y: number;
+  dir: number;
+  speed: number;
+  sprite: number; // index into the ped pool
+  bob: number; // phase offset so they don't bob in sync
+}
+const AMBIENT_PED_COUNT = 54;
+// The pedestrian pool holds both front- and back-view art. Ambient peds walk the sidewalks
+// horizontally (mirrored L/R), so they must use only FRONT-facing sprites — otherwise a
+// back-view slot renders as someone always walking away. Hand-classified from the pool montage
+// (face/skin cluster high-center = front; hair-dominated head, no face = back); the remaining
+// indices are back views (reserved for future toward/away wanderers).
+const PED_FRONT = [
+  0, 2, 5, 6, 9, 10, 15, 16, 19, 21, 23, 24, 26, 28, 31, 34, 37, 38, 42, 43,
+];
+
+// Every character (ambient ped + named soul) is normalized to one visible body height so the
+// crowd reads as a consistent scale, regardless of how much empty frame the source art carries.
+// We measure each sprite's non-transparent bounds once (spriteBounds) and scale so the content —
+// head-top to sole — spans CHAR_BODY_H, then anchor the content bottom (feet) at y + FEET_DROP.
+const CHAR_BODY_H = 78;
+const FEET_DROP = 10;
+
+// One entry in the unified depth pass: an upright actor keyed by its foot-Y (baseline), with a
+// closure that draws it. Sorted ascending → far (small y) drawn first, near (large y) on top.
+interface Actor {
+  y: number;
+  draw: () => void;
+}
+
+// Vehicle sprites (public/vehicles/<type>.png), drawn feet(wheels)-anchored to a road lane.
+// Art faces LEFT; a car travelling right (dir +1) is mirrored. `h` is the draw height in world
+// units (width follows the loaded image aspect).
+const VEHICLES: Record<string, number> = {
+  sedan: 52,
+  police: 52,
+  convertible: 50,
+  limo: 58,
+  van: 64,
+  bus: 60,
+  tourbus: 60,
+};
+const VEHICLE_TYPES = Object.keys(VEHICLES);
+
+// Street props (public/props/<name>.png), stood foot-anchored on a sidewalk. Value = draw
+// height in world units (width follows the image aspect).
+const PROP_H: Record<string, number> = {
+  palm: 150,
+  bench: 34,
+  planter: 30,
+  trashcan: 40,
+  hydrant: 46,
+  fountain: 62,
+  "bike-rack": 30,
+  newsstand: 116,
+  "bus-shelter": 82,
+  valet: 108,
+  "traffic-signal": 120,
+};
+// Deterministic scatter along the sidewalks (palms weighted for that Hollywood look), with an
+// occasional larger set-piece; traffic signals are placed separately at the intersections.
+const PROP_SCATTER = ["palm", "bench", "palm", "planter", "hydrant", "palm", "trashcan", "planter", "bench", "palm"];
+const PROP_SETPIECES = ["newsstand", "bus-shelter", "valet", "fountain", "bike-rack"];
+const PROP_STEP = 152; // world-units between prop slots
 
 const NORTH_SIDEWALK_BOTTOM = ROAD_TOP;
 const TAP_THRESHOLD = 7; // css px of movement below which a pointer-up counts as a tap
@@ -61,7 +129,34 @@ const LAMP_ARM = 13; // half-spacing of the twin globes on the cross-arm
 // Sprite art convention: a walking character faces RIGHT by default and is mirrored to face
 // left. A couple of the provided sprites were drawn facing LEFT instead, so their mirror is
 // inverted here — otherwise they'd turn the wrong way relative to travel.
-const SPRITE_FACES_LEFT = new Set(["nathaniel", "elizabeth"]);
+const SPRITE_FACES_LEFT = new Set(["elizabeth", "nathaniel"]);
+
+// ---- Ground tile textures (public/tiles) ----------------------------------------------
+// Seamless daylight-lit textures repeated across each surface. TILE_WORLD is how many world
+// units one copy of the image spans (so terrazzo squares / asphalt aggregate read at a real
+// size regardless of source resolution). GROUND_FALLBACK is the flat tone used when the
+// image hasn't loaded yet or when zoomed too far out to bother tiling.
+const TILE_WORLD: Record<string, number> = {
+  "asphalt.jpg": 200,
+  "sidewalk.jpg": 120, // art carries a 4×4 brass grid → ~30u terrazzo squares
+  "grass.jpg": 230,
+  "soil.jpg": 140,
+  "plaza.jpg": 210,
+  "backlot.jpg": 420, // the paved ground behind the buildings — large so its mirror-tile barely repeats
+};
+const GROUND_FALLBACK: Record<string, string> = {
+  "asphalt.jpg": "#33322f",
+  "sidewalk.jpg": "#6b665d",
+  "grass.jpg": "#3b4a2e",
+  "soil.jpg": "#38301f",
+  "plaza.jpg": "#b6a877",
+  "backlot.jpg": "#2a2724",
+};
+// Below this zoom the whole district is in frame; skip pattern tiling and just flat-fill.
+const TILE_ZOOM_GATE = 0.24;
+// One smooth low-frequency mottle tile spans this many world units (large = broad, organic
+// variation that never reads as a repeating stamp).
+const NOISE_WORLD = 420;
 
 // Player-controlled character tuning. Movement is now bounded by the street "+" corridor
 // (see canWalk in sceneData) rather than a fixed y-band, so the player can walk the full
@@ -168,6 +263,7 @@ export class HollywoodRenderer {
   private lastTime: number | null = null;
   private npcs: NpcRuntime[];
   private cars: CarRuntime[];
+  private peds: AmbientPed[] = [];
   private engine: SoulEngine;
 
   private cam: Camera = { x: 0, y: 0, zoom: 0.1 };
@@ -178,11 +274,20 @@ export class HollywoodRenderer {
 
   // player control
   private controlledId: string | null = null;
+  // Active outfit per soul: soulId → sprite stem (see outfits.ts). Absent → wears its default
+  // (stem = soul id). Swapping an entry changes which sprite (front + `_back`) drawNPC loads.
+  private outfits = new Map<string, string>();
   private held = new Set<string>();
   private facingLeft = false;
   private facingUp = false; // moving away from camera → show the back sprite
 
   private sprites = new Map<string, HTMLImageElement | null>();
+  private tiles = new Map<string, HTMLImageElement | null>();
+  private patterns = new Map<string, CanvasPattern>();
+  // Cached non-transparent vertical bounds per character sprite ({ t, b } as fractions of natural
+  // height), so we normalize every actor to one body height. Measured once, lazily, on first draw.
+  private boundsCache = new Map<string, { t: number; b: number }>();
+  private measureCanvas?: HTMLCanvasElement;
   private tapHandler: ((cssX: number, cssY: number) => void) | null = null;
 
   // input state
@@ -207,11 +312,39 @@ export class HollywoodRenderer {
       moving: false,
     }));
 
-    this.cars = [
-      { x: 40, y: ROAD_TOP + 25, dir: 1, speed: 90 },
-      { x: 900, y: ROAD_TOP + 25, dir: 1, speed: 70 },
-      { x: 700, y: ROAD_BOTTOM - 25, dir: -1, speed: 80 },
-    ];
+    // Traffic: two lanes down the boulevard, cars spread across the world so several are on
+    // screen at any pan. Upper lane travels right, lower lane left; types/speeds vary.
+    const upperY = ROAD_TOP + 48;
+    const lowerY = ROAD_BOTTOM - 42;
+    this.cars = [];
+    const N = 16;
+    for (let i = 0; i < N; i++) {
+      const upper = i % 2 === 0;
+      this.cars.push({
+        x: (WORLD_W / N) * i + (i % 3) * 140,
+        y: upper ? upperY : lowerY,
+        dir: upper ? 1 : -1,
+        speed: 62 + (i % 5) * 12,
+        type: VEHICLE_TYPES[i % VEHICLE_TYPES.length],
+      });
+    }
+
+    // Ambient crowd: pedestrians spread along both boulevard sidewalks, at varied depth within
+    // each walk band so the street reads as busy rather than a single conga line.
+    this.peds = [];
+    for (let i = 0; i < AMBIENT_PED_COUNT; i++) {
+      const north = i % 2 === 0;
+      const bandTop = north ? NORTH_SIDEWALK_TOP + 8 : SOUTH_SIDEWALK_TOP + 6;
+      const bandH = north ? NORTH_SIDEWALK_BOTTOM - NORTH_SIDEWALK_TOP - 20 : SOUTH_SIDEWALK_BOTTOM - SOUTH_SIDEWALK_TOP - 14;
+      this.peds.push({
+        x: 120 + Math.random() * (WORLD_W - 240),
+        y: bandTop + Math.random() * bandH,
+        dir: Math.random() > 0.5 ? 1 : -1,
+        speed: 18 + Math.random() * 26,
+        sprite: PED_FRONT[Math.floor(Math.random() * PED_FRONT.length)],
+        bob: Math.random() * 1000,
+      });
+    }
   }
 
   // ---- lifecycle ----
@@ -239,6 +372,13 @@ export class HollywoodRenderer {
           s.x = s.soul.xMin;
           s.dir = 1;
         }
+      }
+
+      // ambient crowd — walk the sidewalks, turn around at the world edges
+      for (const ped of this.peds) {
+        ped.x += ped.dir * ped.speed * dt * moveScale;
+        if (ped.x > WORLD_W - 100) ped.dir = -1;
+        else if (ped.x < 100) ped.dir = 1;
       }
 
       // player-controlled character: WASD / arrows / on-screen D-pad. Real-time speed
@@ -358,6 +498,12 @@ export class HollywoodRenderer {
 
   getControlled(): string | null {
     return this.controlledId;
+  }
+
+  // Dress a soul in one of its outfits (stem from outfits.ts). Takes effect on the next frame;
+  // the new sprite (and its `_back`) load lazily and swap in once decoded.
+  setOutfit(soulId: string, stem: string) {
+    this.outfits.set(soulId, stem);
   }
 
   // Hold / release a movement direction — called by the D-pad and keyboard.
@@ -501,30 +647,133 @@ export class HollywoodRenderer {
     const s = this.dpr * this.cam.zoom;
     ctx.setTransform(s, 0, 0, s, -this.cam.x * s, -this.cam.y * s);
 
-    // ground plane (no sky): base tone, texture mottle, and residential yards
-    this.drawGround();
+    // Lay out every frontage once so both the ground detail and the actor pass read current
+    // building x/width.
+    for (const f of NORTH_FRONTAGES) layoutFrontage(f, this.aspectOf);
+    for (const f of SOUTH_FRONTAGES) layoutFrontage(f, this.aspectOf);
+    for (const f of RES_FRONTAGES) layoutFrontage(f, this.aspectOf);
 
-    for (const b of BACKDROP_BUILDINGS) this.drawBuilding(b);
-    this.drawFrontages(NORTH_FRONTAGES);
+    // (a) GROUND pre-pass — flat surfaces, always beneath every actor.
+    this.drawGround();
     this.drawSidewalks();
     this.drawRoad();
-    this.drawCars();
-    this.drawFrontages(SOUTH_FRONTAGES);
-    for (const b of RESIDENTIAL_BUILDINGS) this.drawBuilding(b);
-    this.drawFrontages(RES_FRONTAGES);
-    // concrete aprons at storefront feet + terrazzo plazas at landmarks (over the
-    // sidewalks, in front of the now-laid-out N/S rows, beneath the NPCs)
-    this.drawGroundDetail();
-    // street-lamp posts (day + night): a real fixture the night glow emanates from
-    this.drawStreetLamps();
-    for (const npc of this.npcs) this.drawNPC(npc, t);
+    this.drawGroundDetail(); // aprons + landmark plazas on the walks
+    this.drawSeamBlends(); // feather surface transitions + decal breakup (the "smudge")
+    this.drawFloorGlow(); // lamp light cast ON the floor — UNDER the actors (they stand IN it)
 
-    // day/night ambient grade — the whole city takes on a time of day
+    // distant skyline silhouette — always furthest back
+    for (const b of BACKDROP_BUILDINGS) this.drawBuilding(b);
+
+    // (b) UNIFIED DEPTH PASS — every upright actor (buildings, cars, lamps, props, peds, souls)
+    // collected, viewport-culled, sorted by foot-Y (baseline), and drawn far→near. This is what
+    // makes a character pass BEHIND a lamp/palm on the sidewalk and IN FRONT once on the street,
+    // and keeps cars correctly layered against the sidewalks.
+    const actors: Actor[] = [];
+    this.collectActors(actors, t);
+    actors.sort((a, b) => a.y - b.y);
+    for (const a of actors) a.draw();
+
+    // (c) OVERLAY post-pass — full-screen day/night grade, golden hour, night lights, then a
+    // final screen-space cohesion grade + vignette so every asset reads under one exposure.
     this.drawAmbientGrade();
-    // warm horizon glow at sunrise/sunset (additive; free otherwise)
     this.drawGoldenHour();
-    // night light sources punch through the darkened scene (additive)
     this.drawLights();
+    this.drawPostGrade();
+  }
+
+  // Final cohesion pass in SCREEN space (device pixels, independent of the world camera): a real,
+  // VISIBLE grade so every asset reads under one light. Research-calibrated — the old 10%
+  // soft-light + edge-only vignette were below the just-noticeable threshold. Now: a contrast
+  // bump (widens the value range so shadows separate), a cinematic duotone (cool shadows / warm
+  // highlights), and a dual vignette (lift the center + darken the corners) so there's real
+  // center-to-edge contrast. Drawn last, over everything.
+  private drawPostGrade(): void {
+    const ctx = this.ctx;
+    const night = nightAt(this.engine.clockMinutes);
+    const golden = goldenAt(this.engine.clockMinutes);
+    const W = this.canvas.width, Hh = this.canvas.height;
+    const cx = W / 2, cy = Hh * 0.5;
+    const rad = Math.hypot(W, Hh) * 0.62;
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    // (1) cool-shadow duotone — steal a little warmth from the darks so they read cinematic cool.
+    ctx.globalCompositeOperation = "multiply";
+    ctx.fillStyle = `rgba(146,166,204,${0.16 + 0.08 * night})`;
+    ctx.fillRect(0, 0, W, Hh);
+    // (2) warm highlight lift — a soft additive glow toward the center (the lit street), warmer at
+    // golden hour, cooler/dimmer at night.
+    ctx.globalCompositeOperation = "lighter";
+    const warm = ctx.createRadialGradient(cx, cy, rad * 0.15, cx, cy, rad);
+    warm.addColorStop(0, `rgba(255,204,146,${0.2 * (1 - 0.5 * night) + 0.08 * golden})`);
+    warm.addColorStop(1, "rgba(255,204,146,0)");
+    ctx.fillStyle = warm;
+    ctx.fillRect(0, 0, W, Hh);
+    // (3) overlay punch — widen contrast so the value structure (shadow / body / highlight)
+    // separates. `overlay` darkens darks and lightens lights around mid-grey.
+    ctx.globalCompositeOperation = "overlay";
+    ctx.fillStyle = "rgba(128,128,128,0.26)";
+    ctx.fillRect(0, 0, W, Hh);
+    // (4) dual vignette — darken the corners (heavier than before) AND the center push from (2)
+    // gives the center-to-edge contrast that makes a vignette actually read.
+    ctx.globalCompositeOperation = "source-over";
+    const vg = ctx.createRadialGradient(cx, cy, rad * 0.38, cx, cy, rad);
+    vg.addColorStop(0, "rgba(4,4,8,0)");
+    vg.addColorStop(1, `rgba(4,4,8,${0.54 + 0.16 * night})`);
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, W, Hh);
+    ctx.restore();
+  }
+
+  // Gather every upright actor as a { footY, draw } pair for the sorted depth pass. Each type is
+  // viewport-culled here so the sort stays small; the actual drawing reuses the existing per-
+  // instance draw methods unchanged.
+  private collectActors(out: Actor[], t: number): void {
+    const vx = this.cam.x;
+    const vy = this.cam.y;
+    const vR = vx + this.cssW / this.cam.zoom;
+    const vB = vy + this.cssH / this.cam.zoom;
+    const zoom = this.cam.zoom;
+
+    // frontage buildings (N / S / residential)
+    for (const f of [...NORTH_FRONTAGES, ...SOUTH_FRONTAGES, ...RES_FRONTAGES]) {
+      for (const b of f.buildings) {
+        const bw = b.width ?? 120;
+        if ((b.x ?? 0) + bw < vx - 60 || (b.x ?? 0) > vR + 60) continue;
+        out.push({ y: this.buildingBaseY(b), draw: () => this.drawBuilding(b) });
+      }
+    }
+    // cars
+    this.cars.forEach((car, i) => {
+      if (car.x < vx - 260 || car.x > vR + 260) return;
+      out.push({ y: car.y, draw: () => this.drawCar(car, i) });
+    });
+    // street lamps
+    this.forEachLamp((x, baseY, headY) => {
+      out.push({ y: baseY, draw: () => this.drawLamp(x, baseY, headY) });
+    });
+    // sidewalk props
+    if (zoom >= 0.16) {
+      this.forEachProp((name, x, footY) => {
+        out.push({ y: footY, draw: () => this.drawProp(name, x, footY) });
+      });
+    }
+    // ambient pedestrians
+    if (zoom >= 0.18) {
+      for (const ped of this.peds) {
+        if (ped.x < vx - 60 || ped.x > vR + 60) continue;
+        out.push({ y: ped.y, draw: () => this.drawPed(ped, t) });
+      }
+    }
+    // named soul cast
+    for (const npc of this.npcs) {
+      if (npc.x < vx - 120 || npc.x > vR + 120 || npc.y < vy - 200 || npc.y > vB + 120) continue;
+      out.push({ y: npc.y, draw: () => this.drawNPC(npc, t) });
+    }
+  }
+
+  // A building's foot/baseline Y (the depth key) — matches the anchor drawBuilding uses.
+  private buildingBaseY(b: Building): number {
+    return b.baseY ?? (b.side === "north" ? NORTH_BASELINE : SOUTH_BASELINE);
   }
 
   // Every boulevard street-lamp currently on screen. `baseY` is the foot on the sidewalk,
@@ -542,11 +791,12 @@ export class HollywoodRenderer {
     }
   }
 
-  // The physical lamp posts — vintage Hollywood twin-globe standards. Drawn day and night so
-  // the boulevard has a real fixture; at night drawLights adds the glow at these same globes.
-  private drawStreetLamps(): void {
+  // One physical lamp post — a vintage Hollywood twin-globe standard. Drawn day and night so the
+  // boulevard has a real fixture; at night drawLights adds the glow at these same globes. Called
+  // per-lamp from the depth pass so pedestrians sort in front of / behind it correctly.
+  private drawLamp(x: number, baseY: number, headY: number): void {
     const ctx = this.ctx;
-    this.forEachLamp((x, baseY, headY) => {
+    {
       // foot shadow + base
       ctx.fillStyle = "#171310";
       ctx.beginPath();
@@ -577,7 +827,7 @@ export class HollywoodRenderer {
         ctx.arc(gx, gy - 4, 5, 0, Math.PI * 2);
         ctx.fill();
       }
-    });
+    }
   }
 
   // Additive night lighting (composited with `lighter`): warm light radiating from each lamp
@@ -593,8 +843,9 @@ export class HollywoodRenderer {
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
 
-    // 1. street lamps — light from each globe, and a warm pool cast on the sidewalk below
-    this.forEachLamp((x, baseY, headY) => {
+    // 1. street lamps — airborne light from each globe + a bloom halo (the floor pool is a
+    // separate ground pre-pass, drawFloorGlow, so it sits under the actors).
+    this.forEachLamp((x, _baseY, headY) => {
       const gy = headY - 8;
       for (const gx of [x - LAMP_ARM, x + LAMP_ARM, x]) {
         const rr = 48;
@@ -607,15 +858,8 @@ export class HollywoodRenderer {
         ctx.arc(gx, gy, rr, 0, Math.PI * 2);
         ctx.fill();
       }
-      // ground pool at the foot
-      const pr = 74;
-      const pg = ctx.createRadialGradient(x, baseY, 2, x, baseY, pr);
-      pg.addColorStop(0, `rgba(255,190,110,${0.32 * night})`);
-      pg.addColorStop(1, "rgba(255,190,110,0)");
-      ctx.fillStyle = pg;
-      ctx.beginPath();
-      ctx.ellipse(x, baseY, pr, pr * 0.4, 0, 0, Math.PI * 2);
-      ctx.fill();
+      // (the warm pool the lamp casts ON the sidewalk is drawn in drawFloorGlow, a GROUND pre-pass
+      // before the actors, so people stand IN the light instead of under it — not here on top.)
       // bloom — a big soft halo over the whole lamp head so the light blooms into the dark
       const br = 104;
       const bg = ctx.createRadialGradient(x, gy, 4, x, gy, br);
@@ -756,8 +1000,7 @@ export class HollywoodRenderer {
 
   private drawRoad() {
     const ctx = this.ctx;
-    ctx.fillStyle = "#33322f";
-    ctx.fillRect(0, ROAD_TOP, WORLD_W, ROAD_BOTTOM - ROAD_TOP);
+    this.fillTiled(0, ROAD_TOP, WORLD_W, ROAD_BOTTOM, "asphalt.jpg");
 
     ctx.strokeStyle = "#d8c96a";
     ctx.setLineDash([26, 20]);
@@ -779,11 +1022,12 @@ export class HollywoodRenderer {
 
     // Cross streets — each a full-height vertical road with flanking sidewalks, dashed
     // centre line, crosswalk stripes at the Blvd intersection, and a rotated street label.
+    const crosswalk = this.getTile("crosswalk.jpg");
+    const cwReady = crosswalk && crosswalk.complete && crosswalk.naturalWidth > 0;
     for (const cs of CROSS_STREETS) {
       const roadL = cs.x - CS_ROAD_HALF;
       const roadR = cs.x + CS_ROAD_HALF;
-      ctx.fillStyle = "#2c2b28";
-      ctx.fillRect(roadL, 0, roadR - roadL, WORLD_H);
+      this.fillTiled(roadL, 0, roadR, WORLD_H, "asphalt.jpg");
       ctx.strokeStyle = "#d8c96a";
       ctx.setLineDash([22, 18]);
       ctx.lineWidth = 3;
@@ -793,12 +1037,14 @@ export class HollywoodRenderer {
       ctx.stroke();
       ctx.setLineDash([]);
 
-      ctx.fillStyle = "#e7e2d2";
-      for (let px = roadL - 6; px < roadR + 6; px += 14) {
-        ctx.fillRect(px, ROAD_TOP + 6, 8, ROAD_BOTTOM - ROAD_TOP - 12);
-      }
-      for (let py = ROAD_TOP - 6; py < ROAD_BOTTOM + 6; py += 14) {
-        ctx.fillRect(roadL + 6, py, roadR - roadL - 12, 8);
+      // Zebra crosswalk across the boulevard, aligned to the cross-street corridor.
+      if (cwReady && cs.x + CS_ROAD_HALF > this.cam.x && cs.x - CS_ROAD_HALF < this.cam.x + this.cssW / this.cam.zoom) {
+        ctx.drawImage(crosswalk!, roadL, ROAD_TOP + 2, roadR - roadL, ROAD_BOTTOM - ROAD_TOP - 4);
+      } else if (!cwReady) {
+        ctx.fillStyle = "#e7e2d2";
+        for (let px = roadL - 6; px < roadR + 6; px += 14) {
+          ctx.fillRect(px, ROAD_TOP + 6, 8, ROAD_BOTTOM - ROAD_TOP - 12);
+        }
       }
 
       ctx.save();
@@ -843,68 +1089,241 @@ export class HollywoodRenderer {
 
   private drawWalkOfFame(y: number) {
     const ctx = this.ctx;
-    for (let x = 70; x < WORLD_W - 70; x += 78) {
+    const star = this.getTile("star.png");
+    const ready = star && star.complete && star.naturalWidth > 0;
+    const vx = this.cam.x;
+    const vR = vx + this.cssW / this.cam.zoom;
+    const S = 40; // world-units per star plaque
+    for (let x = 70; x < WORLD_W - 70; x += 72) {
+      if (x < vx - S || x > vR + S) continue;
       if (CROSS_STREETS.some((cs) => x > cs.x - CS_HALF - 20 && x < cs.x + CS_HALF + 20)) continue;
-      ctx.fillStyle = "#6b4a86";
-      ctx.beginPath();
-      ctx.ellipse(x, y, 20, 9, 0, 0, Math.PI * 2);
-      ctx.fill();
-      this.drawStar(x, y, 8, 3.6, "#e9c96b");
+      if (ready) {
+        ctx.drawImage(star!, x - S / 2, y - S / 2, S, S);
+      } else {
+        ctx.fillStyle = "#6b4a86";
+        ctx.beginPath();
+        ctx.ellipse(x, y, 20, 9, 0, 0, Math.PI * 2);
+        ctx.fill();
+        this.drawStar(x, y, 8, 3.6, "#e9c96b");
+      }
     }
   }
 
-  // The ground plane, drawn first behind everything. A base tone, a zoom-gated mottle so the
-  // land between buildings has texture instead of a flat void, and a grass/dirt yard under
-  // each house of the residential back-street. All viewport-culled, all deterministic.
+  // A cached, bilinear-smoothed NEUTRAL-grey noise pattern for the ground mottle. Baked once: a
+  // tiny 12×12 deterministic value-noise grid upscaled to 256px with smoothing (organic, no hard
+  // cells), then tiled at NOISE_WORLD units so the period is far larger than any building — it
+  // never reads as a stamp. Neutral so it only breaks the asphalt mirror-tile's symmetry without
+  // adding a colour cast. `undefined` = not built yet; `null` = build failed (skip).
+  private noisePattern?: CanvasPattern | null;
+  private getNoisePattern(): CanvasPattern | null {
+    if (this.noisePattern !== undefined) return this.noisePattern;
+    const N = 12;
+    const lo = document.createElement("canvas");
+    lo.width = N; lo.height = N;
+    const lc = lo.getContext("2d");
+    if (!lc) return (this.noisePattern = null);
+    const id = lc.createImageData(N, N);
+    for (let y = 0; y < N; y++)
+      for (let x = 0; x < N; x++) {
+        const v = (groundHash(x * 7 + 3, y * 7 + 11) - 0.5) * 2; // -1..1
+        const k = 1 + v * 0.42; // brightness around the base tone
+        const i = (y * N + x) * 4;
+        id.data[i] = clamp255(0x2c * k + 4 * v); // neutral grey — matches the asphalt base
+        id.data[i + 1] = clamp255(0x2a * k + 4 * v);
+        id.data[i + 2] = clamp255(0x27 * k + 4 * v);
+        id.data[i + 3] = 255;
+      }
+    lc.putImageData(id, 0, 0);
+    const hi = document.createElement("canvas");
+    hi.width = 256; hi.height = 256;
+    const hc = hi.getContext("2d");
+    if (!hc) return (this.noisePattern = null);
+    hc.imageSmoothingEnabled = true;
+    hc.imageSmoothingQuality = "high";
+    hc.drawImage(lo, 0, 0, N, N, 0, 0, 256, 256);
+    const pat = this.ctx.createPattern(hi, "repeat");
+    if (pat) pat.setTransform(new DOMMatrix([NOISE_WORLD / 256, 0, 0, NOISE_WORLD / 256, 0, 0]));
+    return (this.noisePattern = pat ?? null);
+  }
+
+  // Visible boulevard x-segments, skipping the cross-street mouths (so every edge/curb has a
+  // curb-cut at each intersection). Shared by the curb + joint routines.
+  private forEachStreetSpan(cb: (x0: number, x1: number) => void): void {
+    const vx = this.cam.x;
+    const end = vx + this.cssW / this.cam.zoom + 20;
+    let cursor = vx - 20;
+    const cuts = CROSS_STREETS.map((cs) => [cs.x - CS_HALF, cs.x + CS_HALF] as [number, number])
+      .filter((c) => c[1] > cursor && c[0] < end)
+      .sort((a, b) => a[0] - b[0]);
+    for (const [c0, c1] of cuts) {
+      if (c0 > cursor) cb(cursor, Math.min(c0, end));
+      cursor = Math.max(cursor, c1);
+    }
+    if (cursor < end) cb(cursor, end);
+  }
+
+  // A concrete CURB where a raised sidewalk meets a lower surface — a crisp architectural edge, not
+  // a blend ("edge the built"). `lowDy` points from the seam toward the LOW side (+1 = low is
+  // down-screen/nearer, -1 = low is up-screen/farther). `kind`: "road" adds a gutter trough,
+  // "grass" a green drop-shadow + overhanging blades, "lot" a plain paved lot. All code-drawn.
+  private drawCurb(y: number, lowDy: 1 | -1, kind: "road" | "grass" | "lot"): void {
+    const ctx = this.ctx;
+    const lipH = 6;
+    const shH = kind === "road" ? 9 : 10;
+    const sc = kind === "grass" ? "10,18,6" : "5,5,9"; // shadow colour (green over grass, else cool)
+    ctx.save();
+    this.forEachStreetSpan((x0, x1) => {
+      const w = x1 - x0;
+      if (w <= 0) return;
+      // cast shadow on the LOW side, darkest at the seam, fading away
+      const sg = ctx.createLinearGradient(0, y, 0, y + lowDy * shH);
+      sg.addColorStop(0, `rgba(${sc},0.5)`);
+      sg.addColorStop(1, `rgba(${sc},0)`);
+      ctx.fillStyle = sg;
+      ctx.fillRect(x0, lowDy > 0 ? y : y - shH, w, shH);
+      // concrete curb lip on the HIGH side
+      const lipTop = lowDy > 0 ? y - lipH : y;
+      ctx.fillStyle = "#8f8a80";
+      ctx.fillRect(x0, lipTop, w, lipH);
+      ctx.fillStyle = "#b0a998"; // bright outer highlight
+      ctx.fillRect(x0, lowDy > 0 ? lipTop : lipTop + lipH - 1.4, w, 1.4);
+      ctx.fillStyle = "rgba(28,26,22,0.5)"; // crisp seam line at the boundary
+      ctx.fillRect(x0, y - 0.7, w, 1.4);
+      // gutter trough for a road (a shallow channel just past the curb)
+      if (kind === "road") {
+        const gy = lowDy > 0 ? y + shH : y - shH - 7;
+        const gg = ctx.createLinearGradient(0, gy, 0, gy + 7);
+        gg.addColorStop(0, "rgba(40,40,46,0)");
+        gg.addColorStop(0.5, "rgba(22,22,26,0.5)");
+        gg.addColorStop(1, "rgba(40,40,46,0)");
+        ctx.fillStyle = gg;
+        ctx.fillRect(x0, gy, w, 7);
+      }
+    });
+    // grass blades overhanging the curb (grass only, when readable)
+    if (kind === "grass" && this.cam.zoom >= 0.3) {
+      const vx = this.cam.x;
+      const vR = vx + this.cssW / this.cam.zoom;
+      for (let x = Math.floor(vx / 24) * 24; x < vR; x += 24) {
+        if (CROSS_STREETS.some((cs) => x > cs.x - CS_HALF && x < cs.x + CS_HALF)) continue;
+        if (groundHash(x, y + 3) < 0.5) continue;
+        const gx = x + (groundHash(x, 5) - 0.5) * 16;
+        ctx.fillStyle = groundHash(x, 9) > 0.5 ? "#5f7a3e" : "#6d8747";
+        ctx.globalAlpha = 0.85;
+        const bl = 3 + groundHash(x, 11) * 3;
+        for (let k = -1; k <= 1; k++) {
+          ctx.beginPath();
+          ctx.moveTo(gx + k * 2.2, y - lowDy * 2);
+          ctx.lineTo(gx + k * 2.2 - 1.1, y - lowDy * (2 + bl));
+          ctx.lineTo(gx + k * 2.2 + 1.1, y - lowDy * (2 + bl));
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
+      ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+  }
+
+  // An expansion / construction JOINT between two same-material pavements (asphalt↔asphalt) — a
+  // crisp engraved groove, NOT a blend: a thin dark core with a faint highlight just below it.
+  private drawExpansionJoint(y: number): void {
+    const ctx = this.ctx;
+    const vx = this.cam.x;
+    const vw = this.cssW / this.cam.zoom;
+    ctx.save();
+    ctx.fillStyle = "rgba(0,0,0,0.3)";
+    ctx.fillRect(vx, y - 0.6, vw, 1.2);
+    ctx.fillStyle = "rgba(255,255,255,0.07)";
+    ctx.fillRect(vx, y + 0.7, vw, 1);
+    ctx.restore();
+  }
+
+  // Night light that lands ON the floor — the warm pool each lamp casts on the sidewalk. Drawn as
+  // a GROUND pre-pass (after the seams, before the sorted actors) with `lighter`, so souls/props
+  // draw OVER it and correctly stand IN the light instead of being washed by it from on top. The
+  // airborne globe glow + bloom stay in drawLights (post-pass). Alpha is boosted vs. the old
+  // on-top pool because this now sits under the night grade that darkens it.
+  private drawFloorGlow(): void {
+    const night = nightAt(this.engine.clockMinutes);
+    if (night <= 0.001) return;
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    // Each pool is a CLUSTER of a few soft, offset blobs rather than one clean ellipse — the
+    // gradient is scaled to a true ellipse (so its falloff isn't a circle clipped by an
+    // elliptical path, which is what left a hard edge), and the overlapping offsets smudge the
+    // boundary into an organic pool of light instead of a geometric circle.
+    this.forEachLamp((x, baseY) => {
+      for (let k = 0; k < 3; k++) {
+        const ox = (groundHash(x + k * 11, 5) - 0.5) * 42;
+        const oy = (groundHash(x + k * 23, 6) - 0.5) * 14;
+        const rx = 58 + groundHash(x + k * 7, 7) * 44;
+        const ry = rx * 0.42;
+        const cxk = x + ox, cyk = baseY + oy;
+        const a = (k === 0 ? 0.5 : 0.3) * night;
+        ctx.save();
+        ctx.translate(cxk, cyk);
+        ctx.scale(1, ry / rx);
+        ctx.translate(-cxk, -cyk);
+        const g = ctx.createRadialGradient(cxk, cyk, 1, cxk, cyk, rx);
+        g.addColorStop(0, `rgba(255,190,110,${a})`);
+        g.addColorStop(0.55, `rgba(255,186,106,${a * 0.38})`);
+        g.addColorStop(1, "rgba(255,190,110,0)");
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(cxk, cyk, rx, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    });
+    ctx.restore();
+  }
+
+  // Every boulevard ground boundary is hardscape↔hardscape, so each gets a crisp architectural
+  // EDGE (curb / gutter / expansion joint), never a gradient blend ("edge the built" — the rule
+  // real streets and Cities:Skylines/RCT follow: a curb is a discrete raised step, not a smear).
+  private drawSeamBlends(): void {
+    this.drawCurb(NORTH_SIDEWALK_TOP, -1, "lot"); // back-lot ↔ north sidewalk (sidewalk raised; low above)
+    this.drawCurb(ROAD_TOP, 1, "road"); // north sidewalk ↔ boulevard road (curb + gutter)
+    this.drawExpansionJoint(ROAD_BOTTOM); // road ↔ south back-lot (asphalt ↔ asphalt)
+    this.drawCurb(SOUTH_SIDEWALK_TOP, -1, "lot"); // back-lot ↔ south sidewalk (sidewalk raised; low above)
+    this.drawCurb(SOUTH_SIDEWALK_BOTTOM, 1, "grass"); // south sidewalk ↔ grass (curb + fringe)
+  }
+
+  // The ground plane, drawn first behind everything. A base tone, a smooth all-zoom mottle so the
+  // land between buildings has organic texture instead of a flat void, and a grass yard under
+  // the residential back-street. All viewport-culled, all deterministic.
   private drawGround() {
     const ctx = this.ctx;
     const vx = this.cam.x;
     const vy = this.cam.y;
     const vw = this.cssW / this.cam.zoom;
     const vh = this.cssH / this.cam.zoom;
-    const vR = vx + vw;
-    const vB = vy + vh;
 
-    ctx.fillStyle = "#241f18";
+    // Real paved base — dark asphalt behind/around the buildings (user art). Flat-fills its
+    // neutral fallback while the texture decodes / when zoomed way out. The road, sidewalk, grass
+    // and plaza tiles all draw AFTER this, so the asphalt only shows through on the open ground
+    // between and behind the buildings — replacing the old ugly brown fill.
+    ctx.fillStyle = GROUND_FALLBACK["backlot.jpg"];
     ctx.fillRect(vx, vy, vw, vh);
+    this.fillTiled(vx, vy, vx + vw, vy + vh, "backlot.jpg");
 
-    // coarse mottle — only worth drawing (and paying for) when zoomed in enough to read it
-    if (this.cam.zoom > 0.5) {
-      const CELL = 92;
-      const x0 = Math.floor(vx / CELL) * CELL;
-      const y0 = Math.floor(vy / CELL) * CELL;
-      ctx.globalAlpha = 0.5;
-      for (let gx = x0; gx < vR; gx += CELL) {
-        for (let gy = y0; gy < vB; gy += CELL) {
-          const d = Math.round((groundHash(gx, gy) - 0.5) * 20);
-          ctx.fillStyle = shade("#241f18", d);
-          ctx.fillRect(gx, gy, CELL, CELL);
-        }
-      }
-      ctx.globalAlpha = 1;
+    // A faint smooth low-frequency mottle over the base for anti-repeat only (breaks the
+    // mirror-tile's symmetry without muddying the texture).
+    const noise = this.getNoisePattern();
+    if (noise) {
+      ctx.save();
+      ctx.globalAlpha = 0.22;
+      ctx.fillStyle = noise;
+      ctx.fillRect(vx, vy, vw, vh);
+      ctx.restore();
     }
 
-    // residential yards: a grass-or-dirt lot per house (drawn behind the house art, which
-    // grows up from BACK_Y and lands on top). layoutFrontage first so x/width are current.
+    // residential back-street: one continuous grass lawn (the houses grow up from BACK_Y and land
+    // on top). Uniform grass — no per-lot soil pick — so there's no hard seam between neighbours.
     const yardTop = SOUTH_SIDEWALK_BOTTOM + 4;
-    for (const f of RES_FRONTAGES) {
-      layoutFrontage(f, this.aspectOf);
-      const half = f.gap / 2;
-      for (const b of f.buildings) {
-        const bx = b.x ?? 0;
-        const bw = b.width ?? 0;
-        const lx = bx - half;
-        const lw = bw + f.gap;
-        if (lx + lw < vx - 40 || lx > vR + 40) continue;
-        const grass = groundHash(Math.round(lx), 917) > 0.34;
-        const base = grass ? "#3b4a2e" : "#38301f";
-        ctx.fillStyle = base;
-        ctx.fillRect(lx, yardTop, lw, WORLD_H - yardTop);
-        // a mown/path seam down the middle of the lot for a touch of variation
-        ctx.fillStyle = shade(base, grass ? -8 : 9);
-        ctx.fillRect(bx + bw * 0.5 - 9, yardTop, 18, WORLD_H - yardTop);
-      }
-    }
+    this.fillTiled(0, yardTop, WORLD_W, WORLD_H, "grass.jpg");
   }
 
   // Concrete aprons at every storefront's foot, and richer terrazzo plazas at the landmarks.
@@ -921,77 +1340,30 @@ export class HollywoodRenderer {
         const bw = b.width ?? 0;
         if (bx + bw < vx - 40 || bx > vR + 40 || bw <= 0) continue;
         const landmark = !!b.marquee;
-        ctx.fillStyle = landmark ? "#b6a877" : "#7a746b";
-        ctx.fillRect(bx + 6, walkTop + 1, bw - 12, 13);
         if (landmark) {
-          // terrazzo flecks scattered across the plaza pad (fixed count, hashed positions)
-          for (let i = 0; i < 16; i++) {
-            const px = bx + 10 + groundHash(Math.round(bx) + i * 7, i) * (bw - 20);
-            const py = walkTop + 2 + groundHash(i, Math.round(bx) + i * 5) * 10;
-            ctx.fillStyle = i % 3 === 0 ? "#d9c583" : "#9a8f6a";
-            ctx.fillRect(px, py, 3, 3);
-          }
+          // ornate terrazzo forecourt across the landmark's whole sidewalk frontage
+          this.fillTiled(bx + 4, walkTop, bx + bw - 4, walkTop + 58, "plaza.jpg");
+        } else {
+          // a subtle concrete apron/curb at plain storefront feet
+          ctx.fillStyle = "#7a746b";
+          ctx.fillRect(bx + 6, walkTop + 1, bw - 12, 12);
         }
       }
     }
   }
 
-  // Paint a rectangle of Hollywood-terrazzo pavement: a warm dark-stone base, a per-tile shade
-  // variation on a square grid, and grid seams — so sidewalks read as real tiled stone rather
-  // than flat concrete. Culled to the visible rect; tile detail is zoom-gated for cost.
-  private paintPavement(x0: number, y0: number, x1: number, y1: number, base: string) {
-    const ctx = this.ctx;
-    const vx = this.cam.x;
-    const vy = this.cam.y;
-    const vR = vx + this.cssW / this.cam.zoom;
-    const vB = vy + this.cssH / this.cam.zoom;
-    const cx0 = Math.max(x0, vx);
-    const cy0 = Math.max(y0, vy);
-    const cx1 = Math.min(x1, vR);
-    const cy1 = Math.min(y1, vB);
-    if (cx1 <= cx0 || cy1 <= cy0) return;
-    ctx.fillStyle = base;
-    ctx.fillRect(cx0, cy0, cx1 - cx0, cy1 - cy0);
-    if (this.cam.zoom <= 0.45) return; // too far out to read the tiling — skip the detail
-    const TILE = 44;
-    const sx = Math.floor(cx0 / TILE) * TILE;
-    const sy = Math.floor(cy0 / TILE) * TILE;
-    for (let gx = sx; gx < cx1; gx += TILE) {
-      for (let gy = sy; gy < cy1; gy += TILE) {
-        const tx = Math.max(gx, cx0);
-        const ty = Math.max(gy, cy0);
-        const tw = Math.min(gx + TILE, cx1) - tx;
-        const th = Math.min(gy + TILE, cy1) - ty;
-        ctx.fillStyle = shade(base, Math.round((groundHash(gx, gy) - 0.5) * 14));
-        ctx.fillRect(tx, ty, tw, th);
-      }
-    }
-    ctx.strokeStyle = shade(base, -24);
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    for (let gx = sx; gx <= cx1; gx += TILE) {
-      ctx.moveTo(gx, cy0);
-      ctx.lineTo(gx, cy1);
-    }
-    for (let gy = sy; gy <= cy1; gy += TILE) {
-      ctx.moveTo(cx0, gy);
-      ctx.lineTo(cx1, gy);
-    }
-    ctx.stroke();
-  }
 
   private drawSidewalks() {
-    const base = "#6b665d"; // warm dark terrazzo — the real Walk-of-Fame stone tone
-    // Hollywood Blvd sidewalks (full width)
-    this.paintPavement(0, NORTH_SIDEWALK_TOP, WORLD_W, NORTH_SIDEWALK_BOTTOM, base);
-    this.paintPavement(0, SOUTH_SIDEWALK_TOP, WORLD_W, SOUTH_SIDEWALK_BOTTOM, base);
+    // Hollywood Blvd sidewalks (full width) — real tiled terrazzo
+    this.fillTiled(0, NORTH_SIDEWALK_TOP, WORLD_W, NORTH_SIDEWALK_BOTTOM, "sidewalk.jpg");
+    this.fillTiled(0, SOUTH_SIDEWALK_TOP, WORLD_W, SOUTH_SIDEWALK_BOTTOM, "sidewalk.jpg");
     // Cross-street sidewalks (full height, flanking each cross road)
     for (const cs of CROSS_STREETS) {
-      this.paintPavement(cs.x - CS_HALF, 0, cs.x - CS_ROAD_HALF, WORLD_H, base);
-      this.paintPavement(cs.x + CS_ROAD_HALF, 0, cs.x + CS_HALF, WORLD_H, base);
+      this.fillTiled(cs.x - CS_HALF, 0, cs.x - CS_ROAD_HALF, WORLD_H, "sidewalk.jpg");
+      this.fillTiled(cs.x + CS_ROAD_HALF, 0, cs.x + CS_HALF, WORLD_H, "sidewalk.jpg");
     }
-    this.drawWalkOfFame(NORTH_SIDEWALK_TOP + 20);
-    this.drawWalkOfFame(SOUTH_SIDEWALK_TOP + 20);
+    this.drawWalkOfFame(NORTH_SIDEWALK_TOP + 30);
+    this.drawWalkOfFame(SOUTH_SIDEWALK_TOP + 30);
   }
 
   // Live art ratio (w/h) for a building's facade — the true image aspect once loaded,
@@ -1004,14 +1376,6 @@ export class HollywoodRenderer {
     }
     return b.aspect ?? (b.width && b.height ? b.width / b.height : 0.9);
   };
-
-  // Justify each frontage to its buildable land, then paint its buildings in order.
-  private drawFrontages(frontages: Frontage[]) {
-    for (const f of frontages) {
-      layoutFrontage(f, this.aspectOf);
-      for (const b of f.buildings) this.drawBuilding(b);
-    }
-  }
 
   private drawBuilding(b: Building) {
     const ctx = this.ctx;
@@ -1094,16 +1458,178 @@ export class HollywoodRenderer {
     }
   }
 
-  private drawCars() {
+  private getVehicle(type: string): HTMLImageElement | null {
+    const key = `v:${type}`;
+    const cached = this.sprites.get(key);
+    if (cached !== undefined) return cached;
+    const img = new Image();
+    img.onerror = () => this.sprites.set(key, null);
+    img.src = `/vehicles/${type}.png`;
+    this.sprites.set(key, img);
+    return img;
+  }
+
+  private getProp(name: string): HTMLImageElement | null {
+    const key = `p:${name}`;
+    const cached = this.sprites.get(key);
+    if (cached !== undefined) return cached;
+    const img = new Image();
+    img.onerror = () => this.sprites.set(key, null);
+    img.src = `/props/${name}.png`;
+    this.sprites.set(key, img);
+    return img;
+  }
+
+  private drawProp(name: string, x: number, footY: number): void {
+    const img = this.getProp(name);
+    if (!img || !img.complete || img.naturalWidth === 0) return;
+    const h = PROP_H[name] ?? 40;
+    const w = h * (img.naturalWidth / img.naturalHeight);
+    // Grounding shadow stack — tighter/lighter than a building's (props have a small footprint).
+    this.drawContactShadow(x, footY, w * 0.7, h, 0.7);
+    this.ctx.drawImage(img, x - w / 2, footY - h, w, h);
+  }
+
+  // Enumerate every sidewalk prop placement (name, x, footY): a palm-heavy scatter with an
+  // occasional set-piece, plus a traffic signal at each intersection corner. Viewport-culled,
+  // deterministic (placement is a pure function of x). Fed into the depth pass so props sort
+  // against pedestrians.
+  private forEachProp(cb: (name: string, x: number, footY: number) => void): void {
+    const vx = this.cam.x;
+    const vR = vx + this.cssW / this.cam.zoom;
+    const feet = [NORTH_SIDEWALK_TOP + 50, SOUTH_SIDEWALK_BOTTOM - 6];
+    for (let si = 0; si < feet.length; si++) {
+      const footY = feet[si];
+      let slot = 0;
+      for (let x = 130; x < WORLD_W - 130; x += PROP_STEP, slot++) {
+        if (x < vx - 260 || x > vR + 260) continue;
+        if (CROSS_STREETS.some((cs) => x > cs.x - CS_HALF - 34 && x < cs.x + CS_HALF + 34)) continue;
+        const jitter = (groundHash(slot * 5 + si * 61, 3) - 0.5) * 40;
+        const name =
+          (slot + si) % 8 === 5
+            ? PROP_SETPIECES[(slot + si * 2) % PROP_SETPIECES.length]
+            : PROP_SCATTER[(slot * 2 + si) % PROP_SCATTER.length];
+        cb(name, x + jitter, footY);
+      }
+    }
+    // traffic signals at the boulevard corners of each cross street
+    for (const cs of CROSS_STREETS) {
+      if (cs.x + 200 < vx || cs.x - 200 > vR) continue;
+      cb("traffic-signal", cs.x - CS_ROAD_HALF - 16, NORTH_SIDEWALK_TOP + 50);
+      cb("traffic-signal", cs.x + CS_ROAD_HALF + 16, SOUTH_SIDEWALK_BOTTOM - 6);
+    }
+  }
+
+  // Measure a character sprite's non-transparent vertical extent once and cache it. Returns the
+  // top/bottom of the visible body as fractions of natural height (t..b), so callers can scale the
+  // content to a uniform height and plant the feet. Downsamples for a cheap one-time alpha scan.
+  private spriteBounds(key: string, img: HTMLImageElement): { t: number; b: number } {
+    const hit = this.boundsCache.get(key);
+    if (hit) return hit;
+    const full = { t: 0, b: 1 };
+    if (!img.complete || img.naturalWidth === 0) return full; // not decoded yet — don't cache
+    const mc = (this.measureCanvas ??= document.createElement("canvas"));
+    const sw = Math.min(img.naturalWidth, 48);
+    const sh = Math.min(img.naturalHeight, 240);
+    mc.width = sw;
+    mc.height = sh;
+    const mx = mc.getContext("2d", { willReadFrequently: true });
+    if (!mx) return full;
+    mx.clearRect(0, 0, sw, sh);
+    mx.drawImage(img, 0, 0, sw, sh);
+    let top = -1;
+    let bot = -1;
+    try {
+      const px = mx.getImageData(0, 0, sw, sh).data;
+      for (let y = 0; y < sh; y++) {
+        let row = false;
+        for (let x = 0; x < sw; x++) {
+          if (px[(y * sw + x) * 4 + 3] > 16) {
+            row = true;
+            break;
+          }
+        }
+        if (row) {
+          if (top < 0) top = y;
+          bot = y;
+        }
+      }
+    } catch {
+      return full; // tainted canvas (shouldn't happen same-origin) — fall back to full frame
+    }
+    const res = top < 0 ? full : { t: top / sh, b: (bot + 1) / sh };
+    this.boundsCache.set(key, res);
+    return res;
+  }
+
+  private getPed(index: number): HTMLImageElement | null {
+    const key = `n:${index}`;
+    const cached = this.sprites.get(key);
+    if (cached !== undefined) return cached;
+    const img = new Image();
+    img.onerror = () => this.sprites.set(key, null);
+    img.src = `/npc/ped_${String(index).padStart(3, "0")}.png`;
+    this.sprites.set(key, img);
+    return img;
+  }
+
+  // One ambient pedestrian: feet-anchored, mirrored to face travel, with a gentle walk bob. No
+  // aura/ring — background, cheaper than the named cast. Drawn from the depth pass.
+  private drawPed(ped: AmbientPed, t: number): void {
+    const img = this.getPed(ped.sprite);
+    if (!img || !img.complete || img.naturalWidth === 0) return;
     const ctx = this.ctx;
-    const colors = ["#b23b3b", "#3b5fb2", "#c9c9c9", "#e0a733"];
-    this.cars.forEach((car, i) => {
-      ctx.fillStyle = colors[i % colors.length];
-      ctx.fillRect(car.x, car.y - 10, 46, 20);
-      ctx.fillStyle = "#dff0ff";
-      ctx.fillRect(car.x + 8, car.y - 7, 12, 8);
-      ctx.fillRect(car.x + 26, car.y - 7, 12, 8);
-    });
+    // Normalize to a uniform body height, feet planted (see spriteBounds / CHAR_BODY_H).
+    const b = this.spriteBounds(`n:${ped.sprite}`, img);
+    const frameH = CHAR_BODY_H / Math.max(0.5, b.b - b.t);
+    const w = frameH * (img.naturalWidth / img.naturalHeight);
+    const bob = Math.sin((t + ped.bob) / 150) * 1.6;
+    const feetY = ped.y + FEET_DROP + bob;
+    const top = feetY - b.b * frameH;
+    // smoky walk FX + pendulum leg-blur behind the ped (they're always walking)
+    this.drawWalkFX(ped.x, ped.y + FEET_DROP, w, ped.dir, t, (ped.bob % 1000) / 1000);
+    this.drawLegBlur(img, b, ped.x, feetY, w, ped.dir < 0, t, ped.bob);
+    const prev = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.save();
+    if (ped.dir < 0) {
+      ctx.translate(ped.x, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(img, -w / 2, top, w, frameH);
+    } else {
+      ctx.drawImage(img, ped.x - w / 2, top, w, frameH);
+    }
+    ctx.restore();
+    ctx.imageSmoothingEnabled = prev;
+  }
+
+  private static CAR_FALLBACK = ["#b23b3b", "#3b5fb2", "#c9c9c9", "#e0a733"];
+  // One vehicle, wheel-anchored to its lane and mirrored to face travel. Drawn from the depth pass.
+  private drawCar(car: CarRuntime, i: number): void {
+    const ctx = this.ctx;
+    const img = this.getVehicle(car.type);
+    if (img && img.complete && img.naturalWidth > 0) {
+      const h = VEHICLES[car.type] ?? 54;
+      const w = h * (img.naturalWidth / img.naturalHeight);
+      ctx.save();
+      // art faces LEFT; mirror when travelling right. Wheels sit on car.y.
+      if (car.dir > 0) {
+        ctx.translate(car.x + w / 2, car.y - h);
+        ctx.scale(-1, 1);
+        ctx.drawImage(img, -w / 2, 0, w, h);
+      } else {
+        ctx.drawImage(img, car.x - w / 2, car.y - h, w, h);
+      }
+      ctx.restore();
+      return;
+    }
+    // fallback box until the sprite loads
+    ctx.fillStyle = HollywoodRenderer.CAR_FALLBACK[i % HollywoodRenderer.CAR_FALLBACK.length];
+    ctx.fillRect(car.x, car.y - 10, 46, 20);
+    ctx.fillStyle = "#dff0ff";
+    ctx.fillRect(car.x + 8, car.y - 7, 12, 8);
+    ctx.fillRect(car.x + 26, car.y - 7, 12, 8);
   }
 
   // Load a spirit sprite once; returns the <img> (which may still be loading), or null
@@ -1133,6 +1659,109 @@ export class HollywoodRenderer {
     return img;
   }
 
+  // Seamless ground texture from /tiles/<name>. Cached; null once it 404s.
+  private getTile(name: string): HTMLImageElement | null {
+    const cached = this.tiles.get(name);
+    if (cached !== undefined) return cached;
+    const img = new Image();
+    img.onerror = () => this.tiles.set(name, null);
+    img.src = `/tiles/${name}`;
+    this.tiles.set(name, img);
+    return img;
+  }
+
+  // A cached repeating CanvasPattern for a tile, or null until the image has decoded.
+  private getTilePattern(name: string): CanvasPattern | null {
+    const cached = this.patterns.get(name);
+    if (cached) return cached;
+    const img = this.getTile(name);
+    if (!img || !img.complete || img.naturalWidth === 0) return null;
+    const pat = this.ctx.createPattern(img, "repeat");
+    if (!pat) return null;
+    this.patterns.set(name, pat);
+    return pat;
+  }
+
+  // Fill a world-space rect with a repeating ground texture, viewport-culled. One copy of the
+  // image spans TILE_WORLD[name] world units; the pattern is anchored to the world origin so
+  // adjacent surfaces (road ↔ cross-street) tile seamlessly. Flat-fills when the texture isn't
+  // ready or when zoomed too far out to read the detail.
+  private fillTiled(x0: number, y0: number, x1: number, y1: number, name: string): void {
+    const ctx = this.ctx;
+    const vx = this.cam.x;
+    const vy = this.cam.y;
+    const cx0 = Math.max(x0, vx);
+    const cy0 = Math.max(y0, vy);
+    const cx1 = Math.min(x1, vx + this.cssW / this.cam.zoom);
+    const cy1 = Math.min(y1, vy + this.cssH / this.cam.zoom);
+    if (cx1 <= cx0 || cy1 <= cy0) return;
+    const pat = this.cam.zoom > TILE_ZOOM_GATE ? this.getTilePattern(name) : null;
+    if (!pat) {
+      ctx.fillStyle = GROUND_FALLBACK[name] ?? "#2a2620";
+      ctx.fillRect(cx0, cy0, cx1 - cx0, cy1 - cy0);
+      return;
+    }
+    const img = this.getTile(name)!;
+    const k = (TILE_WORLD[name] ?? 160) / img.naturalWidth;
+    pat.setTransform(new DOMMatrix([k, 0, 0, k, 0, 0]));
+    ctx.fillStyle = pat;
+    ctx.fillRect(cx0, cy0, cx1 - cx0, cy1 - cy0);
+  }
+
+  // Three-part grounding stack under any upright actor, drawn within the sorted pass (before the
+  // actor's sprite) so it sits on exactly the ground it stands on. Research-calibrated to READ in
+  // a dark, moody scene where a thin near-black multiply is invisible:
+  //   (1) a faint warm ground LIFT so a dark shadow has contrast to bite into;
+  //   (2) an offset, foreshortened cast BODY (the directional "sitting on the ground" cue) —
+  //       cool blue-black (hue-separates when value can't), thrown down+right for ONE consistent
+  //       light (upper-left), spilling forward onto the visible sidewalk;
+  //   (3) a crisp dark contact SEAM at the true foot line (the glue that kills the float).
+  // `w`/`h` = the actor's on-screen footprint width / height; `scale` fades it with depth.
+  private drawContactShadow(cx: number, footY: number, w: number, h: number, scale = 1): void {
+    const ctx = this.ctx;
+    const rx = Math.max(10, w * 0.5);
+    // one light everywhere: upper-left → shadow falls down (+Y, toward camera) and right (+X).
+    const offX = Math.min(w * 0.12, 48);
+    const offY = Math.min(h * 0.12, 52);
+
+    // (1) ground lift — faint warm halo, `lighten` so it only ever raises the ground a touch.
+    ctx.save();
+    ctx.globalCompositeOperation = "lighten";
+    const lr = rx * 1.4;
+    const lift = ctx.createRadialGradient(cx, footY, 1, cx, footY, lr);
+    lift.addColorStop(0, `rgba(70,60,46,${0.13 * scale})`);
+    lift.addColorStop(1, "rgba(70,60,46,0)");
+    ctx.translate(cx, footY); ctx.scale(1, 0.22); ctx.translate(-cx, -footY);
+    ctx.fillStyle = lift;
+    ctx.beginPath(); ctx.arc(cx, footY, lr, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+
+    // (2) cast body — cool blue-black, offset down+right, foreshortened, soft falloff.
+    ctx.save();
+    ctx.globalCompositeOperation = "multiply";
+    const bcx = cx + offX, bcy = footY + offY, brx = rx * 1.25;
+    const body = ctx.createRadialGradient(bcx, bcy, 1, bcx, bcy, brx);
+    body.addColorStop(0, `rgba(7,6,15,${0.54 * scale})`);
+    body.addColorStop(0.7, `rgba(7,6,15,${0.26 * scale})`);
+    body.addColorStop(1, "rgba(7,6,15,0)");
+    ctx.translate(bcx, bcy); ctx.scale(1, 0.4); ctx.translate(-bcx, -bcy);
+    ctx.fillStyle = body;
+    ctx.beginPath(); ctx.arc(bcx, bcy, brx, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+
+    // (3) contact seam — crisp cool-black glue at the true foot line.
+    ctx.save();
+    ctx.globalCompositeOperation = "multiply";
+    const seam = ctx.createRadialGradient(cx, footY, 1, cx, footY, rx);
+    seam.addColorStop(0, `rgba(7,6,15,${0.74 * scale})`);
+    seam.addColorStop(0.55, `rgba(7,6,15,${0.38 * scale})`);
+    seam.addColorStop(1, "rgba(7,6,15,0)");
+    ctx.translate(cx, footY); ctx.scale(1, 0.15); ctx.translate(-cx, -footY);
+    ctx.fillStyle = seam;
+    ctx.beginPath(); ctx.arc(cx, footY, rx, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+
   // Composite a facade image at its character-height scale, feet-anchored to the
   // building's baseline and horizontally centered on its slot.
   private drawBuildingSprite(b: Building, img: HTMLImageElement) {
@@ -1146,11 +1775,175 @@ export class HollywoodRenderer {
     const baseY = b.baseY ?? (side === "north" ? NORTH_BASELINE : SOUTH_BASELINE);
     const growUp = b.growUp ?? true;
     const top = growUp ? baseY - H : baseY;
+    // Grounding: the three-part shadow stack, drawn before the sprite so it reads as ground the
+    // wall stands on. Fade with depth — far (north) row a touch lighter so it recedes.
+    const depthScale = side === "north" ? 0.85 : 1;
+    this.drawContactShadow(cx, baseY, w, H, depthScale);
     const prev = ctx.imageSmoothingEnabled;
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(img, cx - w / 2, top, w, H);
     ctx.imageSmoothingEnabled = prev;
+    // Base skirt: darken the wall's foot so it sinks into the ground seam rather than sitting
+    // on a clean shelf edge.
+    const skirtH = Math.min(16, H * 0.14);
+    ctx.save();
+    ctx.globalCompositeOperation = "multiply";
+    const sg = ctx.createLinearGradient(0, baseY - skirtH, 0, baseY);
+    sg.addColorStop(0, "rgba(16,12,8,0)");
+    sg.addColorStop(1, "rgba(16,12,8,0.32)");
+    ctx.fillStyle = sg;
+    ctx.fillRect(cx - w / 2, baseY - skirtH, w, skirtH);
+    ctx.restore();
+    // Inter-building AO: darken the facade's vertical side edges so two adjacent buildings form a
+    // shaded seam/valley between them — grounds the streetwall as one solid mass, not floating
+    // cards. (On isolated landmarks it just reads as gentle form shading on the sides.)
+    const edgeW = Math.max(6, w * 0.08);
+    ctx.save();
+    ctx.globalCompositeOperation = "multiply";
+    const lAO = ctx.createLinearGradient(cx - w / 2, 0, cx - w / 2 + edgeW, 0);
+    lAO.addColorStop(0, "rgba(9,9,18,0.46)");
+    lAO.addColorStop(1, "rgba(9,9,18,0)");
+    ctx.fillStyle = lAO;
+    ctx.fillRect(cx - w / 2, top, edgeW, H);
+    const rAO = ctx.createLinearGradient(cx + w / 2, 0, cx + w / 2 - edgeW, 0);
+    rAO.addColorStop(0, "rgba(9,9,18,0.46)");
+    rAO.addColorStop(1, "rgba(9,9,18,0)");
+    ctx.fillStyle = rAO;
+    ctx.fillRect(cx + w / 2 - edgeW, top, edgeW, H);
+    ctx.restore();
+    // Far-row atmospheric veil: wash the distant (north) streetwall toward a cool haze via a
+    // light multiply, so the far row loses a little contrast and recedes from the near (south)
+    // row. Multiply keeps it correct day and night (scales with the pixel it's over). Near row
+    // untouched.
+    if (side === "north" && growUp) {
+      ctx.save();
+      ctx.globalCompositeOperation = "multiply";
+      ctx.globalAlpha = 0.16;
+      ctx.fillStyle = "rgb(150,162,185)";
+      ctx.fillRect(cx - w / 2, top, w, H);
+      ctx.restore();
+    }
+  }
+
+  // Shared smoky walk FX — drawn behind a moving character's body. Three ingredients (research:
+  // Gaia's leg-blur + smear "multiples" + smoke): a trailing leg-height blur, a couple of soft
+  // dark smoke puffs that rise/expand/fade drifting behind travel, and a grounded contact
+  // crescent. Time-tinted — cooler/bluish at night, warmer/amber at golden hour, darker overall.
+  // `x`/`footY` = the feet in world space, `w` = sprite width, `dir` = travel (±1), `phase` 0..1.
+  private drawWalkFX(x: number, footY: number, w: number, dir: number, t: number, phase: number): void {
+    const ctx = this.ctx;
+    const mins = this.engine.clockMinutes;
+    const night = nightAt(mins);
+    const golden = goldenAt(mins);
+    // Cool slate smoke — dark & moody, but light enough to read on the asphalt; bluer/brighter
+    // after dark (moonlit smoke), warmer at golden hour.
+    // Cool slate smoke — dark & moody but light enough to read on the asphalt; bluer after dark
+    // (moonlit), warmer at golden hour.
+    const rr = Math.round(60 + golden * 34 - night * 8);
+    const gg = Math.round(62 + golden * 14 + night * 8);
+    const bb = Math.round(72 + night * 30);
+    const back = dir >= 0 ? -1 : 1; // trailing side (behind travel)
+    const step = 6 + 3 * Math.abs(Math.sin(t / 80));
+
+    // (1) trailing leg-blur — fading smears streaking behind the shins (visible to the trailing side)
+    const legY = footY - 13;
+    for (let k = 1; k <= 4; k++) {
+      const a = 0.34 / k;
+      ctx.fillStyle = `rgba(${rr},${gg},${bb},${a})`;
+      ctx.beginPath();
+      ctx.ellipse(x + back * (w * 0.28 + k * step * 1.4), legY, w * 0.34, 8, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // (2) smoke puffs — kicked up at the feet, TRAILING BACK along the ground (so they read behind
+    // the body instead of being hidden by the torso), rising only a little as they expand + fade.
+    for (let k = 0; k < 5; k++) {
+      const p = (t / 560 + phase + k / 5) % 1;
+      const px = x + back * (w * 0.3 + p * 46);
+      const py = footY - 2 - p * 12;
+      const rad = 5 + p * 16;
+      const a = (1 - p) * (0.42 + 0.14 * night);
+      const g = ctx.createRadialGradient(px, py, 0, px, py, rad);
+      g.addColorStop(0, `rgba(${rr},${gg},${bb},${a})`);
+      g.addColorStop(0.55, `rgba(${rr},${gg},${bb},${a * 0.5})`);
+      g.addColorStop(1, `rgba(${rr},${gg},${bb},0)`);
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(px, py, rad, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // (3) contact crescent — the grounded dark "boat" fanning out under the feet
+    const hw = w * 0.55 + step + 4;
+    const lift = 7;
+    const by = footY - lift;
+    for (const layer of [
+      { s: 1, a: 0.3 },
+      { s: 0.7, a: 0.3 },
+      { s: 0.45, a: 0.3 },
+    ]) {
+      const h = hw * layer.s;
+      ctx.fillStyle = `rgba(${Math.round(rr * 0.6)},${Math.round(gg * 0.6)},${Math.round(bb * 0.75)},${layer.a})`;
+      ctx.beginPath();
+      ctx.moveTo(x - h, by);
+      ctx.quadraticCurveTo(x, footY + 7, x + h, by);
+      ctx.quadraticCurveTo(x, by - 6, x - h, by);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  // Gaia-style leg-blur overlay (research: the "rapid blur standard walk animation" — a static
+  // body that glides while the legs buzz). The legs swing like PENDULUMS from the hip: we slice
+  // the bottom band of the sprite (the legs) and redraw it as a fan of fading copies, each
+  // horizontally SHEARED so the top (hip) stays planted while the bottom (feet) sweeps left↔right.
+  // The fan spans the full swing arc (the persistent blur); alpha peaks at the current swing angle
+  // (a bright copy that tracks the legs actually moving). Drawn UNDER the crisp body. Moving-only.
+  private drawLegBlur(
+    img: HTMLImageElement,
+    b: { t: number; b: number },
+    cx: number,
+    feetY: number,
+    w: number,
+    flip: boolean,
+    t: number,
+    phase: number,
+  ): void {
+    const ctx = this.ctx;
+    const legFrac = 0.36; // fraction of the body height that is "legs" (shins, hem, feet)
+    const contentFrac = b.b - b.t;
+    const nW = img.naturalWidth;
+    const nH = img.naturalHeight;
+    const sy0 = (b.b - legFrac * contentFrac) * nH;
+    const sH = legFrac * contentFrac * nH;
+    const destLegH = legFrac * CHAR_BODY_H;
+    const pivotY = feetY - destLegH; // hip line — top of the leg band, stays put
+    const footSweep = 9; // px the feet swing to each side
+    const shxMax = footSweep / destLegH; // shear so foot offset = footSweep at the swing extreme
+    const base = shxMax * Math.sin(t / 85 + phase); // current pendulum position (legs actually moving)
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    if (flip) {
+      ctx.translate(cx, 0);
+      ctx.scale(-1, 1);
+      ctx.translate(-cx, 0);
+    }
+    const N = 7; // copies across the swing arc
+    for (let k = 0; k < N; k++) {
+      const f = k / (N - 1); // 0..1
+      const shx = (f * 2 - 1) * shxMax; // -shxMax .. +shxMax (left foot-sweep .. right)
+      const d = Math.abs(shx - base) / (2 * shxMax); // distance from the current swing angle
+      const alpha = 0.08 + 0.24 * (1 - d); // faint across the arc, brightest where the legs are now
+      ctx.globalAlpha = alpha;
+      ctx.save();
+      ctx.translate(cx, pivotY);
+      ctx.transform(1, 0, shx, 1, 0, 0); // horizontal shear by y → pendulum from the hip
+      ctx.drawImage(img, 0, sy0, nW, sH, -w / 2, 0, w, destLegH);
+      ctx.restore();
+    }
+    ctx.restore();
   }
 
   private drawNPC(s: NpcRuntime, t: number) {
@@ -1179,18 +1972,32 @@ export class HollywoodRenderer {
       ctx.stroke();
     }
 
-    let sprite = this.getSprite(s.soul.id);
-    // player facing away from the camera → use the back sprite if one exists
+    // Active outfit → sprite stem (defaults to the soul id, i.e. the base look).
+    const stem = this.outfits.get(s.soul.id) ?? s.soul.id;
+    let sprite = this.getSprite(stem);
+    let spriteKey = stem;
+    let usingBack = false;
+    // player facing away from the camera → use the back sprite for this outfit if one exists
     if (s.soul.id === this.controlledId && this.facingUp) {
-      const back = this.getSprite(`${s.soul.id}_back`);
-      if (back && back.complete && back.naturalWidth > 0) sprite = back;
+      const back = this.getSprite(`${stem}_back`);
+      if (back && back.complete && back.naturalWidth > 0) {
+        sprite = back;
+        spriteKey = `${stem}_back`;
+        usingBack = true;
+      }
     }
     if (sprite && sprite.complete && sprite.naturalWidth > 0) {
-      const targetH = 84; // bigger, Gaia-style — shows the sprite detail
-      const w = targetH * (sprite.naturalWidth / sprite.naturalHeight);
-      let flip = s.soul.id === this.controlledId ? this.facingLeft : s.dir < 0;
-      if (SPRITE_FACES_LEFT.has(s.soul.id)) flip = !flip; // this sprite's art faces left by default
-      const top = y - targetH + 12;
+      // Normalize to the same body height as every other character, feet planted (spriteBounds).
+      const b = this.spriteBounds(spriteKey, sprite);
+      const frameH = CHAR_BODY_H / Math.max(0.5, b.b - b.t);
+      const w = frameH * (sprite.naturalWidth / sprite.naturalHeight);
+      // The back sprite is separate art authored facing away; mirroring it would invert any
+      // text/number/logo on the back (e.g. a "SORRISO 10" jersey), so it is NEVER flipped — only
+      // the front billboard mirrors by travel direction.
+      let flip = usingBack ? false : s.soul.id === this.controlledId ? this.facingLeft : s.dir < 0;
+      if (!usingBack && SPRITE_FACES_LEFT.has(s.soul.id)) flip = !flip; // front art faces left by default
+      const feetY = s.y + FEET_DROP + bob;
+      const top = feetY - b.b * frameH;
       const prev = ctx.imageSmoothingEnabled;
       ctx.imageSmoothingEnabled = true; // smooth downscale — these are painted, not pixel art
       ctx.imageSmoothingQuality = "high";
@@ -1203,50 +2010,17 @@ export class HollywoodRenderer {
           ctx.scale(-1, 1);
           ctx.translate(-cx, 0);
         }
-        ctx.drawImage(sprite, cx - w / 2, top, w, targetH);
+        ctx.drawImage(sprite, cx - w / 2, top, w, frameH);
         ctx.restore();
       };
 
-      // Gaia-style walk: the body stays crisp down to the ankles, and the FEET
-      // dissolve into a soft "boat" — a smear that curves UP at the ends. Each foot
-      // copy is fanned out horizontally and lifted by offset^2 (edges rise), so the
-      // union forms a concave-up crescent. Feet render ONLY as this smear while moving.
-      const footTop = top + targetH * 0.83;
+      // Smoky Gaia-style walk FX behind the body, the pendulum leg-blur at the feet, then the
+      // crisp body on top. Every moving character gets both (see drawLegBlur).
       if (s.moving) {
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(s.x - w, top - 2, w * 2, footTop - top + 2);
-        ctx.clip();
-        drawAt(s.x, 1); // crisp head-to-ankles
-        ctx.restore();
-
-        const spread = 8 + 4 * Math.abs(Math.sin(t / 80));
-        const lift = 7;
-        const footBaseY = y + 12;
-
-        // ONE motion blur spanning BOTH feet: a single soft dark crescent (concave-up),
-        // built from a few stacked translucent layers so it reads as one fused blur
-        // instead of two feet. Its width/curve pulse with the step.
-        const hw = w * 0.5 + spread;
-        ctx.save();
-        for (const layer of [
-          { s: 1, a: 0.24 },
-          { s: 0.72, a: 0.24 },
-          { s: 0.46, a: 0.24 },
-        ]) {
-          const h = hw * layer.s;
-          ctx.fillStyle = `rgba(14, 12, 9, ${layer.a})`;
-          ctx.beginPath();
-          ctx.moveTo(s.x - h, footBaseY - lift);
-          ctx.quadraticCurveTo(s.x, footBaseY + 6, s.x + h, footBaseY - lift);
-          ctx.quadraticCurveTo(s.x, footBaseY - lift - 5, s.x - h, footBaseY - lift);
-          ctx.closePath();
-          ctx.fill();
-        }
-        ctx.restore();
-      } else {
-        drawAt(s.x, 1);
+        this.drawWalkFX(s.x, feetY, w, s.dir, t, (s.x * 0.0131) % 1);
+        this.drawLegBlur(sprite, b, s.x, feetY, w, flip, t, s.x * 0.05);
       }
+      drawAt(s.x, 1);
       ctx.imageSmoothingEnabled = prev;
       return;
     }

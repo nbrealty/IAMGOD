@@ -2,7 +2,9 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } f
 import { HollywoodRenderer } from "./renderer";
 import type { SoulEngine } from "../soul/engine";
 import { SoulProfilePanel } from "../components/SoulProfilePanel";
+import { InventoryGrid } from "../components/InventoryGrid";
 import { ROSTER } from "../soul/roster";
+import { equippedStem } from "./inventory";
 
 // A short chip label: the quoted nickname if the soul has one, else the first name.
 function chipLabel(name: string): string {
@@ -24,6 +26,7 @@ const PLAYABLE_IDS = new Set([
   "dalia",
   "nathaniel",
   "elizabeth",
+  "vee_knox",
 ]);
 
 // `id: null` is Observer Mode (free pan/zoom, nobody driven), pinned first. The rest are the
@@ -44,6 +47,12 @@ export function HollywoodScene({ engine, controlledId, onControlledChange }: Pro
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<HollywoodRenderer | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [invOpen, setInvOpen] = useState(false); // inventory sheet for the controlled character
+  // Equipped outfit stem per soul (any soul absent here wears its default look). Remembered across
+  // character switches; applied live to the renderer. Drives both inventory grids.
+  const [equipped, setEquipped] = useState<Record<string, string>>({});
+  const equippedRef = useRef(equipped);
+  const equip = (soulId: string, stem: string) => setEquipped((m) => ({ ...m, [soulId]: stem }));
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -63,6 +72,8 @@ export function HollywoodScene({ engine, controlledId, onControlledChange }: Pro
     };
     fit();
     renderer.attachInput();
+    // Dress everyone in their remembered outfit before the first frame.
+    for (const [id, stem] of Object.entries(equippedRef.current)) renderer.setOutfit(id, stem);
     renderer.start();
 
     const ro = new ResizeObserver(fit);
@@ -82,6 +93,13 @@ export function HollywoodScene({ engine, controlledId, onControlledChange }: Pro
   useEffect(() => {
     rendererRef.current?.setControlled(controlledId);
   }, [controlledId]);
+
+  // Push equip changes to the renderer live and keep the mount-time ref in sync.
+  useEffect(() => {
+    equippedRef.current = equipped;
+    const r = rendererRef.current;
+    if (r) for (const [id, stem] of Object.entries(equipped)) r.setOutfit(id, stem);
+  }, [equipped]);
 
   const hold =
     (dir: "up" | "down" | "left" | "right", pressed: boolean) =>
@@ -106,6 +124,12 @@ export function HollywoodScene({ engine, controlledId, onControlledChange }: Pro
           </button>
         ))}
       </div>
+
+      {controlledId !== null && (
+        <button className="inv-open-btn" onClick={() => setInvOpen(true)}>
+          🎒 Inventory
+        </button>
+      )}
 
       {controlledId !== null && (
         <div className="dpad">
@@ -162,7 +186,33 @@ export function HollywoodScene({ engine, controlledId, onControlledChange }: Pro
           －
         </button>
       </div>
-      <SoulProfilePanel engine={engine} soulId={selectedId} onClose={() => setSelectedId(null)} />
+      {invOpen && controlledId !== null && (
+        <div className="panel-overlay" onClick={(e) => e.target === e.currentTarget && setInvOpen(false)}>
+          <div className="panel-card inv-card">
+            <h2>
+              {PLAYABLE_CHARACTERS.find((c) => c.id === controlledId)?.label ?? "Inventory"}{" "}
+              <span className="dim">· Inventory</span>
+            </h2>
+            <p className="inv-hint">Tap an outfit to wear it. Empty slots hold future items.</p>
+            <InventoryGrid
+              soulId={controlledId}
+              equippedStem={equippedStem(controlledId, equipped)}
+              onEquip={(stem) => equip(controlledId, stem)}
+            />
+            <button className="panel-close" onClick={() => setInvOpen(false)}>
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      <SoulProfilePanel
+        engine={engine}
+        soulId={selectedId}
+        equipped={equipped}
+        onEquip={equip}
+        onClose={() => setSelectedId(null)}
+      />
     </div>
   );
 }

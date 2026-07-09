@@ -3,10 +3,14 @@ import type { SoulEngine } from "../soul/engine";
 import { NEED_KEYS, CHAKRA_ORDER, type Soul } from "../soul/types";
 import { maslowLevel, emotionLabel, chakraState } from "../soul/derive";
 import { deriveAppearance } from "../soul/appearance";
+import { InventoryGrid } from "./InventoryGrid";
+import { equippedStem } from "../game/inventory";
 
 interface Props {
   engine: SoulEngine;
   soulId: string | null;
+  equipped: Record<string, string>;
+  onEquip: (soulId: string, stem: string) => void;
   onClose: () => void;
 }
 
@@ -37,7 +41,7 @@ function Bar({ value, ceiling, kind }: { value: number; ceiling?: number; kind: 
   );
 }
 
-export function SoulProfilePanel({ engine, soulId, onClose }: Props) {
+export function SoulProfilePanel({ engine, soulId, equipped, onEquip, onClose }: Props) {
   // The engine mutates souls in place; re-render on an interval so the panel shows
   // live values while it's open.
   const [, force] = useReducer((x) => x + 1, 0);
@@ -139,6 +143,13 @@ export function SoulProfilePanel({ engine, soulId, onClose }: Props) {
           <span className="tag">{app.clothingTag}</span>
           <span className="tag">{app.groomingTag}</span>
         </div>
+
+        <div className="section-title">Inventory <span className="dim">(20 slots)</span></div>
+        <InventoryGrid
+          soulId={soul.id}
+          equippedStem={equippedStem(soul.id, equipped)}
+          onEquip={(stem) => onEquip(soul.id, stem)}
+        />
 
         <button className="panel-close" onClick={onClose}>
           Close
