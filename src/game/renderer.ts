@@ -657,6 +657,7 @@ export class HollywoodRenderer {
     this.drawRoad();
     this.drawGroundDetail(); // aprons + landmark plazas on the walks
     this.drawSeamBlends(); // feather surface transitions + decal breakup (the "smudge")
+    this.drawFloorGlow(); // lamp light cast ON the floor — UNDER the actors (they stand IN it)
 
     // distant skyline silhouette — always furthest back
     for (const b of BACKDROP_BUILDINGS) this.drawBuilding(b);
@@ -840,8 +841,9 @@ export class HollywoodRenderer {
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
 
-    // 1. street lamps — light from each globe, and a warm pool cast on the sidewalk below
-    this.forEachLamp((x, baseY, headY) => {
+    // 1. street lamps — airborne light from each globe + a bloom halo (the floor pool is a
+    // separate ground pre-pass, drawFloorGlow, so it sits under the actors).
+    this.forEachLamp((x, _baseY, headY) => {
       const gy = headY - 8;
       for (const gx of [x - LAMP_ARM, x + LAMP_ARM, x]) {
         const rr = 48;
@@ -854,15 +856,8 @@ export class HollywoodRenderer {
         ctx.arc(gx, gy, rr, 0, Math.PI * 2);
         ctx.fill();
       }
-      // ground pool at the foot
-      const pr = 74;
-      const pg = ctx.createRadialGradient(x, baseY, 2, x, baseY, pr);
-      pg.addColorStop(0, `rgba(255,190,110,${0.32 * night})`);
-      pg.addColorStop(1, "rgba(255,190,110,0)");
-      ctx.fillStyle = pg;
-      ctx.beginPath();
-      ctx.ellipse(x, baseY, pr, pr * 0.4, 0, 0, Math.PI * 2);
-      ctx.fill();
+      // (the warm pool the lamp casts ON the sidewalk is drawn in drawFloorGlow, a GROUND pre-pass
+      // before the actors, so people stand IN the light instead of under it — not here on top.)
       // bloom — a big soft halo over the whole lamp head so the light blooms into the dark
       const br = 104;
       const bg = ctx.createRadialGradient(x, gy, 4, x, gy, br);
@@ -1193,6 +1188,31 @@ export class HollywoodRenderer {
       ctx.fill();
     }
     ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  // Night light that lands ON the floor — the warm pool each lamp casts on the sidewalk. Drawn as
+  // a GROUND pre-pass (after the seams, before the sorted actors) with `lighter`, so souls/props
+  // draw OVER it and correctly stand IN the light instead of being washed by it from on top. The
+  // airborne globe glow + bloom stay in drawLights (post-pass). Alpha is boosted vs. the old
+  // on-top pool because this now sits under the night grade that darkens it.
+  private drawFloorGlow(): void {
+    const night = nightAt(this.engine.clockMinutes);
+    if (night <= 0.001) return;
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    this.forEachLamp((x, baseY) => {
+      const pr = 78;
+      const pg = ctx.createRadialGradient(x, baseY, 2, x, baseY, pr);
+      pg.addColorStop(0, `rgba(255,190,110,${0.55 * night})`);
+      pg.addColorStop(0.5, `rgba(255,186,108,${0.24 * night})`);
+      pg.addColorStop(1, "rgba(255,190,110,0)");
+      ctx.fillStyle = pg;
+      ctx.beginPath();
+      ctx.ellipse(x, baseY, pr, pr * 0.42, 0, 0, Math.PI * 2);
+      ctx.fill();
+    });
     ctx.restore();
   }
 
