@@ -52,6 +52,12 @@ feet-anchored to one ground-Y, which is the sort key.
    add their soul id to that set. (These are front billboards, so this is a
    mirror, not a true side-profile turn — a real profile would need new art.)
 
+   **Back sprites are never mirrored.** The `${stem}_back` art is authored facing
+   away, so the horizontal travel-mirror (and `SPRITE_FACES_LEFT`) must NOT apply
+   to it — mirroring a back view inverts any text/number/logo on it (a "SORRISO 10"
+   jersey would read backwards). In `drawNPC`, `usingBack` forces `flip = false`.
+   Only the **front** billboard mirrors by travel.
+
 5. **Uniform character height.** Every character (named soul + ambient ped)
    renders at one shared body height (`CHAR_BODY_H`), feet planted. Source art
    carries different amounts of empty frame and comes in different styles (the

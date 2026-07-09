@@ -1927,12 +1927,14 @@ export class HollywoodRenderer {
     const stem = this.outfits.get(s.soul.id) ?? s.soul.id;
     let sprite = this.getSprite(stem);
     let spriteKey = stem;
+    let usingBack = false;
     // player facing away from the camera → use the back sprite for this outfit if one exists
     if (s.soul.id === this.controlledId && this.facingUp) {
       const back = this.getSprite(`${stem}_back`);
       if (back && back.complete && back.naturalWidth > 0) {
         sprite = back;
         spriteKey = `${stem}_back`;
+        usingBack = true;
       }
     }
     if (sprite && sprite.complete && sprite.naturalWidth > 0) {
@@ -1940,8 +1942,11 @@ export class HollywoodRenderer {
       const b = this.spriteBounds(spriteKey, sprite);
       const frameH = CHAR_BODY_H / Math.max(0.5, b.b - b.t);
       const w = frameH * (sprite.naturalWidth / sprite.naturalHeight);
-      let flip = s.soul.id === this.controlledId ? this.facingLeft : s.dir < 0;
-      if (SPRITE_FACES_LEFT.has(s.soul.id)) flip = !flip; // this sprite's art faces left by default
+      // The back sprite is separate art authored facing away; mirroring it would invert any
+      // text/number/logo on the back (e.g. a "SORRISO 10" jersey), so it is NEVER flipped — only
+      // the front billboard mirrors by travel direction.
+      let flip = usingBack ? false : s.soul.id === this.controlledId ? this.facingLeft : s.dir < 0;
+      if (!usingBack && SPRITE_FACES_LEFT.has(s.soul.id)) flip = !flip; // front art faces left by default
       const feetY = s.y + FEET_DROP + bob;
       const top = feetY - b.b * frameH;
       const prev = ctx.imageSmoothingEnabled;
