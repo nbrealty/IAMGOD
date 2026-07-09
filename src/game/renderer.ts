@@ -1202,16 +1202,32 @@ export class HollywoodRenderer {
     const ctx = this.ctx;
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
+    // Each pool is a CLUSTER of a few soft, offset blobs rather than one clean ellipse — the
+    // gradient is scaled to a true ellipse (so its falloff isn't a circle clipped by an
+    // elliptical path, which is what left a hard edge), and the overlapping offsets smudge the
+    // boundary into an organic pool of light instead of a geometric circle.
     this.forEachLamp((x, baseY) => {
-      const pr = 78;
-      const pg = ctx.createRadialGradient(x, baseY, 2, x, baseY, pr);
-      pg.addColorStop(0, `rgba(255,190,110,${0.55 * night})`);
-      pg.addColorStop(0.5, `rgba(255,186,108,${0.24 * night})`);
-      pg.addColorStop(1, "rgba(255,190,110,0)");
-      ctx.fillStyle = pg;
-      ctx.beginPath();
-      ctx.ellipse(x, baseY, pr, pr * 0.42, 0, 0, Math.PI * 2);
-      ctx.fill();
+      for (let k = 0; k < 3; k++) {
+        const ox = (groundHash(x + k * 11, 5) - 0.5) * 42;
+        const oy = (groundHash(x + k * 23, 6) - 0.5) * 14;
+        const rx = 58 + groundHash(x + k * 7, 7) * 44;
+        const ry = rx * 0.42;
+        const cxk = x + ox, cyk = baseY + oy;
+        const a = (k === 0 ? 0.5 : 0.3) * night;
+        ctx.save();
+        ctx.translate(cxk, cyk);
+        ctx.scale(1, ry / rx);
+        ctx.translate(-cxk, -cyk);
+        const g = ctx.createRadialGradient(cxk, cyk, 1, cxk, cyk, rx);
+        g.addColorStop(0, `rgba(255,190,110,${a})`);
+        g.addColorStop(0.55, `rgba(255,186,106,${a * 0.38})`);
+        g.addColorStop(1, "rgba(255,190,110,0)");
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(cxk, cyk, rx, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
     });
     ctx.restore();
   }
