@@ -120,6 +120,26 @@ feet-anchored to one ground-Y, which is the sort key.
   all four rotations; all four road corners exist (the cross-street sidewalk runs
   both N and S of the boulevard). Code-drawn `drawCurb`/`drawExpansionJoint`
   remain only as the far-zoom / not-yet-decoded fallback. **Edge the built.**
+- **CORNERS — the invariant (do not relearn this the hard way).** A rounded curb
+  corner only rounds the CURB. Everything else must already be round or stop short,
+  or it "sticks out" past the arc. Checklist for every corner (road + grass):
+  1. **Nothing layered underneath may reach the elbow.** Each straight curb stops
+     ~one corner arc-radius short of the elbow (`RCUT`/`GCUT` in the skip windows +
+     the vertical `mouth`/`grassOnly` skips + the `drawSeparatorSpanH` spans), so the
+     two straights never meet in a SQUARE vertex that pokes past the arc. The corner
+     asset alone fills the junction.
+  2. **The surface FILL must not bleed past the curb onto the neighbour.** Fills are
+     rectangles with square corners; the curb rounds the line, not the fill. Round
+     the fill's corner too — `drawCornerNooks` fills asphalt into the nook between the
+     terrazzo's square corner and the curb arc (evenodd clip: corner square MINUS the
+     arc disc) so the sidewalk can't bleed onto the street. Grass is concave (sidewalk
+     wraps it) so its fill can't poke out; the blades overhanging the curb are wanted.
+  3. **The corner sprite's own edge must be smooth** (see the bake passes above:
+     joint-free window, offset-arc clean mask, feather de-glow) — never swept rects.
+  4. **No stray markings at the seam.** The road has no painted edge-line; the curb
+     IS the road edge. (Don't reintroduce a `#c9c4b6` stroke at `ROAD_TOP/BOTTOM`.)
+  Verify at high zoom, day: smooth arc, no square vertex, no fill bleeding across, no
+  white line, no gap where a straight meets the corner arm.
 - **New ped uploads must be classified front vs back.** The `public/npc/` pool
   mixes both; only face-visible FRONT sprites go in `PED_FRONT` (renderer.ts) —
   a back-view left in that list walks the sidewalk permanently facing away.

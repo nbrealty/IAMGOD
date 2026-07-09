@@ -1026,15 +1026,6 @@ export class HollywoodRenderer {
     ctx.stroke();
     ctx.setLineDash([]);
 
-    ctx.strokeStyle = "#c9c4b6";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(0, ROAD_TOP + 4);
-    ctx.lineTo(WORLD_W, ROAD_TOP + 4);
-    ctx.moveTo(0, ROAD_BOTTOM - 4);
-    ctx.lineTo(WORLD_W, ROAD_BOTTOM - 4);
-    ctx.stroke();
-
     // Cross streets — each a full-height vertical road with flanking sidewalks, dashed
     // centre line, crosswalk stripes at the Blvd intersection, and a rotated street label.
     const crosswalk = this.getTile("crosswalk.jpg");
@@ -1473,6 +1464,9 @@ export class HollywoodRenderer {
     const csRoad: Array<[number, number]> = CROSS_STREETS.map((c) => [c.x - CS_ROAD_HALF - RCUT, c.x + CS_ROAD_HALF + RCUT]); // cross-street ROAD + corner cut
     const csHalf: Array<[number, number]> = CROSS_STREETS.map((c) => [c.x - CS_HALF, c.x + CS_HALF]); // road + flanking sidewalks (no corner here)
     const csGrass: Array<[number, number]> = CROSS_STREETS.map((c) => [c.x - CS_HALF - GCUT, c.x + CS_HALF + GCUT]); // grass corner cut at SOUTH_SIDEWALK_BOTTOM
+    // Round the SIDEWALK fill's square corner at each intersection so the terrazzo can't poke past the
+    // rounded curb onto the asphalt ("no sidewalk bleeding onto the street"). Runs before the curbs.
+    this.drawCornerNooks();
     // back-lot(asphalt) ↔ north sidewalk — sidewalk BELOW, flip. Cut where cross-street sidewalk
     // makes it sidewalk↔sidewalk (±CS_HALF). All road curbs use the CURB-ONLY strip (just the
     // concrete lip + its shadow) so they never paint fill over the world sidewalk/asphalt.
@@ -1493,6 +1487,36 @@ export class HollywoodRenderer {
       this.drawCurb(SOUTH_SIDEWALK_BOTTOM, 1, "grass");
     // vertical cross-street curbs + the rounded intersection/yard corners
     this.drawCrossStreetSeams();
+  }
+
+  // Round the sidewalk fill's square corner at each intersection: fill asphalt into the little nook
+  // between the terrazzo's square corner and where the rounded curb sits, so the sidewalk tile can't
+  // bleed past the curb onto the street. `dx,dy` point from the elbow toward the sidewalk quadrant;
+  // an evenodd clip (corner square MINUS the curb-radius disc) fills only the poking nook.
+  private drawCornerNooks(): void {
+    if (this.cam.zoom <= TILE_ZOOM_GATE) return;
+    const vx = this.cam.x;
+    const vR = vx + this.cssW / this.cam.zoom;
+    const r = 28; // ≈ the road corner's arc radius
+    const nook = (ex: number, ey: number, dx: number, dy: number) => {
+      const ctx = this.ctx;
+      const sx0 = Math.min(ex, ex + dx * r);
+      const sy0 = Math.min(ey, ey + dy * r);
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(sx0, sy0, r, r);
+      ctx.arc(ex + dx * r, ey + dy * r, r, 0, Math.PI * 2);
+      ctx.clip("evenodd");
+      this.fillTiled(sx0, sy0, sx0 + r, sy0 + r, "asphalt.jpg");
+      ctx.restore();
+    };
+    for (const cs of CROSS_STREETS) {
+      if (cs.x + CS_ROAD_HALF < vx - 40 || cs.x - CS_ROAD_HALF > vR + 40) continue;
+      nook(cs.x - CS_ROAD_HALF, ROAD_TOP, -1, -1); // NW sidewalk corner
+      nook(cs.x + CS_ROAD_HALF, ROAD_TOP, 1, -1); // NE
+      nook(cs.x - CS_ROAD_HALF, ROAD_BOTTOM, -1, 1); // SW
+      nook(cs.x + CS_ROAD_HALF, ROAD_BOTTOM, 1, 1); // SE
+    }
   }
 
   // Cross-street edges: the vertical road↔sidewalk curbs down each cross street, the vertical
