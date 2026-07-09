@@ -158,6 +158,12 @@ const TILE_ZOOM_GATE = 0.24;
 // variation that never reads as a repeating stamp).
 const NOISE_WORLD = 420;
 
+// Road curb (sep-road-curb.png) — the strip cropped to just the concrete lip + its contact shadow,
+// so it paints only the curb, never fill over the world sidewalk/asphalt. RCH = the band's world
+// height; RCF = the fraction of the band where the sidewalk↔road boundary sits.
+const RCH = 15;
+const RCF = 0.625;
+
 // Player-controlled character tuning. Movement is now bounded by the street "+" corridor
 // (see canWalk in sceneData) rather than a fixed y-band, so the player can walk the full
 // boulevard AND up/down Highland Ave and turn the corner at the intersection.
@@ -1454,18 +1460,19 @@ export class HollywoodRenderer {
     const csRoad: Array<[number, number]> = CROSS_STREETS.map((c) => [c.x - CS_ROAD_HALF, c.x + CS_ROAD_HALF]); // only the cross-street ROAD
     const csHalf: Array<[number, number]> = CROSS_STREETS.map((c) => [c.x - CS_HALF, c.x + CS_HALF]); // road + flanking sidewalks
     // back-lot(asphalt) ↔ north sidewalk — sidewalk BELOW, flip. Cut where cross-street sidewalk
-    // makes it sidewalk↔sidewalk (±CS_HALF).
-    if (!this.drawSeparator("sep-road.png", NORTH_SIDEWALK_TOP, 46, 0.314, true, csHalf))
+    // makes it sidewalk↔sidewalk (±CS_HALF). All road curbs use the CURB-ONLY strip (just the
+    // concrete lip + its shadow) so they never paint fill over the world sidewalk/asphalt.
+    if (!this.drawSeparator("sep-road-curb.png", NORTH_SIDEWALK_TOP, RCH, RCF, true, csHalf))
       this.drawCurb(NORTH_SIDEWALK_TOP, -1, "lot");
     // north sidewalk ↔ boulevard road — sidewalk ABOVE. Curb continues over the cross-street
     // SIDEWALK (it's still sidewalk↔road there), so cut only at the cross-street ROAD (±CS_ROAD_HALF).
-    if (!this.drawSeparator("sep-road.png", ROAD_TOP, 46, 0.314, false, csRoad))
+    if (!this.drawSeparator("sep-road-curb.png", ROAD_TOP, RCH, RCF, false, csRoad))
       this.drawCurb(ROAD_TOP, 1, "road");
     // road ↔ south back-lot — asphalt↔asphalt construction joint (cut around the whole crossing)
     if (!this.drawSeparator("sep-joint.png", ROAD_BOTTOM, 26, 0.5, false, csHalf))
       this.drawExpansionJoint(ROAD_BOTTOM);
     // south back-lot(asphalt) ↔ south sidewalk — sidewalk BELOW, flip
-    if (!this.drawSeparator("sep-road.png", SOUTH_SIDEWALK_TOP, 46, 0.314, true, csHalf))
+    if (!this.drawSeparator("sep-road-curb.png", SOUTH_SIDEWALK_TOP, RCH, RCF, true, csHalf))
       this.drawCurb(SOUTH_SIDEWALK_TOP, -1, "lot");
     // south sidewalk ↔ residential grass — concrete ABOVE, grass below
     if (!this.drawSeparator("sep-grass.png", SOUTH_SIDEWALK_BOTTOM, 54, 0.6, false, csHalf))
@@ -1491,22 +1498,22 @@ export class HollywoodRenderer {
     // cropped to just the concrete lip before stroking) so it never paints the flanking sidewalk/road
     // — the world tiles show through on both sides, no bright patch, no street bleed. Elbow fraction +
     // world size (curb radius ≈ 41u either way) are read straight from the bake output.
-    const RE = 0.838; // road-corner elbow fraction
-    const RC = 87; // road-corner world size
+    const RE = 0.847; // road-corner elbow fraction (curb-only stroked bake)
+    const RC = 83; // road-corner world size (399px ÷ 4.8px/u; curb band = RCH)
     const GE = 0.655; // grass-corner elbow fraction
     const GC = 148; // grass-corner world size
     for (const cs of CROSS_STREETS) {
       if (cs.x + CS_HALF < vx - 20 || cs.x - CS_HALF > vR + 20) continue;
       // vertical road curbs (road EAST of the west seam, WEST of the east seam), open at the blvd
-      this.drawSeparatorV("sep-road.png", cs.x - CS_ROAD_HALF, 46, 0.314, true, mouth);
-      this.drawSeparatorV("sep-road.png", cs.x + CS_ROAD_HALF, 46, 0.314, false, mouth);
+      this.drawSeparatorV("sep-road-curb.png", cs.x - CS_ROAD_HALF, RCH, RCF, true, mouth);
+      this.drawSeparatorV("sep-road-curb.png", cs.x + CS_ROAD_HALF, RCH, RCF, false, mouth);
       // vertical grass curbs on the cross-street's OUTER sidewalk edges, residential grass only
       this.drawSeparatorV("sep-grass.png", cs.x - CS_HALF, 54, 0.6, false, grassOnly);
       this.drawSeparatorV("sep-grass.png", cs.x + CS_HALF, 54, 0.6, true, grassOnly);
       // short curb the cross-street sidewalk shows the boulevard road, just SOUTH of the crossing
       // (road ABOVE, sidewalk below → flipped). Bridges the vertical road curb up to ROAD_BOTTOM.
-      this.drawSeparatorSpanH("sep-road.png", ROAD_BOTTOM, cs.x - CS_HALF, cs.x - CS_ROAD_HALF, 46, 0.314, true);
-      this.drawSeparatorSpanH("sep-road.png", ROAD_BOTTOM, cs.x + CS_ROAD_HALF, cs.x + CS_HALF, 46, 0.314, true);
+      this.drawSeparatorSpanH("sep-road-curb.png", ROAD_BOTTOM, cs.x - CS_HALF, cs.x - CS_ROAD_HALF, RCH, RCF, true);
+      this.drawSeparatorSpanH("sep-road-curb.png", ROAD_BOTTOM, cs.x + CS_ROAD_HALF, cs.x + CS_HALF, RCH, RCF, true);
       // (a) road corners — all four: the sidewalk wraps each corner of the intersection (convex)
       this.drawCornerTile("sep-corner-road.png", cs.x - CS_ROAD_HALF, ROAD_TOP, RC, false, false, RE, RE); // NW
       this.drawCornerTile("sep-corner-road.png", cs.x + CS_ROAD_HALF, ROAD_TOP, RC, true, false, RE, RE); // NE
