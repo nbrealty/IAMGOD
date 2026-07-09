@@ -277,60 +277,12 @@ export const RES_FRONTAGES: Frontage[] = Array.from({ length: BLOCK_COUNT }, (_,
 
 export const ALL_FRONTAGES: Frontage[] = [...NORTH_FRONTAGES, ...SOUTH_FRONTAGES, ...RES_FRONTAGES];
 
-// ---- procedural backdrop + residential rows (deterministic, no randomness) ----
+// ---- backdrop + residential rows ----
 
-interface RowOpts {
-  baseY: number;
-  side: "north" | "south";
-  count: number;
-  startX: number;
-  minW: number;
-  varW: number;
-  minH: number;
-  varH: number;
-  dim: number;
-  palette: string[];
-  gapBase: number;
-  gapVar: number;
-  growUp?: boolean;
-}
-
-function genRow(o: RowOpts): Building[] {
-  const out: Building[] = [];
-  let x = o.startX;
-  for (let i = 0; i < o.count; i++) {
-    const w = o.minW + ((i * 37 + o.baseY) % o.varW);
-    const h = o.minH + ((i * 53 + 7) % o.varH);
-    // Never let a code-drawn block land on a cross-street corridor (no houses on the road).
-    const onStreet = CROSS_STREETS.some((cs) => x + w > cs.x - CS_HALF && x < cs.x + CS_HALF);
-    if (!onStreet) {
-      out.push({
-        x,
-        width: w,
-        height: h,
-        side: o.side,
-        baseY: o.baseY,
-        facadeColor: o.palette[(i + o.baseY) % o.palette.length],
-        dim: o.dim,
-        growUp: o.growUp,
-      });
-    }
-    x += w + o.gapBase + ((i * 23) % o.gapVar);
-    if (x > WORLD_W + 40) break;
-  }
-  return out;
-}
-
-// Low-contrast hazy blue-greys so the distant boxes read as one soft skyline silhouette on the
-// horizon rather than a row of individual placeholder buildings.
-const BACKDROP_PALETTE = ["#3a4250", "#3d4553", "#404857", "#394150", "#3e4654", "#3c4452"];
-
-// Receding skyline high above the north frontage (spans the full district width). Kept dim as a
-// hazy backdrop silhouette; real skyline art can drop in over this later.
-export const BACKDROP_BUILDINGS: Building[] = [
-  ...genRow({ baseY: 300, side: "north", count: 160, startX: -60, minW: 120, varW: 100, minH: 200, varH: 120, dim: 0.42, palette: BACKDROP_PALETTE, gapBase: 10, gapVar: 30 }),
-  ...genRow({ baseY: 520, side: "north", count: 175, startX: -30, minW: 100, varW: 90, minH: 150, varH: 100, dim: 0.6, palette: BACKDROP_PALETTE, gapBase: 12, gapVar: 26 }),
-];
+// The procedural silhouette skyline (genRow-generated dim boxes) was KILLED — it will be replaced
+// with real asset filler buildings. Kept as an empty export so the renderer's backdrop pass is a
+// harmless no-op until the replacement art is wired in.
+export const BACKDROP_BUILDINGS: Building[] = [];
 
 // Removed: the old code-drawn dark placeholder row behind the residential back-street. The real
 // house-casa sprites (RES_FRONTAGES) fill this row, so the placeholders only showed as dark boxes.
