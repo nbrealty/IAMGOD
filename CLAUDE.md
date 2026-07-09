@@ -90,9 +90,14 @@ feet-anchored to one ground-Y, which is the sort key.
   art, NOT code-drawn curbs. Straight strips (`sep-road`/`sep-grass`/`sep-joint`)
   are baked from the source curb strips with the outer edges feathered to alpha,
   then tiled along each seam by `drawSeparator` (horizontal) / `drawSeparatorV`
-  (vertical, one quarter-turn) with the art's **measured curb fraction** (road
-  0.314, grass 0.60 — NOT the band centre) pinned to the world seam Y/X, so the
-  straight curb lands exactly where a corner's curb does. A flip serves both
+  (vertical, one quarter-turn) with the art's **measured curb fraction** pinned to
+  the world seam Y/X (road curb-only strip 0.625; grass curb+fringe strip 0.654 —
+  NOT the band centre), so the straight curb lands exactly where a corner's curb
+  does. The **grass** strip keeps only the curb + a thin blade fringe (its far
+  grass cropped off and the fringe **tone-matched to `grass.jpg`** and ramped to
+  alpha 0), so the bleed dissolves into the lawn as a soft rounded fringe instead
+  of a wide band whose square inner corner tone-stepped against the world grass.
+  A flip serves both
   orientations; each horizontal curb skips only the surfaces that make it a
   non-curb there (ROAD_TOP skips just the cross-street road ±CS_ROAD_HALF, the
   sidewalk↔sidewalk/backlot curbs skip ±CS_HALF). **Corners are STROKED from the

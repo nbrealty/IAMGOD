@@ -166,8 +166,8 @@ const RCF = 0.625;
 // Grass curb (sep-grass-curb.png) — sep-grass with the sidewalk terrazzo cropped off the top (so it
 // can't bleed a mismatched patch onto the world sidewalk) but the curb + grass kept (the grass bleeds
 // softly onto the world grass, a wanted effect). GCH = band world height; GCF = the seam fraction.
-const GCH = 40;
-const GCF = 0.459;
+const GCH = 28;
+const GCF = 0.654;
 
 // Player-controlled character tuning. Movement is now bounded by the street "+" corridor
 // (see canWalk in sceneData) rather than a fixed y-band, so the player can walk the full
@@ -1505,8 +1505,8 @@ export class HollywoodRenderer {
     // world size (curb radius ≈ 41u either way) are read straight from the bake output.
     const RE = 0.847; // road-corner elbow fraction (curb-only stroked bake)
     const RC = 83; // road-corner world size (399px ÷ 4.8px/u; curb band = RCH)
-    const GE = 0.699; // grass-corner elbow fraction (sidewalk-cut concave bake)
-    const GC = 109; // grass-corner world size (552px ÷ 5.07px/u; band = GCH)
+    const GE = 0.713; // grass-corner elbow fraction (sidewalk-cut concave bake)
+    const GC = 101; // grass-corner world size (516px ÷ 5.09px/u; band = GCH)
     for (const cs of CROSS_STREETS) {
       if (cs.x + CS_HALF < vx - 20 || cs.x - CS_HALF > vR + 20) continue;
       // vertical road curbs (road EAST of the west seam, WEST of the east seam), open at the blvd
