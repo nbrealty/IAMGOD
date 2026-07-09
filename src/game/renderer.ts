@@ -163,6 +163,11 @@ const NOISE_WORLD = 420;
 // height; RCF = the fraction of the band where the sidewalk↔road boundary sits.
 const RCH = 15;
 const RCF = 0.625;
+// Grass curb (sep-grass-curb.png) — sep-grass with the sidewalk terrazzo cropped off the top (so it
+// can't bleed a mismatched patch onto the world sidewalk) but the curb + grass kept (the grass bleeds
+// softly onto the world grass, a wanted effect). GCH = band world height; GCF = the seam fraction.
+const GCH = 40;
+const GCF = 0.459;
 
 // Player-controlled character tuning. Movement is now bounded by the street "+" corridor
 // (see canWalk in sceneData) rather than a fixed y-band, so the player can walk the full
@@ -1474,8 +1479,8 @@ export class HollywoodRenderer {
     // south back-lot(asphalt) ↔ south sidewalk — sidewalk BELOW, flip
     if (!this.drawSeparator("sep-road-curb.png", SOUTH_SIDEWALK_TOP, RCH, RCF, true, csHalf))
       this.drawCurb(SOUTH_SIDEWALK_TOP, -1, "lot");
-    // south sidewalk ↔ residential grass — concrete ABOVE, grass below
-    if (!this.drawSeparator("sep-grass.png", SOUTH_SIDEWALK_BOTTOM, 54, 0.6, false, csHalf))
+    // south sidewalk ↔ residential grass — curb+grass only (sidewalk cut, grass bleeds onto grass)
+    if (!this.drawSeparator("sep-grass-curb.png", SOUTH_SIDEWALK_BOTTOM, GCH, GCF, false, csHalf))
       this.drawCurb(SOUTH_SIDEWALK_BOTTOM, 1, "grass");
     // vertical cross-street curbs + the rounded intersection/yard corners
     this.drawCrossStreetSeams();
@@ -1500,16 +1505,16 @@ export class HollywoodRenderer {
     // world size (curb radius ≈ 41u either way) are read straight from the bake output.
     const RE = 0.847; // road-corner elbow fraction (curb-only stroked bake)
     const RC = 83; // road-corner world size (399px ÷ 4.8px/u; curb band = RCH)
-    const GE = 0.655; // grass-corner elbow fraction
-    const GC = 148; // grass-corner world size
+    const GE = 0.699; // grass-corner elbow fraction (sidewalk-cut concave bake)
+    const GC = 109; // grass-corner world size (552px ÷ 5.07px/u; band = GCH)
     for (const cs of CROSS_STREETS) {
       if (cs.x + CS_HALF < vx - 20 || cs.x - CS_HALF > vR + 20) continue;
       // vertical road curbs (road EAST of the west seam, WEST of the east seam), open at the blvd
       this.drawSeparatorV("sep-road-curb.png", cs.x - CS_ROAD_HALF, RCH, RCF, true, mouth);
       this.drawSeparatorV("sep-road-curb.png", cs.x + CS_ROAD_HALF, RCH, RCF, false, mouth);
       // vertical grass curbs on the cross-street's OUTER sidewalk edges, residential grass only
-      this.drawSeparatorV("sep-grass.png", cs.x - CS_HALF, 54, 0.6, false, grassOnly);
-      this.drawSeparatorV("sep-grass.png", cs.x + CS_HALF, 54, 0.6, true, grassOnly);
+      this.drawSeparatorV("sep-grass-curb.png", cs.x - CS_HALF, GCH, GCF, false, grassOnly);
+      this.drawSeparatorV("sep-grass-curb.png", cs.x + CS_HALF, GCH, GCF, true, grassOnly);
       // short curb the cross-street sidewalk shows the boulevard road, just SOUTH of the crossing
       // (road ABOVE, sidewalk below → flipped). Bridges the vertical road curb up to ROAD_BOTTOM.
       this.drawSeparatorSpanH("sep-road-curb.png", ROAD_BOTTOM, cs.x - CS_HALF, cs.x - CS_ROAD_HALF, RCH, RCF, true);
