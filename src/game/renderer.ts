@@ -1146,95 +1146,64 @@ export class HollywoodRenderer {
     return (this.noisePattern = pat ?? null);
   }
 
-  // Dissolve the hard line where two ground surfaces meet: bleed each surface's texture a short
-  // way across the seam with a stepped alpha fade, so the boundary "smudges" instead of cutting.
-  // `upperName`/`lowerName` are the tiles above/below the seam; pass null for a flat (base-fill)
-  // side (nothing to bleed). Drawn AFTER all ground surfaces are laid, before actors.
-  private featherSeam(y: number, upperName: string | null, lowerName: string | null, band = 26): void {
-    const ctx = this.ctx;
-    const steps = 6;
-    const h = band / steps;
-    // lower texture bleeds UP into [y-band, y] — strongest at the seam, fading upward.
-    if (lowerName)
-      for (let i = 0; i < steps; i++) {
-        ctx.globalAlpha = 0.5 * ((i + 0.5) / steps);
-        this.fillTiled(0, y - band + i * h, WORLD_W, y - band + i * h + h + 0.5, lowerName);
-      }
-    // upper texture bleeds DOWN into [y, y+band] — strongest at the seam, fading downward.
-    if (upperName)
-      for (let i = 0; i < steps; i++) {
-        ctx.globalAlpha = 0.5 * (1 - (i + 0.5) / steps);
-        this.fillTiled(0, y + i * h, WORLD_W, y + i * h + h + 0.5, upperName);
-      }
-    ctx.globalAlpha = 1;
-  }
-
-  // Scatter small deterministic specks straddling a seam (grass tufts / gravel) so no continuous
-  // hard line survives. Only when zoomed in enough to read them.
-  private scatterSeamDecals(y: number, kind: "grass" | "gravel"): void {
-    if (this.cam.zoom < 0.32) return;
-    const ctx = this.ctx;
+  // Visible boulevard x-segments, skipping the cross-street mouths (so every edge/curb has a
+  // curb-cut at each intersection). Shared by the curb + joint routines.
+  private forEachStreetSpan(cb: (x0: number, x1: number) => void): void {
     const vx = this.cam.x;
-    const vR = vx + this.cssW / this.cam.zoom;
-    ctx.save();
-    for (let x = Math.floor(vx / 38) * 38; x < vR; x += 38) {
-      if (CROSS_STREETS.some((cs) => x > cs.x - CS_HALF && x < cs.x + CS_HALF)) continue;
-      const r = groundHash(x, y);
-      if (r < 0.45) continue;
-      const dx = (groundHash(x, 7) - 0.5) * 30;
-      const dy = (groundHash(x, 13) - 0.5) * 15;
-      const s = 1.6 + r * 2.8;
-      ctx.globalAlpha = 0.22 + 0.3 * groundHash(x, 3);
-      ctx.fillStyle = kind === "grass" ? (groundHash(x, 9) > 0.5 ? "#5f7a3e" : "#6d8747") : "#585047";
-      ctx.beginPath();
-      ctx.ellipse(x + dx, y + dy, s, s * 0.72, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.globalAlpha = 1;
-    ctx.restore();
-  }
-
-  // A real concrete CURB where the boulevard sidewalk meets the residential grass: a light lip
-  // (the raised curb face catching light), a crisp top seam, and a soft drop-shadow onto the grass
-  // (the step down), plus a few grass blades overhanging the edge. Drawn per visible x-segment,
-  // skipping cross-street mouths (curb cut at intersections). Code-drawn — no asset needed.
-  private drawCurbEdge(y: number): void {
-    const ctx = this.ctx;
-    const vx = this.cam.x;
-    const vR = vx + this.cssW / this.cam.zoom;
-    // visible x-segments, minus the cross-street road+walk mouths
-    const segs: [number, number][] = [];
+    const end = vx + this.cssW / this.cam.zoom + 20;
     let cursor = vx - 20;
-    const end = vR + 20;
     const cuts = CROSS_STREETS.map((cs) => [cs.x - CS_HALF, cs.x + CS_HALF] as [number, number])
       .filter((c) => c[1] > cursor && c[0] < end)
       .sort((a, b) => a[0] - b[0]);
     for (const [c0, c1] of cuts) {
-      if (c0 > cursor) segs.push([cursor, Math.min(c0, end)]);
+      if (c0 > cursor) cb(cursor, Math.min(c0, end));
       cursor = Math.max(cursor, c1);
     }
-    if (cursor < end) segs.push([cursor, end]);
+    if (cursor < end) cb(cursor, end);
+  }
 
+  // A concrete CURB where a raised sidewalk meets a lower surface — a crisp architectural edge, not
+  // a blend ("edge the built"). `lowDy` points from the seam toward the LOW side (+1 = low is
+  // down-screen/nearer, -1 = low is up-screen/farther). `kind`: "road" adds a gutter trough,
+  // "grass" a green drop-shadow + overhanging blades, "lot" a plain paved lot. All code-drawn.
+  private drawCurb(y: number, lowDy: 1 | -1, kind: "road" | "grass" | "lot"): void {
+    const ctx = this.ctx;
+    const lipH = 6;
+    const shH = kind === "road" ? 9 : 10;
+    const sc = kind === "grass" ? "10,18,6" : "5,5,9"; // shadow colour (green over grass, else cool)
     ctx.save();
-    for (const [x0, x1] of segs) {
+    this.forEachStreetSpan((x0, x1) => {
       const w = x1 - x0;
-      if (w <= 0) continue;
-      // drop shadow onto the grass below (the step down)
-      const sg = ctx.createLinearGradient(0, y, 0, y + 10);
-      sg.addColorStop(0, "rgba(10,18,6,0.5)");
-      sg.addColorStop(1, "rgba(10,18,6,0)");
+      if (w <= 0) return;
+      // cast shadow on the LOW side, darkest at the seam, fading away
+      const sg = ctx.createLinearGradient(0, y, 0, y + lowDy * shH);
+      sg.addColorStop(0, `rgba(${sc},0.5)`);
+      sg.addColorStop(1, `rgba(${sc},0)`);
       ctx.fillStyle = sg;
-      ctx.fillRect(x0, y, w, 10);
-      // concrete curb lip (raised face catching light), just above the grass line
-      ctx.fillStyle = "#928d82";
-      ctx.fillRect(x0, y - 6, w, 5);
-      ctx.fillStyle = "#a6a196"; // top highlight edge
-      ctx.fillRect(x0, y - 6, w, 1.5);
-      ctx.fillStyle = "rgba(38,34,28,0.55)"; // crisp shadow seam under the sidewalk
-      ctx.fillRect(x0, y - 7.5, w, 1.5);
-    }
-    // grass blades overhanging the curb, deterministic, only when readable
-    if (this.cam.zoom >= 0.3) {
+      ctx.fillRect(x0, lowDy > 0 ? y : y - shH, w, shH);
+      // concrete curb lip on the HIGH side
+      const lipTop = lowDy > 0 ? y - lipH : y;
+      ctx.fillStyle = "#8f8a80";
+      ctx.fillRect(x0, lipTop, w, lipH);
+      ctx.fillStyle = "#b0a998"; // bright outer highlight
+      ctx.fillRect(x0, lowDy > 0 ? lipTop : lipTop + lipH - 1.4, w, 1.4);
+      ctx.fillStyle = "rgba(28,26,22,0.5)"; // crisp seam line at the boundary
+      ctx.fillRect(x0, y - 0.7, w, 1.4);
+      // gutter trough for a road (a shallow channel just past the curb)
+      if (kind === "road") {
+        const gy = lowDy > 0 ? y + shH : y - shH - 7;
+        const gg = ctx.createLinearGradient(0, gy, 0, gy + 7);
+        gg.addColorStop(0, "rgba(40,40,46,0)");
+        gg.addColorStop(0.5, "rgba(22,22,26,0.5)");
+        gg.addColorStop(1, "rgba(40,40,46,0)");
+        ctx.fillStyle = gg;
+        ctx.fillRect(x0, gy, w, 7);
+      }
+    });
+    // grass blades overhanging the curb (grass only, when readable)
+    if (kind === "grass" && this.cam.zoom >= 0.3) {
+      const vx = this.cam.x;
+      const vR = vx + this.cssW / this.cam.zoom;
       for (let x = Math.floor(vx / 24) * 24; x < vR; x += 24) {
         if (CROSS_STREETS.some((cs) => x > cs.x - CS_HALF && x < cs.x + CS_HALF)) continue;
         if (groundHash(x, y + 3) < 0.5) continue;
@@ -1244,15 +1213,29 @@ export class HollywoodRenderer {
         const bl = 3 + groundHash(x, 11) * 3;
         for (let k = -1; k <= 1; k++) {
           ctx.beginPath();
-          ctx.moveTo(gx + k * 2.2, y - 2);
-          ctx.lineTo(gx + k * 2.2 - 1.1, y - 2 - bl);
-          ctx.lineTo(gx + k * 2.2 + 1.1, y - 2 - bl);
+          ctx.moveTo(gx + k * 2.2, y - lowDy * 2);
+          ctx.lineTo(gx + k * 2.2 - 1.1, y - lowDy * (2 + bl));
+          ctx.lineTo(gx + k * 2.2 + 1.1, y - lowDy * (2 + bl));
           ctx.closePath();
           ctx.fill();
         }
       }
       ctx.globalAlpha = 1;
     }
+    ctx.restore();
+  }
+
+  // An expansion / construction JOINT between two same-material pavements (asphalt↔asphalt) — a
+  // crisp engraved groove, NOT a blend: a thin dark core with a faint highlight just below it.
+  private drawExpansionJoint(y: number): void {
+    const ctx = this.ctx;
+    const vx = this.cam.x;
+    const vw = this.cssW / this.cam.zoom;
+    ctx.save();
+    ctx.fillStyle = "rgba(0,0,0,0.3)";
+    ctx.fillRect(vx, y - 0.6, vw, 1.2);
+    ctx.fillStyle = "rgba(255,255,255,0.07)";
+    ctx.fillRect(vx, y + 0.7, vw, 1);
     ctx.restore();
   }
 
@@ -1297,17 +1280,15 @@ export class HollywoodRenderer {
     ctx.restore();
   }
 
-  // Blend every boulevard ground seam: feather the textures across each other and litter the two
-  // most visible transitions (sidewalk↔road, sidewalk↔grass) with breakup decals.
+  // Every boulevard ground boundary is hardscape↔hardscape, so each gets a crisp architectural
+  // EDGE (curb / gutter / expansion joint), never a gradient blend ("edge the built" — the rule
+  // real streets and Cities:Skylines/RCT follow: a curb is a discrete raised step, not a smear).
   private drawSeamBlends(): void {
-    this.featherSeam(NORTH_SIDEWALK_TOP, null, "sidewalk.jpg"); // north base ↔ sidewalk
-    this.featherSeam(ROAD_TOP, "sidewalk.jpg", "asphalt.jpg"); // north sidewalk ↔ road
-    this.featherSeam(ROAD_BOTTOM, "asphalt.jpg", null); // road ↔ south base
-    this.featherSeam(SOUTH_SIDEWALK_TOP, null, "sidewalk.jpg"); // south base ↔ sidewalk
-    // sidewalk ↔ grass gets a real CURB (below), NOT a grass feather — bleeding the grass tile up
-    // across the full width smeared green over the cross-streets and back-lot.
-    this.drawCurbEdge(SOUTH_SIDEWALK_BOTTOM);
-    this.scatterSeamDecals(ROAD_TOP, "gravel");
+    this.drawCurb(NORTH_SIDEWALK_TOP, -1, "lot"); // back-lot ↔ north sidewalk (sidewalk raised; low above)
+    this.drawCurb(ROAD_TOP, 1, "road"); // north sidewalk ↔ boulevard road (curb + gutter)
+    this.drawExpansionJoint(ROAD_BOTTOM); // road ↔ south back-lot (asphalt ↔ asphalt)
+    this.drawCurb(SOUTH_SIDEWALK_TOP, -1, "lot"); // back-lot ↔ south sidewalk (sidewalk raised; low above)
+    this.drawCurb(SOUTH_SIDEWALK_BOTTOM, 1, "grass"); // south sidewalk ↔ grass (curb + fringe)
   }
 
   // The ground plane, drawn first behind everything. A base tone, a smooth all-zoom mottle so the
