@@ -105,6 +105,15 @@ feet-anchored to one ground-Y, which is the sort key.
   `sep-corner-road` convex, `sep-corner-grass` concave), so the corner curb is
   byte-identical to the straight curb — its arms overlap the straights seamlessly
   (no doubled line), and being a thin band it can't print a picture-frame halo.
+  The curb art is stone BLOCKS with dark mortar joints and a ragged, bright-rimmed
+  painted edge; three bake passes keep the built edge CLEAN (the recurring "stuff
+  coming out of the edge"): (a) the corner strokes a **joint-free window** of the
+  strip (shorter than one block) so the arc is one smooth continuous curb, no
+  joints; (b) a **swept clean-edge mask** (`bake_stroke` cleanOut/cleanIn) trims the
+  bumpy hand-painted silhouette to a smooth curve — grass keeps its inner (blade)
+  side loose; the straight strips get the matching top/edge trim (`trim_straight`);
+  (c) `clean_edges` caps the luminance of the semi-transparent feather so the edge
+  blends into the sidewalk instead of glowing as a bright scalloped lace.
   `drawCornerTile` pins the baked elbow fraction to the junction and mirrors to
   all four rotations; all four road corners exist (the cross-street sidewalk runs
   both N and S of the boulevard). Code-drawn `drawCurb`/`drawExpansionJoint`
