@@ -109,8 +109,10 @@ feet-anchored to one ground-Y, which is the sort key.
   painted edge; three bake passes keep the built edge CLEAN (the recurring "stuff
   coming out of the edge"): (a) the corner strokes a **joint-free window** of the
   strip (shorter than one block) so the arc is one smooth continuous curb, no
-  joints; (b) a **swept clean-edge mask** (`bake_stroke` cleanOut/cleanIn) trims the
-  bumpy hand-painted silhouette to a smooth curve — grass keeps its inner (blade)
+  joints; (b) a **clean-edge mask** (`bake_stroke` cleanOut/cleanIn) — one filled
+  path (offset concentric arc + straight arms, NOT swept rects, which would scallop
+  the convex side) — trims the bumpy hand-painted silhouette to a smooth curve on
+  the outer (sidewalk/road) side; grass keeps its inner (blade)
   side loose; the straight strips get the matching top/edge trim (`trim_straight`);
   (c) `clean_edges` caps the luminance of the semi-transparent feather so the edge
   blends into the sidewalk instead of glowing as a bright scalloped lace.
