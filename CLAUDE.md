@@ -86,6 +86,16 @@ feet-anchored to one ground-Y, which is the sort key.
 - Keying: flood-fill the key color from the image borders; slice multi-item
   sheets by connected-component blob detection + bbox merge (avoid grid-splits
   that leave neighbor bleed).
+- **Tile separators** (`public/tiles/sep-*.png`) are hand-painted ground-boundary
+  art, NOT code-drawn curbs. Straight strips (`sep-road`/`sep-grass`/`sep-joint`)
+  are baked from the source curb strips with the outer edges feathered to alpha,
+  then tiled along each seam by `drawSeparator` (horizontal) / `drawSeparatorV`
+  (vertical, one quarter-turn) with the art's baked seam line pinned to the world
+  seam Y/X; a flip serves both orientations, and cross-street mouths are skipped
+  (curb-cuts). `sep-corner-road` is a border-feathered convex corner placed once
+  per intersection corner (`drawCornerTile`, elbow pinned, mirrored to all four).
+  Code-drawn `drawCurb`/`drawExpansionJoint` remain only as the far-zoom /
+  not-yet-decoded fallback. **Edge the built, don't blend it.**
 - **New ped uploads must be classified front vs back.** The `public/npc/` pool
   mixes both; only face-visible FRONT sprites go in `PED_FRONT` (renderer.ts) —
   a back-view left in that list walks the sidewalk permanently facing away.

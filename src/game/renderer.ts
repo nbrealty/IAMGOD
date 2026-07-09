@@ -1280,14 +1280,55 @@ export class HollywoodRenderer {
     ctx.restore();
   }
 
+  // Core: tile a separator strip in the CURRENT (possibly rotated) coordinate frame. The band runs
+  // along local +x from a0..a1, is `cross` units wide across local y, with the art's baked seam line
+  // sitting at local y=0 (seamFrac into the source). `skip` is a sorted list of [lo,hi] along-ranges
+  // to leave open (curb-cuts at intersections). Sub-samples the source at clipped ends so tiles meet
+  // cleanly. Callers set up the transform (identity for horizontal seams, a rotation for vertical).
+  private tileBand(
+    img: HTMLImageElement,
+    a0: number,
+    a1: number,
+    cross: number,
+    seamFrac: number,
+    skip: Array<[number, number]>,
+  ): void {
+    const ctx = this.ctx;
+    const iw = img.naturalWidth;
+    const ih = img.naturalHeight;
+    const tileW = (cross * iw) / ih; // keep the art's aspect so curb blocks aren't stretched
+    const yTop = -seamFrac * cross; // seam line at local y=0
+    const cuts = skip
+      .filter((c) => c[1] > a0 && c[0] < a1)
+      .sort((p, q) => p[0] - q[0]);
+    let cursor = a0;
+    const spans: Array<[number, number]> = [];
+    for (const [c0, c1] of cuts) {
+      if (c0 > cursor) spans.push([cursor, Math.min(c0, a1)]);
+      cursor = Math.max(cursor, c1);
+    }
+    if (cursor < a1) spans.push([cursor, a1]);
+    for (const [s0, s1] of spans) {
+      const start = Math.floor(s0 / tileW) * tileW; // anchor tiling to origin (adjacent spans align)
+      for (let x = start; x < s1; x += tileW) {
+        const dx0 = Math.max(x, s0);
+        const dx1 = Math.min(x + tileW, s1);
+        if (dx1 <= dx0) continue;
+        const su0 = ((dx0 - x) / tileW) * iw; // sub-sample the source for clipped L/R edges
+        const su1 = ((dx1 - x) / tileW) * iw;
+        ctx.drawImage(img, su0, 0, su1 - su0, ih, dx0, yTop, dx1 - dx0, cross);
+      }
+    }
+  }
+
   // Hand-painted tile-separator ART band (public/tiles/sep-*.png) tiled horizontally along a seam,
   // feathered top/bottom so it dissolves into the surfaces on either side. The band's `seamFrac`
   // line (the crisp boundary baked into the art) is anchored exactly to the world seam Y; `flip`
   // mirrors the band vertically about that same line (so one asset serves both orientations —
   // sidewalk-above-road AND asphalt-above-sidewalk). Drawn as a GROUND pre-pass (before the sorted
-  // actors, so souls/props occlude it), viewport-culled, and skipping cross-street mouths via
-  // forEachStreetSpan so intersections read as curb-cuts. Returns false (→ code-curb fallback) when
-  // the art isn't decoded yet or we're zoomed too far out to read it.
+  // actors, so souls/props occlude it), viewport-culled, and skipping cross-street mouths so
+  // intersections read as curb-cuts. Returns false (→ code-curb fallback) when the art isn't
+  // decoded yet or we're zoomed too far out to read it.
   private drawSeparator(
     name: string,
     seamY: number,
@@ -1299,30 +1340,81 @@ export class HollywoodRenderer {
     const img = this.getTile(name);
     if (!img || !img.complete || img.naturalWidth === 0) return false;
     const ctx = this.ctx;
+    const vx = this.cam.x;
+    const a0 = vx - 20;
+    const a1 = vx + this.cssW / this.cam.zoom + 20;
+    // curb-cuts at every intersection (matches forEachStreetSpan's ±CS_HALF skip)
+    const skip = CROSS_STREETS.map(
+      (cs) => [cs.x - CS_HALF, cs.x + CS_HALF] as [number, number],
+    );
+    ctx.save();
+    ctx.translate(0, seamY);
+    if (flip) ctx.scale(1, -1); // mirror across the seam line (stays put at local y=0)
+    this.tileBand(img, a0, a1, bandH, seamFrac, skip);
+    ctx.restore();
+    return true;
+  }
+
+  // Vertical sibling of drawSeparator for a cross-street's road↔sidewalk edge. The same horizontal
+  // strip art is rotated a quarter-turn so its long run of curb blocks travels DOWN the street; the
+  // baked seam line lands on the vertical world seam X. `roadOnEast` puts the road (the strip's
+  // "bottom") to the +X side; otherwise to −X. `skip` leaves the boulevard mouth open.
+  private drawSeparatorV(
+    name: string,
+    seamX: number,
+    bandW: number,
+    seamFrac: number,
+    roadOnEast: boolean,
+    skip: Array<[number, number]>,
+  ): boolean {
+    if (this.cam.zoom <= TILE_ZOOM_GATE) return false;
+    const img = this.getTile(name);
+    if (!img || !img.complete || img.naturalWidth === 0) return false;
+    const ctx = this.ctx;
+    const vy = this.cam.y;
+    const a0 = vy - 20;
+    const a1 = vy + this.cssH / this.cam.zoom + 20;
+    ctx.save();
+    // map local +x → world +Y (down the street), local +y → world ±X (sidewalk→road across)
+    if (roadOnEast) ctx.transform(0, 1, 1, 0, seamX, 0); // road to +X (east)
+    else ctx.transform(0, 1, -1, 0, seamX, 0); // road to −X (west)
+    this.tileBand(img, a0, a1, bandW, seamFrac, skip);
+    ctx.restore();
+    return true;
+  }
+
+  // A hand-painted CORNER / RAMP tile placed once (not tiled): the art's registration point
+  // (elbowFx, elbowFy as fractions of the source) is pinned to world (px, py); the piece is scaled
+  // to `size` world units and optionally mirrored in X/Y so one drawing serves all four rotations.
+  // Border-feathered at bake time, so it overlays the underlying tiles and dissolves at its edges.
+  private drawCornerTile(
+    name: string,
+    px: number,
+    py: number,
+    size: number,
+    flipX: boolean,
+    flipY: boolean,
+    elbowFx: number,
+    elbowFy: number,
+  ): boolean {
+    if (this.cam.zoom <= TILE_ZOOM_GATE) return false;
+    const img = this.getTile(name);
+    if (!img || !img.complete || img.naturalWidth === 0) return false;
+    // viewport cull
+    const vx = this.cam.x;
+    const vy = this.cam.y;
+    const vR = vx + this.cssW / this.cam.zoom;
+    const vB = vy + this.cssH / this.cam.zoom;
+    if (px + size < vx || px - size > vR || py + size < vy || py - size > vB) return false;
     const iw = img.naturalWidth;
     const ih = img.naturalHeight;
-    const tileW = (bandH * iw) / ih; // keep the art's aspect so curb blocks aren't stretched
-    const yTop = seamY - seamFrac * bandH; // the seam line lands exactly on seamY (unflipped)
+    const h = (size * ih) / iw; // keep aspect
+    const ctx = this.ctx;
     ctx.save();
-    if (flip) {
-      // mirror vertically about seamY — the seam line is at seamY, so it stays put
-      ctx.translate(0, seamY);
-      ctx.scale(1, -1);
-      ctx.translate(0, -seamY);
-    }
-    this.forEachStreetSpan((x0, x1) => {
-      const w = x1 - x0;
-      if (w <= 0) return;
-      const start = Math.floor(x0 / tileW) * tileW; // anchor tiling to world origin (spans align)
-      for (let x = start; x < x1; x += tileW) {
-        const dx0 = Math.max(x, x0);
-        const dx1 = Math.min(x + tileW, x1);
-        if (dx1 <= dx0) continue;
-        const su0 = ((dx0 - x) / tileW) * iw; // sub-sample the source for clipped L/R edges
-        const su1 = ((dx1 - x) / tileW) * iw;
-        ctx.drawImage(img, su0, 0, su1 - su0, ih, dx0, yTop, dx1 - dx0, bandH);
-      }
-    });
+    ctx.translate(px, py);
+    ctx.scale(flipX ? -1 : 1, flipY ? -1 : 1);
+    // draw so the registration point lands at the origin (= world px,py)
+    ctx.drawImage(img, -elbowFx * size, -elbowFy * h, size, h);
     ctx.restore();
     return true;
   }
@@ -1347,6 +1439,44 @@ export class HollywoodRenderer {
     // south sidewalk ↔ residential grass — concrete ABOVE, grass below (band as authored)
     if (!this.drawSeparator("sep-grass.png", SOUTH_SIDEWALK_BOTTOM, 54, 0.55, false))
       this.drawCurb(SOUTH_SIDEWALK_BOTTOM, 1, "grass");
+    // vertical cross-street curbs + the intersection corner pieces + crosswalk ramps
+    this.drawCrossStreetSeams();
+  }
+
+  // Cross-street edges: the vertical road↔sidewalk curbs down each cross street, the vertical
+  // grass↔sidewalk curbs in the residential zone, and the rounded corner pieces where a raised
+  // sidewalk turns a corner (road corners at the boulevard, grass corners at the yards). All
+  // hand-painted art (sep-road / sep-grass rotated, sep-corner-*), viewport-culled per street.
+  private drawCrossStreetSeams(): void {
+    if (this.cam.zoom <= TILE_ZOOM_GATE) return;
+    const vx = this.cam.x;
+    const vR = vx + this.cssW / this.cam.zoom;
+    const mouth: Array<[number, number]> = [[ROAD_TOP - 2, ROAD_BOTTOM + 2]]; // open at the blvd
+    for (const cs of CROSS_STREETS) {
+      if (cs.x + CS_HALF < vx - 20 || cs.x - CS_HALF > vR + 20) continue;
+      // vertical road curbs: road is EAST of the west seam, WEST of the east seam
+      this.drawSeparatorV("sep-road.png", cs.x - CS_ROAD_HALF, 40, 0.5, true, mouth);
+      this.drawSeparatorV("sep-road.png", cs.x + CS_ROAD_HALF, 40, 0.5, false, mouth);
+      // vertical grass curbs on the cross-street's OUTER sidewalk edges, in the residential grass
+      // zone only (grass is the "art-bottom" side: WEST of the west edge, EAST of the east edge)
+      const grassOnly: Array<[number, number]> = [[0, SOUTH_SIDEWALK_BOTTOM]];
+      this.drawSeparatorV("sep-grass.png", cs.x - CS_HALF, 44, 0.5, false, grassOnly);
+      this.drawSeparatorV("sep-grass.png", cs.x + CS_HALF, 44, 0.5, true, grassOnly);
+      // Rounded corner pieces. Only where a raised SIDEWALK actually forms an L against a lower
+      // surface — NOT at asphalt↔asphalt edges. The boulevard road has sidewalk on its NORTH side
+      // only (its south edge, ROAD_BOTTOM, meets back-lot asphalt → a plain joint, no curb corner).
+      const C = 72; // corner tile world size — small so the curb rounds the junction, not an island
+      const ex = 0.33,
+        ey = 0.34; // where the road-corner curb elbow sits in the art
+      // (a) road corners: N sidewalk wraps the boulevard×cross-street intersection (top two only)
+      this.drawCornerTile("sep-corner-road.png", cs.x - CS_ROAD_HALF, ROAD_TOP, C, false, false, ex, ey); // NW: sidewalk top-left
+      this.drawCornerTile("sep-corner-road.png", cs.x + CS_ROAD_HALF, ROAD_TOP, C, true, false, ex, ey); // NE: sidewalk top-right
+      // (b) grass corners: the south sidewalk wraps the cross-street where it meets residential grass
+      const gx = 0.32,
+        gy = 0.33; // grass-corner elbow in the art
+      this.drawCornerTile("sep-corner-grass.png", cs.x - CS_HALF, SOUTH_SIDEWALK_BOTTOM, C, true, false, gx, gy); // sidewalk top-right, grass bottom-left
+      this.drawCornerTile("sep-corner-grass.png", cs.x + CS_HALF, SOUTH_SIDEWALK_BOTTOM, C, false, false, gx, gy); // sidewalk top-left, grass bottom-right
+    }
   }
 
   // The ground plane, drawn first behind everything. A base tone, a smooth all-zoom mottle so the
