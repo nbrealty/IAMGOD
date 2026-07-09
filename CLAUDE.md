@@ -90,12 +90,20 @@ feet-anchored to one ground-Y, which is the sort key.
   art, NOT code-drawn curbs. Straight strips (`sep-road`/`sep-grass`/`sep-joint`)
   are baked from the source curb strips with the outer edges feathered to alpha,
   then tiled along each seam by `drawSeparator` (horizontal) / `drawSeparatorV`
-  (vertical, one quarter-turn) with the art's baked seam line pinned to the world
-  seam Y/X; a flip serves both orientations, and cross-street mouths are skipped
-  (curb-cuts). `sep-corner-road` is a border-feathered convex corner placed once
-  per intersection corner (`drawCornerTile`, elbow pinned, mirrored to all four).
-  Code-drawn `drawCurb`/`drawExpansionJoint` remain only as the far-zoom /
-  not-yet-decoded fallback. **Edge the built, don't blend it.**
+  (vertical, one quarter-turn) with the art's **measured curb fraction** (road
+  0.314, grass 0.60 — NOT the band centre) pinned to the world seam Y/X, so the
+  straight curb lands exactly where a corner's curb does. A flip serves both
+  orientations; each horizontal curb skips only the surfaces that make it a
+  non-curb there (ROAD_TOP skips just the cross-street road ±CS_ROAD_HALF, the
+  sidewalk↔sidewalk/backlot curbs skip ±CS_HALF). **Corners are STROKED from the
+  same strip** (`bake_stroke.js` sweeps the strip along a rounded-L path →
+  `sep-corner-road` convex, `sep-corner-grass` concave), so the corner curb is
+  byte-identical to the straight curb — its arms overlap the straights seamlessly
+  (no doubled line), and being a thin band it can't print a picture-frame halo.
+  `drawCornerTile` pins the baked elbow fraction to the junction and mirrors to
+  all four rotations; all four road corners exist (the cross-street sidewalk runs
+  both N and S of the boulevard). Code-drawn `drawCurb`/`drawExpansionJoint`
+  remain only as the far-zoom / not-yet-decoded fallback. **Edge the built.**
 - **New ped uploads must be classified front vs back.** The `public/npc/` pool
   mixes both; only face-visible FRONT sprites go in `PED_FRONT` (renderer.ts) —
   a back-view left in that list walks the sidewalk permanently facing away.

@@ -1335,6 +1335,7 @@ export class HollywoodRenderer {
     bandH: number,
     seamFrac: number,
     flip: boolean,
+    skip: Array<[number, number]>,
   ): boolean {
     if (this.cam.zoom <= TILE_ZOOM_GATE) return false;
     const img = this.getTile(name);
@@ -1343,14 +1344,37 @@ export class HollywoodRenderer {
     const vx = this.cam.x;
     const a0 = vx - 20;
     const a1 = vx + this.cssW / this.cam.zoom + 20;
-    // curb-cuts at every intersection (matches forEachStreetSpan's ±CS_HALF skip)
-    const skip = CROSS_STREETS.map(
-      (cs) => [cs.x - CS_HALF, cs.x + CS_HALF] as [number, number],
-    );
     ctx.save();
     ctx.translate(0, seamY);
     if (flip) ctx.scale(1, -1); // mirror across the seam line (stays put at local y=0)
     this.tileBand(img, a0, a1, bandH, seamFrac, skip);
+    ctx.restore();
+    return true;
+  }
+
+  // A horizontal separator band clipped to a single world-X span [x0,x1] (no tiling gaps) — used for
+  // the short curb the cross-street sidewalk presents to the boulevard road south of the intersection.
+  private drawSeparatorSpanH(
+    name: string,
+    seamY: number,
+    x0: number,
+    x1: number,
+    bandH: number,
+    seamFrac: number,
+    flip: boolean,
+  ): boolean {
+    if (this.cam.zoom <= TILE_ZOOM_GATE) return false;
+    const img = this.getTile(name);
+    if (!img || !img.complete || img.naturalWidth === 0) return false;
+    const ctx = this.ctx;
+    const vx = this.cam.x;
+    const a0 = Math.max(x0, vx - 20);
+    const a1 = Math.min(x1, vx + this.cssW / this.cam.zoom + 20);
+    if (a1 <= a0) return false;
+    ctx.save();
+    ctx.translate(0, seamY);
+    if (flip) ctx.scale(1, -1);
+    this.tileBand(img, a0, a1, bandH, seamFrac, []);
     ctx.restore();
     return true;
   }
@@ -1424,58 +1448,69 @@ export class HollywoodRenderer {
   // the hand-painted separator ART (drawSeparator); the code-drawn drawCurb/drawExpansionJoint are
   // the far-zoom / not-yet-decoded fallback so there's always an edge.
   private drawSeamBlends(): void {
-    // back-lot(asphalt) ↔ north sidewalk — sidewalk is BELOW, so flip the sidewalk→road band
-    if (!this.drawSeparator("sep-road.png", NORTH_SIDEWALK_TOP, 46, 0.5, true))
+    // Per-curb skip windows. The concrete curb sits at seamFrac in the art (measured: road 0.314,
+    // grass 0.60), NOT the band centre — pinning that fraction to the world seam is what makes the
+    // straight curb land exactly where the corner curb does (no doubled line).
+    const csRoad: Array<[number, number]> = CROSS_STREETS.map((c) => [c.x - CS_ROAD_HALF, c.x + CS_ROAD_HALF]); // only the cross-street ROAD
+    const csHalf: Array<[number, number]> = CROSS_STREETS.map((c) => [c.x - CS_HALF, c.x + CS_HALF]); // road + flanking sidewalks
+    // back-lot(asphalt) ↔ north sidewalk — sidewalk BELOW, flip. Cut where cross-street sidewalk
+    // makes it sidewalk↔sidewalk (±CS_HALF).
+    if (!this.drawSeparator("sep-road.png", NORTH_SIDEWALK_TOP, 46, 0.314, true, csHalf))
       this.drawCurb(NORTH_SIDEWALK_TOP, -1, "lot");
-    // north sidewalk ↔ boulevard road — sidewalk ABOVE, road below (band as authored)
-    if (!this.drawSeparator("sep-road.png", ROAD_TOP, 46, 0.5, false))
+    // north sidewalk ↔ boulevard road — sidewalk ABOVE. Curb continues over the cross-street
+    // SIDEWALK (it's still sidewalk↔road there), so cut only at the cross-street ROAD (±CS_ROAD_HALF).
+    if (!this.drawSeparator("sep-road.png", ROAD_TOP, 46, 0.314, false, csRoad))
       this.drawCurb(ROAD_TOP, 1, "road");
-    // road ↔ south back-lot — asphalt ↔ asphalt construction joint
-    if (!this.drawSeparator("sep-joint.png", ROAD_BOTTOM, 26, 0.5, false))
+    // road ↔ south back-lot — asphalt↔asphalt construction joint (cut around the whole crossing)
+    if (!this.drawSeparator("sep-joint.png", ROAD_BOTTOM, 26, 0.5, false, csHalf))
       this.drawExpansionJoint(ROAD_BOTTOM);
     // south back-lot(asphalt) ↔ south sidewalk — sidewalk BELOW, flip
-    if (!this.drawSeparator("sep-road.png", SOUTH_SIDEWALK_TOP, 46, 0.5, true))
+    if (!this.drawSeparator("sep-road.png", SOUTH_SIDEWALK_TOP, 46, 0.314, true, csHalf))
       this.drawCurb(SOUTH_SIDEWALK_TOP, -1, "lot");
-    // south sidewalk ↔ residential grass — concrete ABOVE, grass below (band as authored)
-    if (!this.drawSeparator("sep-grass.png", SOUTH_SIDEWALK_BOTTOM, 54, 0.55, false))
+    // south sidewalk ↔ residential grass — concrete ABOVE, grass below
+    if (!this.drawSeparator("sep-grass.png", SOUTH_SIDEWALK_BOTTOM, 54, 0.6, false, csHalf))
       this.drawCurb(SOUTH_SIDEWALK_BOTTOM, 1, "grass");
-    // vertical cross-street curbs + the intersection corner pieces + crosswalk ramps
+    // vertical cross-street curbs + the rounded intersection/yard corners
     this.drawCrossStreetSeams();
   }
 
   // Cross-street edges: the vertical road↔sidewalk curbs down each cross street, the vertical
-  // grass↔sidewalk curbs in the residential zone, and the rounded corner pieces where a raised
-  // sidewalk turns a corner (road corners at the boulevard, grass corners at the yards). All
-  // hand-painted art (sep-road / sep-grass rotated, sep-corner-*), viewport-culled per street.
+  // grass↔sidewalk curbs in the residential zone, the short curb the cross-street sidewalk shows the
+  // boulevard south of the intersection, and the rounded corner pieces where a raised sidewalk turns.
+  // The corner art is STROKED from the same strip (sep-corner-*), so its curb is byte-identical to
+  // the straight bands' curb — arms overlap the straights seamlessly, no doubled line, no overlap
+  // halo. Convex (road: sidewalk juts into the road) vs concave (grass: sidewalk wraps a lawn pocket)
+  // are baked separately. Elbow fraction + world size come from the bake (curb at strip resolution).
   private drawCrossStreetSeams(): void {
     if (this.cam.zoom <= TILE_ZOOM_GATE) return;
     const vx = this.cam.x;
     const vR = vx + this.cssW / this.cam.zoom;
-    const mouth: Array<[number, number]> = [[ROAD_TOP - 2, ROAD_BOTTOM + 2]]; // open at the blvd
+    const mouth: Array<[number, number]> = [[ROAD_TOP - 2, ROAD_BOTTOM + 2]]; // road curb: open at blvd
+    const grassOnly: Array<[number, number]> = [[0, SOUTH_SIDEWALK_BOTTOM]]; // grass curb: yards only
+    const RE = 0.663; // road-corner elbow fraction (stroked bake)
+    const RC = 115; // road-corner world size (band matches the 46u straight)
+    const GE = 0.688; // grass-corner elbow fraction
+    const GC = 130; // grass-corner world size (band matches the 54u straight)
     for (const cs of CROSS_STREETS) {
       if (cs.x + CS_HALF < vx - 20 || cs.x - CS_HALF > vR + 20) continue;
-      // vertical road curbs: road is EAST of the west seam, WEST of the east seam
-      this.drawSeparatorV("sep-road.png", cs.x - CS_ROAD_HALF, 40, 0.5, true, mouth);
-      this.drawSeparatorV("sep-road.png", cs.x + CS_ROAD_HALF, 40, 0.5, false, mouth);
-      // vertical grass curbs on the cross-street's OUTER sidewalk edges, in the residential grass
-      // zone only (grass is the "art-bottom" side: WEST of the west edge, EAST of the east edge)
-      const grassOnly: Array<[number, number]> = [[0, SOUTH_SIDEWALK_BOTTOM]];
-      this.drawSeparatorV("sep-grass.png", cs.x - CS_HALF, 44, 0.5, false, grassOnly);
-      this.drawSeparatorV("sep-grass.png", cs.x + CS_HALF, 44, 0.5, true, grassOnly);
-      // Rounded corner pieces. Only where a raised SIDEWALK actually forms an L against a lower
-      // surface — NOT at asphalt↔asphalt edges. The boulevard road has sidewalk on its NORTH side
-      // only (its south edge, ROAD_BOTTOM, meets back-lot asphalt → a plain joint, no curb corner).
-      const C = 72; // corner tile world size — small so the curb rounds the junction, not an island
-      const ex = 0.33,
-        ey = 0.34; // where the road-corner curb elbow sits in the art
-      // (a) road corners: N sidewalk wraps the boulevard×cross-street intersection (top two only)
-      this.drawCornerTile("sep-corner-road.png", cs.x - CS_ROAD_HALF, ROAD_TOP, C, false, false, ex, ey); // NW: sidewalk top-left
-      this.drawCornerTile("sep-corner-road.png", cs.x + CS_ROAD_HALF, ROAD_TOP, C, true, false, ex, ey); // NE: sidewalk top-right
-      // (b) grass corners: the south sidewalk wraps the cross-street where it meets residential grass
-      const gx = 0.32,
-        gy = 0.33; // grass-corner elbow in the art
-      this.drawCornerTile("sep-corner-grass.png", cs.x - CS_HALF, SOUTH_SIDEWALK_BOTTOM, C, true, false, gx, gy); // sidewalk top-right, grass bottom-left
-      this.drawCornerTile("sep-corner-grass.png", cs.x + CS_HALF, SOUTH_SIDEWALK_BOTTOM, C, false, false, gx, gy); // sidewalk top-left, grass bottom-right
+      // vertical road curbs (road EAST of the west seam, WEST of the east seam), open at the blvd
+      this.drawSeparatorV("sep-road.png", cs.x - CS_ROAD_HALF, 46, 0.314, true, mouth);
+      this.drawSeparatorV("sep-road.png", cs.x + CS_ROAD_HALF, 46, 0.314, false, mouth);
+      // vertical grass curbs on the cross-street's OUTER sidewalk edges, residential grass only
+      this.drawSeparatorV("sep-grass.png", cs.x - CS_HALF, 54, 0.6, false, grassOnly);
+      this.drawSeparatorV("sep-grass.png", cs.x + CS_HALF, 54, 0.6, true, grassOnly);
+      // short curb the cross-street sidewalk shows the boulevard road, just SOUTH of the crossing
+      // (road ABOVE, sidewalk below → flipped). Bridges the vertical road curb up to ROAD_BOTTOM.
+      this.drawSeparatorSpanH("sep-road.png", ROAD_BOTTOM, cs.x - CS_HALF, cs.x - CS_ROAD_HALF, 46, 0.314, true);
+      this.drawSeparatorSpanH("sep-road.png", ROAD_BOTTOM, cs.x + CS_ROAD_HALF, cs.x + CS_HALF, 46, 0.314, true);
+      // (a) road corners — all four: the sidewalk wraps each corner of the intersection (convex)
+      this.drawCornerTile("sep-corner-road.png", cs.x - CS_ROAD_HALF, ROAD_TOP, RC, false, false, RE, RE); // NW
+      this.drawCornerTile("sep-corner-road.png", cs.x + CS_ROAD_HALF, ROAD_TOP, RC, true, false, RE, RE); // NE
+      this.drawCornerTile("sep-corner-road.png", cs.x - CS_ROAD_HALF, ROAD_BOTTOM, RC, false, true, RE, RE); // SW
+      this.drawCornerTile("sep-corner-road.png", cs.x + CS_ROAD_HALF, ROAD_BOTTOM, RC, true, true, RE, RE); // SE
+      // (b) grass corners — the south sidewalk wraps the lawn pocket beside each cross-street (concave)
+      this.drawCornerTile("sep-corner-grass.png", cs.x - CS_HALF, SOUTH_SIDEWALK_BOTTOM, GC, false, true, GE, GE); // grass SW pocket
+      this.drawCornerTile("sep-corner-grass.png", cs.x + CS_HALF, SOUTH_SIDEWALK_BOTTOM, GC, true, true, GE, GE); // grass SE pocket
     }
   }
 
