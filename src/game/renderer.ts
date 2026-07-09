@@ -1194,6 +1194,68 @@ export class HollywoodRenderer {
     ctx.restore();
   }
 
+  // A real concrete CURB where the boulevard sidewalk meets the residential grass: a light lip
+  // (the raised curb face catching light), a crisp top seam, and a soft drop-shadow onto the grass
+  // (the step down), plus a few grass blades overhanging the edge. Drawn per visible x-segment,
+  // skipping cross-street mouths (curb cut at intersections). Code-drawn — no asset needed.
+  private drawCurbEdge(y: number): void {
+    const ctx = this.ctx;
+    const vx = this.cam.x;
+    const vR = vx + this.cssW / this.cam.zoom;
+    // visible x-segments, minus the cross-street road+walk mouths
+    const segs: [number, number][] = [];
+    let cursor = vx - 20;
+    const end = vR + 20;
+    const cuts = CROSS_STREETS.map((cs) => [cs.x - CS_HALF, cs.x + CS_HALF] as [number, number])
+      .filter((c) => c[1] > cursor && c[0] < end)
+      .sort((a, b) => a[0] - b[0]);
+    for (const [c0, c1] of cuts) {
+      if (c0 > cursor) segs.push([cursor, Math.min(c0, end)]);
+      cursor = Math.max(cursor, c1);
+    }
+    if (cursor < end) segs.push([cursor, end]);
+
+    ctx.save();
+    for (const [x0, x1] of segs) {
+      const w = x1 - x0;
+      if (w <= 0) continue;
+      // drop shadow onto the grass below (the step down)
+      const sg = ctx.createLinearGradient(0, y, 0, y + 10);
+      sg.addColorStop(0, "rgba(10,18,6,0.5)");
+      sg.addColorStop(1, "rgba(10,18,6,0)");
+      ctx.fillStyle = sg;
+      ctx.fillRect(x0, y, w, 10);
+      // concrete curb lip (raised face catching light), just above the grass line
+      ctx.fillStyle = "#928d82";
+      ctx.fillRect(x0, y - 6, w, 5);
+      ctx.fillStyle = "#a6a196"; // top highlight edge
+      ctx.fillRect(x0, y - 6, w, 1.5);
+      ctx.fillStyle = "rgba(38,34,28,0.55)"; // crisp shadow seam under the sidewalk
+      ctx.fillRect(x0, y - 7.5, w, 1.5);
+    }
+    // grass blades overhanging the curb, deterministic, only when readable
+    if (this.cam.zoom >= 0.3) {
+      for (let x = Math.floor(vx / 24) * 24; x < vR; x += 24) {
+        if (CROSS_STREETS.some((cs) => x > cs.x - CS_HALF && x < cs.x + CS_HALF)) continue;
+        if (groundHash(x, y + 3) < 0.5) continue;
+        const gx = x + (groundHash(x, 5) - 0.5) * 16;
+        ctx.fillStyle = groundHash(x, 9) > 0.5 ? "#5f7a3e" : "#6d8747";
+        ctx.globalAlpha = 0.85;
+        const bl = 3 + groundHash(x, 11) * 3;
+        for (let k = -1; k <= 1; k++) {
+          ctx.beginPath();
+          ctx.moveTo(gx + k * 2.2, y - 2);
+          ctx.lineTo(gx + k * 2.2 - 1.1, y - 2 - bl);
+          ctx.lineTo(gx + k * 2.2 + 1.1, y - 2 - bl);
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
+      ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+  }
+
   // Night light that lands ON the floor — the warm pool each lamp casts on the sidewalk. Drawn as
   // a GROUND pre-pass (after the seams, before the sorted actors) with `lighter`, so souls/props
   // draw OVER it and correctly stand IN the light instead of being washed by it from on top. The
@@ -1242,9 +1304,10 @@ export class HollywoodRenderer {
     this.featherSeam(ROAD_TOP, "sidewalk.jpg", "asphalt.jpg"); // north sidewalk ↔ road
     this.featherSeam(ROAD_BOTTOM, "asphalt.jpg", null); // road ↔ south base
     this.featherSeam(SOUTH_SIDEWALK_TOP, null, "sidewalk.jpg"); // south base ↔ sidewalk
-    this.featherSeam(SOUTH_SIDEWALK_BOTTOM, "sidewalk.jpg", "grass.jpg"); // sidewalk ↔ grass
+    // sidewalk ↔ grass gets a real CURB (below), NOT a grass feather — bleeding the grass tile up
+    // across the full width smeared green over the cross-streets and back-lot.
+    this.drawCurbEdge(SOUTH_SIDEWALK_BOTTOM);
     this.scatterSeamDecals(ROAD_TOP, "gravel");
-    this.scatterSeamDecals(SOUTH_SIDEWALK_BOTTOM, "grass");
   }
 
   // The ground plane, drawn first behind everything. A base tone, a smooth all-zoom mottle so the
