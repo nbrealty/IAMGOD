@@ -161,7 +161,7 @@ const NOISE_WORLD = 420;
 // Road curb (sep-road-curb.png) — the strip cropped to just the concrete lip + its contact shadow,
 // so it paints only the curb, never fill over the world sidewalk/asphalt. RCH = the band's world
 // height; RCF = the fraction of the band where the sidewalk↔road boundary sits.
-const RCH = 15;
+const RCH = 10;
 const RCF = 0.625;
 // Grass curb (sep-grass-curb.png) — sep-grass with the sidewalk terrazzo cropped off the top (so it
 // can't bleed a mismatched patch onto the world sidewalk) but the curb + grass kept (the grass bleeds
@@ -1502,9 +1502,10 @@ export class HollywoodRenderer {
     // Corner geometry comes from bake_stroke.js. The road corner is baked CURB-ONLY (the strip is
     // cropped to just the concrete lip before stroking) so it never paints the flanking sidewalk/road
     // — the world tiles show through on both sides, no bright patch, no street bleed. Elbow fraction +
-    // world size (curb radius ≈ 41u either way) are read straight from the bake output.
+    // world size are read from the bake; RC is scaled so the corner's curb band == RCH (matched
+    // thickness so the arc and the straight curb read as one thin, un-chunky line at the join).
     const RE = 0.847; // road-corner elbow fraction (curb-only stroked bake)
-    const RC = 83; // road-corner world size (399px ÷ 4.8px/u; curb band = RCH)
+    const RC = 55; // road-corner world size (399px ÷ 7.25px/u so curb band = RCH=10)
     const GE = 0.713; // grass-corner elbow fraction (sidewalk-cut concave bake)
     const GC = 101; // grass-corner world size (516px ÷ 5.09px/u; band = GCH)
     for (const cs of CROSS_STREETS) {
