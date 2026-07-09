@@ -1280,15 +1280,73 @@ export class HollywoodRenderer {
     ctx.restore();
   }
 
+  // Hand-painted tile-separator ART band (public/tiles/sep-*.png) tiled horizontally along a seam,
+  // feathered top/bottom so it dissolves into the surfaces on either side. The band's `seamFrac`
+  // line (the crisp boundary baked into the art) is anchored exactly to the world seam Y; `flip`
+  // mirrors the band vertically about that same line (so one asset serves both orientations —
+  // sidewalk-above-road AND asphalt-above-sidewalk). Drawn as a GROUND pre-pass (before the sorted
+  // actors, so souls/props occlude it), viewport-culled, and skipping cross-street mouths via
+  // forEachStreetSpan so intersections read as curb-cuts. Returns false (→ code-curb fallback) when
+  // the art isn't decoded yet or we're zoomed too far out to read it.
+  private drawSeparator(
+    name: string,
+    seamY: number,
+    bandH: number,
+    seamFrac: number,
+    flip: boolean,
+  ): boolean {
+    if (this.cam.zoom <= TILE_ZOOM_GATE) return false;
+    const img = this.getTile(name);
+    if (!img || !img.complete || img.naturalWidth === 0) return false;
+    const ctx = this.ctx;
+    const iw = img.naturalWidth;
+    const ih = img.naturalHeight;
+    const tileW = (bandH * iw) / ih; // keep the art's aspect so curb blocks aren't stretched
+    const yTop = seamY - seamFrac * bandH; // the seam line lands exactly on seamY (unflipped)
+    ctx.save();
+    if (flip) {
+      // mirror vertically about seamY — the seam line is at seamY, so it stays put
+      ctx.translate(0, seamY);
+      ctx.scale(1, -1);
+      ctx.translate(0, -seamY);
+    }
+    this.forEachStreetSpan((x0, x1) => {
+      const w = x1 - x0;
+      if (w <= 0) return;
+      const start = Math.floor(x0 / tileW) * tileW; // anchor tiling to world origin (spans align)
+      for (let x = start; x < x1; x += tileW) {
+        const dx0 = Math.max(x, x0);
+        const dx1 = Math.min(x + tileW, x1);
+        if (dx1 <= dx0) continue;
+        const su0 = ((dx0 - x) / tileW) * iw; // sub-sample the source for clipped L/R edges
+        const su1 = ((dx1 - x) / tileW) * iw;
+        ctx.drawImage(img, su0, 0, su1 - su0, ih, dx0, yTop, dx1 - dx0, bandH);
+      }
+    });
+    ctx.restore();
+    return true;
+  }
+
   // Every boulevard ground boundary is hardscape↔hardscape, so each gets a crisp architectural
-  // EDGE (curb / gutter / expansion joint), never a gradient blend ("edge the built" — the rule
-  // real streets and Cities:Skylines/RCT follow: a curb is a discrete raised step, not a smear).
+  // EDGE (curb / gutter / expansion joint), never a gradient blend ("edge the built"). We prefer
+  // the hand-painted separator ART (drawSeparator); the code-drawn drawCurb/drawExpansionJoint are
+  // the far-zoom / not-yet-decoded fallback so there's always an edge.
   private drawSeamBlends(): void {
-    this.drawCurb(NORTH_SIDEWALK_TOP, -1, "lot"); // back-lot ↔ north sidewalk (sidewalk raised; low above)
-    this.drawCurb(ROAD_TOP, 1, "road"); // north sidewalk ↔ boulevard road (curb + gutter)
-    this.drawExpansionJoint(ROAD_BOTTOM); // road ↔ south back-lot (asphalt ↔ asphalt)
-    this.drawCurb(SOUTH_SIDEWALK_TOP, -1, "lot"); // back-lot ↔ south sidewalk (sidewalk raised; low above)
-    this.drawCurb(SOUTH_SIDEWALK_BOTTOM, 1, "grass"); // south sidewalk ↔ grass (curb + fringe)
+    // back-lot(asphalt) ↔ north sidewalk — sidewalk is BELOW, so flip the sidewalk→road band
+    if (!this.drawSeparator("sep-road.png", NORTH_SIDEWALK_TOP, 46, 0.5, true))
+      this.drawCurb(NORTH_SIDEWALK_TOP, -1, "lot");
+    // north sidewalk ↔ boulevard road — sidewalk ABOVE, road below (band as authored)
+    if (!this.drawSeparator("sep-road.png", ROAD_TOP, 46, 0.5, false))
+      this.drawCurb(ROAD_TOP, 1, "road");
+    // road ↔ south back-lot — asphalt ↔ asphalt construction joint
+    if (!this.drawSeparator("sep-joint.png", ROAD_BOTTOM, 26, 0.5, false))
+      this.drawExpansionJoint(ROAD_BOTTOM);
+    // south back-lot(asphalt) ↔ south sidewalk — sidewalk BELOW, flip
+    if (!this.drawSeparator("sep-road.png", SOUTH_SIDEWALK_TOP, 46, 0.5, true))
+      this.drawCurb(SOUTH_SIDEWALK_TOP, -1, "lot");
+    // south sidewalk ↔ residential grass — concrete ABOVE, grass below (band as authored)
+    if (!this.drawSeparator("sep-grass.png", SOUTH_SIDEWALK_BOTTOM, 54, 0.55, false))
+      this.drawCurb(SOUTH_SIDEWALK_BOTTOM, 1, "grass");
   }
 
   // The ground plane, drawn first behind everything. A base tone, a smooth all-zoom mottle so the
