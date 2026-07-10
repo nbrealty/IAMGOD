@@ -149,11 +149,13 @@ const AREAS: Record<string, AreaView> = {
     w: 1536, h: 1024,
     floorTop: 830, floorBot: 1005, // shallow walkable lane along the bottom, in front of the counter
     halfTop: 470, halfBot: 610,
-    cx: 768, entryX: 780, entryY: 960,
-    scaleBack: 0.92, entryZoom: 1.0, charScale: 5.5, // matches the back room's human scale
+    cx: 768, entryX: 780, entryY: 962,
+    // COUNTER RULE: a person's WAIST must sit on the counter line. The floor is ~y960 and the
+    // counter top ~y600, so an adult (waist ≈ half height) needs ~8× the overworld body height.
+    scaleBack: 0.94, entryZoom: 1.0, charScale: 8.0,
     exitTo: null, // walk off the front edge → back out to the boulevard
     foreground: "aguas-front-counter", // the counter, drawn IN FRONT of Yara so she stands behind it
-    occupants: [{ stem: "yara", x: 660, y: 780, scale: 1.0 }], // Yara BEHIND the counter — hip at the counter line, legs hidden
+    occupants: [{ stem: "yara", x: 660, y: 870, scale: 1.0 }], // Yara BEHIND the counter — waist on the counter line, legs hidden
     // beaded curtain on the right → the back consultation room
     curtain: { openX: 1040, openBackdrop: "aguas-front-open", enterX: 1280, toArea: "aguas-back" },
   },

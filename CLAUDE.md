@@ -132,6 +132,17 @@ feet-anchored to one ground-Y, which is the sort key.
    of the plate makes its lit windows/signage glow. `setControlled` drops any active room. This
    is the generic mechanism for ALL future enterable buildings — add an `AREAS` entry + one plate.
 
+   **7c. Room human scale — people are sized to the PAINTED FURNITURE, not the overworld.** A room
+   plate is a small interior; the overworld `CHAR_BODY_H` is a fraction of it, so an un-scaled avatar
+   renders child-sized. Each `AREAS` entry sets `charScale` (multiplier on `CHAR_BODY_H`, applied to
+   the avatar AND static `occupants`) calibrated to the art: an adult is ≈0.8×door / ≈2×chair-back /
+   ≈1.8×counter height (research-backed). **Counter rooms obey the COUNTER RULE: the counter line
+   must meet a person at the WAIST (at least)** — anything higher reads as a child at an adult
+   counter. A keeper stands BEHIND the counter via a `foreground` overlay plate (the counter band,
+   transparent above it, drawn in front of `occupants` but behind the player) so the counter hides
+   their legs and the waist-on-counter proportion reads for free; the player stands in front. Size a
+   new room by measuring its door/chair/counter in the plate and setting `charScale` so the rule holds.
+
 ## Asset pipeline
 
 - Raw magenta/white-keyed source art lives in `art-src/` (NOT shipped).
