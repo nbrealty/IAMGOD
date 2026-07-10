@@ -111,13 +111,13 @@ const AREAS: Record<string, AreaView> = {
   "overture-court": {
     id: "overture-court",
     view: "headon",
-    backdrop: "overture-court-interior",
-    w: 1536, h: 758, // (bump to 1050 + shift floor when the transparent-sky plate lands)
-    floorTop: 434, floorBot: 740,
-    halfTop: 300, halfBot: 560,
-    cx: 768, entryX: 768, entryY: 712,
-    scaleBack: 0.7,
-    // sky: { skyline: "skyline-silhouette", windows: "skyline-windows", rooflineY: 300 } — enable with assets
+    backdrop: "overture-court-interior", // transparent-sky plate (1517×1037), floor baked in
+    w: 1517, h: 1037,
+    floorTop: 660, floorBot: 1010, // painted plaza floor band (in front of the storefronts)
+    halfTop: 520, halfBot: 650,
+    cx: 758, entryX: 758, entryY: 940,
+    scaleBack: 0.72,
+    sky: { skyline: "skyline-silhouette", windows: "skyline-windows", rooflineY: 250 },
   },
 };
 const ROOM_FADE = 0.42; // seconds for a full fade-through-black scene swap
@@ -151,6 +151,9 @@ const PROP_H: Record<string, number> = {
   "bus-shelter": 82,
   valet: 108,
   "traffic-signal": 120,
+  stanchion: 46, // Overture court: velvet-rope stanchion (roped)
+  "stanchion-post": 46, // rope-less post
+  "urn-topiary": 66, // ornamental topiary urn
 };
 // Deterministic scatter along the sidewalks (palms weighted for that Hollywood look), with an
 // occasional larger set-piece; traffic signals are placed separately at the intersections.
@@ -2498,14 +2501,34 @@ export class HollywoodRenderer {
     const O = OVERTURE;
     if (O.cx + O.gateHalf + 320 < vx || O.cx - O.gateHalf - 320 > vR) return;
     const colPush = 300; // elephant columns flank the arch at the gate front
-    const palmX = O.courtWalkHalf + 60; // palm rows just outside the walkable lane
-    // a fountain centred mid-court
-    out.push({ y: O.courtBackY + 380, draw: () => this.drawProp("fountain", O.cx, O.courtBackY + 380) });
-    // palm rows lining both sides of the lane at several depths → framing the promenade
-    for (const dy of [90, 240, 400, 560]) {
-      const fy = O.courtBackY + dy;
-      out.push({ y: fy, draw: () => this.drawProp("palm", O.cx - palmX, fy) });
-      out.push({ y: fy + 1, draw: () => this.drawProp("palm", O.cx + palmX, fy + 1) });
+    const cx = O.cx;
+    const at = (dy: number) => O.courtBackY + dy; // depth helper (north/far = small y)
+    // The approach is composed to LEAD the eye north to the room entrance: a lit MARQUEE beacon at
+    // the far terminus, flanked by event BANNERS, a mid-court STATUE pair, STANCHION posts roping the
+    // central runner, URN planters + PALM rows framing the sides. All foot-Y props (constant size).
+    // marquee beacon — the bright far terminus, just south of the room-enter line (you walk into it)
+    out.push({ y: at(224), draw: () => this.drawOvertureBillboard("overture-marquee", cx, at(224), 4.7) });
+    // event banners flanking the entrance
+    out.push({ y: at(196), draw: () => this.drawOvertureBillboard("overture-banner", cx - 175, at(196), 4.4) });
+    out.push({ y: at(198), draw: () => this.drawOvertureBillboard("overture-banner", cx + 175, at(198), 4.4, true) });
+    // statue pair — grand mid-court beat, outside the walkable lane
+    out.push({ y: at(452), draw: () => this.drawOvertureBillboard("overture-statue", cx - 300, at(452), 5) });
+    out.push({ y: at(454), draw: () => this.drawOvertureBillboard("overture-statue", cx + 300, at(454), 5, true) });
+    // stanchion posts roping the central runner up the middle
+    for (const dy of [150, 340, 530, 720]) {
+      out.push({ y: at(dy), draw: () => this.drawProp("stanchion-post", cx - 105, at(dy)) });
+      out.push({ y: at(dy) + 1, draw: () => this.drawProp("stanchion-post", cx + 105, at(dy) + 1) });
+    }
+    // urn planters in the side gutter
+    for (const dy of [300, 620]) {
+      out.push({ y: at(dy), draw: () => this.drawProp("urn-topiary", cx - 215, at(dy)) });
+      out.push({ y: at(dy) + 1, draw: () => this.drawProp("urn-topiary", cx + 215, at(dy) + 1) });
+    }
+    // palm rows framing the promenade at several depths
+    const palmX = O.courtWalkHalf + 60;
+    for (const dy of [90, 240, 400, 560, 700]) {
+      out.push({ y: at(dy), draw: () => this.drawProp("palm", cx - palmX, at(dy)) });
+      out.push({ y: at(dy) + 1, draw: () => this.drawProp("palm", cx + palmX, at(dy) + 1) });
     }
     // the gate — front plane, at the boulevard line (drawn late → occludes anyone behind it)
     out.push({ y: O.gateFootY, draw: () => this.drawOvertureBillboard("overture-gate", O.cx, O.gateFootY, O.gateCH) });
