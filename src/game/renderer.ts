@@ -88,13 +88,37 @@ interface Actor {
 // and the game crossfades into this single painted backdrop plate (overture-court-interior.png),
 // a closer, richer view of the storefronts you browse. Room-local coordinates ARE the plate's
 // pixel space (0..w, 0..h); the avatar is a normal foot-Y billboard walking the painted floor.
-const COURT_ROOM = {
-  w: 1536, h: 758, // backdrop plate pixel size (= room-local world; dead sky cropped)
-  floorTop: 434, floorBot: 740, // walkable band (the painted plaza floor), near→far
-  halfTop: 300, halfBot: 560, // floor half-width at the back / the front (a trapezoid lane)
-  cx: 768, // room centre x
-  entryX: 768, entryY: 712, // where you arrive on entering (front-centre, facing in)
-  scaleBack: 0.7, // avatar depth scale at the back vs 1.0 at the front (mild, parallel-safe)
+// An enterable AREA (scene-swap room). Its VIEW is declared per-area — the city is top-down and
+// sky-less; special areas like the court room are head-on and CAN show a time-reactive sky/skyline.
+// Adding a future rooftop / interior is then DATA (a new AREAS entry), not new render code. Room-local
+// coordinates ARE the backdrop plate's pixel space (0..w, 0..h); the avatar walks the painted floor
+// as a normal foot-Y billboard.
+type ViewMode = "topdown" | "headon";
+interface AreaView {
+  id: string;
+  view: ViewMode; // 'headon' = elevated plate that may show sky; 'topdown' = city (no sky)
+  backdrop: string; // interior plate key under /overture/
+  w: number; h: number; // plate pixel size = room-local world
+  floorTop: number; floorBot: number; // walkable band (painted floor), near→far
+  halfTop: number; halfBot: number; // floor half-width at back / front (a parallel trapezoid lane)
+  cx: number;
+  entryX: number; entryY: number; // where you arrive on entering
+  scaleBack: number; // avatar depth scale at the back vs 1.0 front (mild, parallel-safe)
+  floorTile?: string; // optional shared ground tile key
+  sky?: { skyline: string; windows: string; rooflineY: number }; // head-on areas only; procedural sky + these
+}
+const AREAS: Record<string, AreaView> = {
+  "overture-court": {
+    id: "overture-court",
+    view: "headon",
+    backdrop: "overture-court-interior",
+    w: 1536, h: 758, // (bump to 1050 + shift floor when the transparent-sky plate lands)
+    floorTop: 434, floorBot: 740,
+    halfTop: 300, halfBot: 560,
+    cx: 768, entryX: 768, entryY: 712,
+    scaleBack: 0.7,
+    // sky: { skyline: "skyline-silhouette", windows: "skyline-windows", rooflineY: 300 } — enable with assets
+  },
 };
 const ROOM_FADE = 0.42; // seconds for a full fade-through-black scene swap
 const COURT_ENTER_Y = OVERTURE.courtBackY + 200; // walk north of this line in the court → load room
@@ -286,6 +310,41 @@ function goldenAt(minutes: number): number {
   const bump = (a: number, peak: number, c: number) => smoothstep(a, peak, m) - smoothstep(peak, c, m);
   return Math.max(bump(330, 400, 500), bump(1050, 1140, 1230));
 }
+
+// Procedural SKY gradient for HEAD-ON areas (the court room, future rooftops): zenith (top) →
+// horizon (bottom), keyed to minute-of-day. Zero assets — reflects time automatically. The city's
+// top-down view never draws this (it has no sky). Mirrors ambientAt's keyframe lerp.
+type RGB = { r: number; g: number; b: number };
+const SKY_KEYS: { m: number; top: RGB; hor: RGB }[] = [
+  { m: 0, top: { r: 10, g: 16, b: 48 }, hor: { r: 26, g: 36, b: 64 } }, // deep night
+  { m: 300, top: { r: 22, g: 32, b: 74 }, hor: { r: 52, g: 58, b: 102 } }, // pre-dawn
+  { m: 366, top: { r: 74, g: 85, b: 144 }, hor: { r: 200, g: 160, b: 180 } }, // dawn
+  { m: 420, top: { r: 127, g: 176, b: 224 }, hor: { r: 255, g: 202, b: 160 } }, // sunrise
+  { m: 600, top: { r: 121, g: 184, b: 234 }, hor: { r: 207, g: 230, b: 245 } }, // morning
+  { m: 780, top: { r: 111, g: 176, b: 240 }, hor: { r: 191, g: 224, b: 245 } }, // midday
+  { m: 1050, top: { r: 122, g: 176, b: 224 }, hor: { r: 255, g: 214, b: 160 } }, // afternoon
+  { m: 1140, top: { r: 106, g: 90, b: 160 }, hor: { r: 255, g: 138, b: 68 } }, // hot dusk
+  { m: 1200, top: { r: 58, g: 44, b: 114 }, hor: { r: 132, g: 62, b: 116 } }, // magenta dusk
+  { m: 1245, top: { r: 42, g: 44, b: 96 }, hor: { r: 88, g: 50, b: 106 } }, // violet
+  { m: 1305, top: { r: 16, g: 20, b: 58 }, hor: { r: 34, g: 38, b: 74 } }, // blue night
+  { m: 1440, top: { r: 10, g: 16, b: 48 }, hor: { r: 26, g: 36, b: 64 } }, // wrap
+];
+function skyAt(minutes: number): { top: RGB; hor: RGB } {
+  const m = ((minutes % 1440) + 1440) % 1440;
+  let a = SKY_KEYS[0];
+  let b = SKY_KEYS[SKY_KEYS.length - 1];
+  for (let i = 0; i < SKY_KEYS.length - 1; i++) {
+    if (m >= SKY_KEYS[i].m && m <= SKY_KEYS[i + 1].m) {
+      a = SKY_KEYS[i];
+      b = SKY_KEYS[i + 1];
+      break;
+    }
+  }
+  const f = b.m === a.m ? 0 : (m - a.m) / (b.m - a.m);
+  const mix = (x: RGB, y: RGB): RGB => ({ r: lerp(x.r, y.r, f), g: lerp(x.g, y.g, f), b: lerp(x.b, y.b, f) });
+  return { top: mix(a.top, b.top), hor: mix(a.hor, b.hor) };
+}
+const rgbCss = (c: RGB) => `rgb(${Math.round(c.r)},${Math.round(c.g)},${Math.round(c.b)})`;
 
 export class HollywoodRenderer {
   private canvas: HTMLCanvasElement;
@@ -488,9 +547,16 @@ export class HollywoodRenderer {
     this.followCam(pc.x, pc.y);
   }
 
+  // The active area descriptor (null when in the overworld).
+  private activeArea(): AreaView | null {
+    return this.room ? AREAS[this.room] ?? null : null;
+  }
+
   // Room player step: move within the painted floor trapezoid (room-local coords). Walking down
   // off the front edge exits back to the court.
   private updateRoomPlayer(pc: NpcRuntime, dt: number): void {
+    const R = this.activeArea();
+    if (!R) return;
     const vx = (this.held.has("right") ? 1 : 0) - (this.held.has("left") ? 1 : 0);
     const vy = (this.held.has("down") ? 1 : 0) - (this.held.has("up") ? 1 : 0);
     pc.moving = vx !== 0 || vy !== 0;
@@ -498,12 +564,12 @@ export class HollywoodRenderer {
       const m = Math.hypot(vx, vy) || 1;
       const dx = (vx / m) * PLAYER_SPEED * dt;
       const dy = (vy / m) * PLAYER_SPEED * dt;
-      if (this.roomCanWalk(pc.x + dx, pc.y + dy)) {
+      if (this.roomCanWalk(R, pc.x + dx, pc.y + dy)) {
         pc.x += dx;
         pc.y += dy;
       } else {
-        if (this.roomCanWalk(pc.x + dx, pc.y)) pc.x += dx;
-        if (this.roomCanWalk(pc.x, pc.y + dy)) pc.y += dy;
+        if (this.roomCanWalk(R, pc.x + dx, pc.y)) pc.x += dx;
+        if (this.roomCanWalk(R, pc.x, pc.y + dy)) pc.y += dy;
       }
       if (vx < 0) this.facingLeft = true;
       else if (vx > 0) this.facingLeft = false;
@@ -511,13 +577,12 @@ export class HollywoodRenderer {
       else if (vx !== 0) this.facingUp = false;
       pc.dir = vx < 0 ? -1 : 1;
       // pressing down at the front edge of the floor → walk out, back to the court
-      if (vy > 0 && pc.y >= COURT_ROOM.floorBot - 6) this.startTransition(null);
+      if (vy > 0 && pc.y >= R.floorBot - 6) this.startTransition(null);
     }
   }
 
   // Is a room-local point on the painted floor? A trapezoid lane widening toward the viewer.
-  private roomCanWalk(x: number, y: number): boolean {
-    const R = COURT_ROOM;
+  private roomCanWalk(R: AreaView, x: number, y: number): boolean {
     if (y < R.floorTop || y > R.floorBot) return false;
     const f = (y - R.floorTop) / (R.floorBot - R.floorTop);
     const half = R.halfTop + (R.halfBot - R.halfTop) * f;
@@ -535,10 +600,11 @@ export class HollywoodRenderer {
     if (!this.trans) return;
     const pc = this.controlledId ? this.npcs.find((n) => n.soul.id === this.controlledId) : null;
     if (this.trans.to) {
-      if (pc) {
+      const R = AREAS[this.trans.to];
+      if (pc && R) {
         this.roomReturn = { x: pc.x, y: pc.y };
-        pc.x = COURT_ROOM.entryX;
-        pc.y = COURT_ROOM.entryY;
+        pc.x = R.entryX;
+        pc.y = R.entryY;
       }
       this.room = this.trans.to;
       this.facingUp = true; // arrive facing into the scene
@@ -762,37 +828,44 @@ export class HollywoodRenderer {
 
   // ---- drawing ----
 
-  // Frame dispatcher: draw the overworld or the active room, then the scene-swap fade on top.
+  // Frame dispatcher: draw the overworld or the active area, then the scene-swap fade on top.
   private render(t: number) {
     if (this.cssW === 0) return;
-    if (this.room) this.renderRoom(t);
+    const area = this.activeArea();
+    if (area) this.renderArea(t, area);
     else this.renderWorld(t);
     this.drawTransition();
   }
 
-  // The Overture Court room: the painted backdrop plate fills the frame (contain-fit, letterboxed);
-  // the avatar (and any future room NPCs) walk the painted floor as normal foot-Y billboards, mildly
-  // depth-scaled. All the character machinery (contact shadow, walk FX, leg-blur, front/back) is
-  // reused verbatim — the room is just a different coordinate space + backdrop.
-  private renderRoom(t: number): void {
+  // Render an AREA (scene-swap room). The backdrop plate is contain-fit to the frame; the avatar
+  // walks the painted floor as a normal foot-Y billboard, mildly depth-scaled. HEAD-ON areas get a
+  // procedural time-of-day SKY behind the plate (+ an optional baked skyline/window layer). All the
+  // character machinery (contact shadow, walk FX, leg-blur, front/back) is reused verbatim — an area
+  // is just a different coordinate space + backdrop + declared view.
+  private renderArea(t: number, R: AreaView): void {
     const ctx = this.ctx;
-    const R = COURT_ROOM;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = "#0d0b09"; // letterbox bars
-    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    if (R.view === "headon") this.drawAreaSky(); // time-reactive sky fills the whole frame (bars incl.)
+    else {
+      ctx.fillStyle = "#0d0b09"; // top-down area: plain letterbox
+      ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    }
     const scale = Math.min(this.cssW / R.w, this.cssH / R.h);
     const s = this.dpr * scale;
     const offX = (this.cssW * this.dpr - R.w * s) / 2;
     const offY = (this.cssH * this.dpr - R.h * s) / 2;
     ctx.setTransform(s, 0, 0, s, offX, offY);
-    const img = this.getOverture("overture-court-interior");
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    // distant skyline (behind the plate) — baked shape multiply-tinted by the clock, night windows added
+    if (R.sky) this.drawAreaSkyline(R);
+    // backdrop plate (storefronts + floor)
+    const img = this.getOverture(R.backdrop);
     if (img && img.complete && img.naturalWidth > 0) {
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = "high";
       ctx.drawImage(img, 0, 0, R.w, R.h);
     } else {
       ctx.fillStyle = "#c9b48c";
-      ctx.fillRect(0, 0, R.w, R.h);
+      ctx.fillRect(0, R.floorTop - 20, R.w, R.h - R.floorTop + 20);
     }
     // the avatar — foot-Y anchored, depth-scaled by how far up the floor it stands
     const pc = this.controlledId ? this.npcs.find((n) => n.soul.id === this.controlledId) : null;
@@ -806,8 +879,92 @@ export class HollywoodRenderer {
       this.drawNPC(pc, t);
       ctx.restore();
     }
-    // cohesion grade + vignette (screen space) so the room reads under the same exposure
+    // cohesion grade + vignette (screen space) so the area reads under the same exposure
     this.drawPostGrade();
+  }
+
+  // Procedural time-of-day sky (screen space): a zenith→horizon gradient keyed to the sim clock,
+  // plus a sun (day) / moon (night) disc with a soft halo, plus a warm golden-hour horizon wash.
+  private drawAreaSky(): void {
+    const ctx = this.ctx;
+    const W = this.canvas.width, H = this.canvas.height;
+    const mins = this.engine.clockMinutes;
+    const { top, hor } = skyAt(mins);
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, rgbCss(top));
+    g.addColorStop(1, rgbCss(hor));
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    const night = nightAt(mins), golden = goldenAt(mins);
+    // sun / moon disc arcs left→right across the day; higher at midday. Moon rides the night side.
+    const dayF = Math.max(0, Math.min(1, (((mins % 1440) + 1440) % 1440 - 360) / (1200 - 360)));
+    const discX = W * (0.14 + 0.72 * dayF);
+    const discY = H * (0.40 - 0.20 * Math.sin(dayF * Math.PI));
+    const rad = Math.min(W, H) * 0.05;
+    const drawDisc = (x: number, y: number, col: string, halo: string, alpha: number) => {
+      if (alpha < 0.03) return;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      const hg = ctx.createRadialGradient(x, y, rad * 0.4, x, y, rad * 5);
+      hg.addColorStop(0, halo);
+      hg.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = hg;
+      ctx.fillRect(x - rad * 5, y - rad * 5, rad * 10, rad * 10);
+      ctx.globalAlpha = alpha;
+      ctx.beginPath();
+      ctx.arc(x, y, rad, 0, Math.PI * 2);
+      ctx.fillStyle = col;
+      ctx.fill();
+      ctx.restore();
+    };
+    drawDisc(discX, discY, "rgba(255,246,214,1)", "rgba(255,226,150,0.5)", 1 - night); // sun
+    drawDisc(W * 0.76, H * 0.2, "rgba(226,232,244,1)", "rgba(180,196,230,0.4)", night * (1 - golden)); // moon
+    if (golden > 0.02) {
+      // warm horizon wash low in the sky
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      const gw = ctx.createLinearGradient(0, H * 0.45, 0, H);
+      gw.addColorStop(0, "rgba(255,150,70,0)");
+      gw.addColorStop(1, `rgba(255,150,70,${0.35 * golden})`);
+      ctx.fillStyle = gw;
+      ctx.fillRect(0, H * 0.45, W, H * 0.55);
+      ctx.restore();
+    }
+  }
+
+  // Distant skyline layers in room-local space (drawn BEHIND the storefront plate). The silhouette
+  // is a baked matte shape tinted toward the ambient colour by the clock; the windows layer adds
+  // emissive glints after dark (alpha = nightAt). Both no-op until their assets decode.
+  private drawAreaSkyline(R: AreaView): void {
+    if (!R.sky) return;
+    const ctx = this.ctx;
+    const mins = this.engine.clockMinutes;
+    const sil = this.getOverture(R.sky.skyline);
+    if (sil && sil.complete && sil.naturalWidth > 0) {
+      const h = R.w * (sil.naturalHeight / sil.naturalWidth);
+      const y = R.sky.rooflineY - h;
+      ctx.drawImage(sil, 0, y, R.w, h);
+      // tint only the silhouette pixels toward the ambient colour (darkens at night)
+      const amb = ambientAt(mins);
+      const tintA = Math.max(0, Math.min(0.7, amb.a + nightAt(mins) * 0.3));
+      ctx.save();
+      ctx.globalCompositeOperation = "source-atop";
+      ctx.globalAlpha = tintA;
+      ctx.fillStyle = `rgb(${Math.round(amb.r)},${Math.round(amb.g)},${Math.round(amb.b)})`;
+      ctx.fillRect(0, y, R.w, h);
+      ctx.restore();
+    }
+    const win = this.getOverture(R.sky.windows);
+    const night = nightAt(mins);
+    if (win && win.complete && win.naturalWidth > 0 && night > 0.02) {
+      const h = R.w * (win.naturalHeight / win.naturalWidth);
+      const y = R.sky.rooflineY - h;
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      ctx.globalAlpha = night;
+      ctx.drawImage(win, 0, y, R.w, h);
+      ctx.restore();
+    }
   }
 
   // Fade-through-black overlay for a running scene swap (alpha peaks at the mid-fade swap point).
@@ -2330,8 +2487,8 @@ export class HollywoodRenderer {
   }
 
   // (The court INTERIOR is no longer an in-world backdrop — the painted plate is the Overture Court
-  // ROOM you crossfade into; see renderRoom / COURT_ROOM. The seamless court is just the sparse
-  // approach: floor + palms + fountain + gate.)
+  // area you crossfade into; see renderArea / AREAS. The seamless court is just the sparse approach:
+  // floor + palms + fountain + gate.)
 
   // Push the court's real actors into the sorted list: fountain + palm rows (constant-size foot-Y
   // props — the player physically walks past them, so they y-sort/occlude naturally), plus the
