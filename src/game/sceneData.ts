@@ -96,27 +96,26 @@ export const CROSS_STREETS: CrossStreet[] = [
 // The plaza is pinned to fixed world constants (NOT the auto-layout) so canWalk and the
 // renderer agree without threading live layout through both. Block-2 north's other three
 // landmarks lay out EAST of the gate (see buildFace).
-// The court is drawn in fake 1-point PERSPECTIVE: every court actor (and any soul who walks
-// in) is scaled about a world vanishing pivot (cx, vpY) by a factor that shrinks with depth
-// (near gate = full size, far back = minScale). That converges the side terraces toward the
-// centre and shrinks the fountain/palms/back building into the distance — the real Babylon
-// Court's deep axial promenade — instead of two flat billboards crossing like an X. Movement
-// (canWalk) stays in flat WORLD space; perspective is purely visual.
+// The court is drawn PARALLEL / axonometric — NO vanishing point (research: faking a 1-point VP
+// in a flat dimetric billboard scene makes the side walls converge to an ugly "X" funnel, à la the
+// old build). The FLOOR is a symmetric rectangle (constant courtHalf front→back, so the sides can't
+// pinch); the side terraces + back building are baked into ONE parallel-oblique backdrop plate
+// (overture-court-interior.png) the renderer just places behind the gate; the fountain + palms are
+// real foot-Y props the player walks past. All depth is painted into the art — the engine does no
+// per-object perspective scaling. Movement (canWalk) is flat WORLD space, as always.
 export const OVERTURE = {
   cx: 4420, // gate + court centre x (world)
   gateCH: 6, // gate height in character-heights
   gateAspect: 1.625, // keyed gate art w/h (public/overture/overture-gate.png, 1396×859)
-  gateFootY: NORTH_SIDEWALK_TOP, // 1000 — gate feet on the north blvd sidewalk line (near plane, s=1)
+  gateFootY: NORTH_SIDEWALK_TOP, // 1000 — gate feet on the north blvd sidewalk line
   gateHalf: (6 * 84 * 1.625) / 2, // ≈410 — half the rendered gate width
   archHalf: 100, // half-width of the see-through arch throat (art arch ≈0.128·W each side)
-  courtBackY: 220, // far (north) edge of the court = back building feet (deep — expanded north)
-  courtHalf: 430, // half-width of the terrazzo court FLOOR at the NEAR plane
+  courtBackY: 220, // far (north) edge of the court = back edge of the floor rectangle
+  courtHalf: 430, // half-width of the court FLOOR rectangle (CONSTANT front→back → parallel, no funnel)
   courtWalkHalf: 250, // half-width of the walkable lane (world space)
   throatTopY: 958, // top of the narrow arch throat; court widens north of here
-  minScale: 0.32, // perspective scale at the far (back) plane
-  vpY: 120, // world y of the vanishing pivot (above courtBackY → far things lift + compress)
-  backCH: 6, // court-terminus back building height
-  sideCH: 3.4, // side terrace height (near the gate mouth)
+  interiorCH: 8.5, // court-interior backdrop plate height (baked parallel-oblique terraces + back bldg)
+  interiorDrop: 40, // px the interior plate's bottom sits below the gate line so terrace feet meet floor
   columnCH: 5, // elephant-column gatepost height
 };
 

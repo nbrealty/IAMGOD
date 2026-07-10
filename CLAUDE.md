@@ -78,29 +78,46 @@ feet-anchored to one ground-Y, which is the sort key.
    ped) gets the leg-blur automatically** — no per-character art or wiring. Give
    each mover a distinct `phase` so a crowd doesn't swing in sync.
 
-7. **Overture is a WALK-IN plaza, not a facade — with a fake-perspective court.**
+7. **Overture is a WALK-IN court — PARALLEL / axonometric, NEVER a fake vanishing point.**
    `OVERTURE` (sceneData.ts) pins a monumental gate on block-2 north (Overture is
    removed from the auto-layout; the block's other 3 landmarks start east of the
-   gate). Behind the gate is a deep axial courtyard modelled on the real Babylon
-   Court (Ovation Hollywood): elephant-column gateposts, palm rows lining the
-   promenade, a fountain, a small back building terminating the axis. You walk in
-   through the gate's TRUE open arch — no loading. Two layers of correctness:
+   gate). Behind the gate is an open-air courtyard modelled on the real Babylon
+   Court (Ovation Hollywood): elephant-column gateposts, palm rows, a fountain,
+   shop terraces + a back building. You walk in through the gate's TRUE open arch —
+   no loading.
+   - **The X-funnel lesson (do NOT relearn it).** An earlier build faked a 1-point
+     vanishing point — court actors scaled about a pivot `(cx, vpY)` by a
+     `courtScale(footY)`, plus baked-perspective side-wall billboards riding a
+     receding trapezoid floor. In a flat dimetric billboard scene that makes the two
+     side walls converge to a pinched **"X" funnel** — ugly, and it fought the one
+     projection rule the whole game obeys (parallel-in, constant actor size). Research
+     across isometric city-builders + Gaia Online (single painted plate per zone,
+     billboard avatars, z-order, one committed angle, never "all sides", never real
+     3D) all say the same thing: **keep it parallel, bake the depth into the art.**
    - **Walkability is flat WORLD space.** `canWalk` opens a keyhole: a narrow arch
      *throat* (only under the arch opening, so the solid gate wings can't be walked
-     through) widening into the *court pocket*. Movement never sees perspective.
-   - **Depth is a VISUAL fake 1-point perspective.** Court-interior actors (back
-     building, fountain, palms, and any soul who walks in — `inCourt`) are flagged
-     `court` and the sorted-pass draw loop wraps them in a scale-about-the-vanishing-
-     pivot `(cx, vpY)` by `courtScale(footY)` (1 at the gate → `minScale` at the
-     back), so the promenade recedes instead of two flat side billboards crossing in
-     an X. The floor is a matching receding TRAPEZOID (`drawOverturePlaza`). The
-     gate + elephant gateposts stay full-size (front plane). Because the player is
-     DRAWN at its projected position, the follow-camera tracks `projCourt(pc)` while
-     `inCourt`, or it drifts off-centre. The gate itself is a normal foot-Y actor at
-     `gateFootY`, so walking north (foot-Y < 1000) sorts the player BEHIND it →
-     framed through the arch. Side-terrace art (`overture-court-side`) is a FRONT
-     elevation and can't be a flat side wall — it's held for an angled/sheared
-     treatment, not placed in the court.
+     through) widening into the *court pocket*. Unchanged — this was never the problem.
+   - **Floor = a symmetric RECTANGLE** (`drawOvertureFloor`): constant `courtHalf`
+     at both `gateFootY` and `courtBackY`, so the side rails are parallel and a funnel
+     is geometrically impossible. One baked non-repeating plate
+     (`overture-court-floor.png`) drawn with a single `drawImage` (a warm fill stands
+     in until it decodes — never a repeating tile grid).
+   - **Terraces + back building = ONE baked parallel-oblique backdrop plate**
+     (`overture-court-interior.png`, drawn by the artist in cabinet-oblique with
+     **parallel, non-converging edges**), placed by `drawOvertureInterior` as a
+     pre-pass right after the skyline and BEFORE the sorted actor loop — so every
+     actor (player, fountain, palms) sorts in front of it. No foot-Y, no scaling: the
+     art's own parallel geometry can never converge.
+   - **Fountain + palms are plain foot-Y props** (constant size) — the player
+     physically walks past them, so they y-sort/occlude for real. That, plus overlap,
+     is where the sense of depth now comes from — NOT from geometry that converges.
+   - The **gate + elephant columns** stay full-size foot-Y actors at `gateFootY`, so
+     walking north (foot-Y < 1000) sorts the player BEHIND the gate → framed through
+     the arch. The follow-camera tracks the player's true `x/y` (no projection branch).
+   - **Never reintroduce** `courtScale` / `projCourt` / a `court` actor flag / a
+     scale-about-pivot wrap / a trapezoid floor. If a future space needs more
+     enclosure, bake a new single-angle plate (Gaia-style) — do not compute a
+     vanishing point.
 
 ## Asset pipeline
 

@@ -82,9 +82,6 @@ const FEET_DROP = 10;
 interface Actor {
   y: number;
   draw: () => void;
-  // In the Overture court → draw wrapped in the fake-perspective scale (about the court
-  // vanishing pivot) so it recedes with depth. Perspective pivot x defaults to the court axis.
-  court?: boolean;
 }
 
 // Vehicle sprites (public/vehicles/<type>.png), drawn feet(wheels)-anchored to a road lane.
@@ -429,14 +426,7 @@ export class HollywoodRenderer {
             else if (vx !== 0) this.facingUp = false;
             pc.dir = vx < 0 ? -1 : 1;
           }
-          // In the Overture court the player is DRAWN at its perspective-projected position,
-          // so follow that (not the flat world point) to keep it centred as it recedes.
-          if (this.inCourt(pc.x, pc.y)) {
-            const pj = this.projCourt(pc.x, pc.y);
-            this.followCam(pj.x, pj.y);
-          } else {
-            this.followCam(pc.x, pc.y);
-          }
+          this.followCam(pc.x, pc.y);
         }
       }
       for (const car of this.cars) {
@@ -684,12 +674,18 @@ export class HollywoodRenderer {
     this.drawSidewalks();
     this.drawRoad();
     this.drawGroundDetail(); // aprons + landmark plazas on the walks
-    this.drawOverturePlaza(); // terrazzo court floor behind the Overture gate (walk-in plaza)
+    this.drawOvertureFloor(); // baked plaza floor plate behind the Overture gate (walk-in court)
     this.drawSeamBlends(); // feather surface transitions + decal breakup (the "smudge")
     this.drawFloorGlow(); // lamp light cast ON the floor — UNDER the actors (they stand IN it)
 
     // distant skyline silhouette — always furthest back
     for (const b of BACKDROP_BUILDINGS) this.drawBuilding(b);
+
+    // Overture court interior backdrop — one baked parallel-oblique plate (both shop terraces +
+    // the back building, painted so their edges stay PARALLEL → no vanishing point, no funnel).
+    // A pre-pass behind every actor: the player, fountain and palms sort in front of it; the gate
+    // (a real foot-Y actor) sorts in front once the player walks north past it → framed by the arch.
+    this.drawOvertureInterior();
 
     // (b) UNIFIED DEPTH PASS — every upright actor (buildings, cars, lamps, props, peds, souls)
     // collected, viewport-culled, sorted by foot-Y (baseline), and drawn far→near. This is what
@@ -698,21 +694,7 @@ export class HollywoodRenderer {
     const actors: Actor[] = [];
     this.collectActors(actors, t);
     actors.sort((a, b) => a.y - b.y);
-    for (const a of actors) {
-      if (a.court) {
-        // Fake-perspective: scale the whole draw about the court vanishing pivot by the
-        // depth factor for this actor's foot-Y, so it recedes down the promenade.
-        const s = this.courtScale(a.y);
-        ctx.save();
-        ctx.translate(OVERTURE.cx, OVERTURE.vpY);
-        ctx.scale(s, s);
-        ctx.translate(-OVERTURE.cx, -OVERTURE.vpY);
-        a.draw();
-        ctx.restore();
-      } else {
-        a.draw();
-      }
-    }
+    for (const a of actors) a.draw();
 
     // (c) OVERLAY post-pass — full-screen day/night grade, golden hour, night lights, then a
     // final screen-space cohesion grade + vignette so every asset reads under one exposure.
@@ -807,10 +789,10 @@ export class HollywoodRenderer {
         out.push({ y: ped.y, draw: () => this.drawPed(ped, t) });
       }
     }
-    // named soul cast — a soul who walks into the Overture court is perspective-scaled with it
+    // named soul cast — plain foot-Y actors everywhere, including inside the Overture court
     for (const npc of this.npcs) {
       if (npc.x < vx - 120 || npc.x > vR + 120 || npc.y < vy - 200 || npc.y > vB + 120) continue;
-      out.push({ y: npc.y, court: this.inCourt(npc.x, npc.y), draw: () => this.drawNPC(npc, t) });
+      out.push({ y: npc.y, draw: () => this.drawNPC(npc, t) });
     }
   }
 
@@ -2142,81 +2124,87 @@ export class HollywoodRenderer {
     }
   }
 
-  // ── Overture walk-in plaza (deep axial court, fake 1-point perspective) ───────────────
-  // Perspective scale for a court foot-Y: 1 at the gate (near), minScale at the back (far).
-  private courtScale(footY: number): number {
-    const O = OVERTURE;
-    const t = Math.max(0, Math.min(1, (O.gateFootY - footY) / (O.gateFootY - O.courtBackY)));
-    return 1 - t * (1 - O.minScale);
-  }
-  // Is (x, footY) inside the walkable court pocket? (used to perspective-scale souls who walk
-  // in). Excludes the sidewalk line so a soul in front of the gate stays full-size.
-  private inCourt(x: number, footY: number): boolean {
-    const O = OVERTURE;
-    return (
-      footY >= O.courtBackY - 20 && footY < O.gateFootY - 2 &&
-      x >= O.cx - O.courtWalkHalf - 50 && x <= O.cx + O.courtWalkHalf + 50
-    );
-  }
-  // Project a court world point to its on-screen (still world-space) position under the same
-  // scale-about-pivot the actor pass uses — for drawing the floor trapezoid in the pre-pass.
-  private projCourt(x: number, y: number): { x: number; y: number } {
-    const O = OVERTURE;
-    const s = this.courtScale(y);
-    return { x: O.cx + (x - O.cx) * s, y: O.vpY + (y - O.vpY) * s };
-  }
+  // ── Overture walk-in court (open piazza, PARALLEL/axonometric — no vanishing point) ──────
+  // Research (Gaia Online, isometric city-builders): faking a 1-point vanishing point in a flat
+  // dimetric billboard scene makes the two side walls converge to an ugly "X" funnel. The fix is
+  // to keep everything PARALLEL: the floor is a symmetric RECTANGLE (same half-width front and
+  // back → sides can't pinch) and the terraces + back building are baked into ONE parallel-oblique
+  // backdrop plate the engine merely places. All depth is painted into the art; the engine does no
+  // per-object perspective scaling. Fountain + palms stay real foot-Y props for true walk-past
+  // occlusion. The gate + elephant columns are the front-plane actors that frame the arch.
 
-  // The terrazzo court FLOOR, laid in the ground pre-pass beneath every actor. Drawn as a
-  // receding TRAPEZOID (wide at the gate, narrow at the far wall) so the promenade reads deep;
-  // seen through the arch the player steps off the sidewalk straight onto it, no loading.
-  private drawOverturePlaza(): void {
+  // The court FLOOR — one baked non-repeating plate drawn into a symmetric world rectangle
+  // (constant courtHalf at both the gate line and the back), laid in the ground pre-pass beneath
+  // every actor. A neutral warm fill stands in until the plate decodes (never the old tile grid).
+  private drawOvertureFloor(): void {
     if (this.cam.zoom <= TILE_ZOOM_GATE) return;
     const O = OVERTURE;
     const vx = this.cam.x, vR = vx + this.cssW / this.cam.zoom;
     if (O.cx + O.courtHalf < vx - 40 || O.cx - O.courtHalf > vR + 40) return;
     const ctx = this.ctx;
-    const nL = this.projCourt(O.cx - O.courtHalf, O.gateFootY);
-    const nR = this.projCourt(O.cx + O.courtHalf, O.gateFootY);
-    const fL = this.projCourt(O.cx - O.courtHalf, O.courtBackY);
-    const fR = this.projCourt(O.cx + O.courtHalf, O.courtBackY);
+    const x = O.cx - O.courtHalf, y = O.courtBackY;
+    const w = O.courtHalf * 2, h = O.gateFootY - O.courtBackY;
+    const img = this.getOverture("overture-court-floor");
+    if (img && img.complete && img.naturalWidth > 0) {
+      const prev = ctx.imageSmoothingEnabled;
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(img, x, y, w, h);
+      ctx.imageSmoothingEnabled = prev;
+    } else {
+      ctx.fillStyle = "#c9b48c"; // warm travertine placeholder (no marching grid)
+      ctx.fillRect(x, y, w, h);
+    }
+    // A light multiply darken toward the back edge so the court reads as enclosed.
     ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(nL.x, nL.y);
-    ctx.lineTo(nR.x, nR.y);
-    ctx.lineTo(fR.x, fR.y);
-    ctx.lineTo(fL.x, fL.y);
-    ctx.closePath();
-    ctx.clip();
-    this.fillTiled(fL.x, fL.y, fR.x, nL.y, "plaza.jpg");
-    // Depth grade: darken toward the back wall + side edges so the court reads as enclosed
-    // and the far end recedes.
     ctx.globalCompositeOperation = "multiply";
-    const bg = ctx.createLinearGradient(0, fL.y, 0, fL.y + (nL.y - fL.y) * 0.6);
-    bg.addColorStop(0, "rgba(16,12,8,0.5)");
+    const bg = ctx.createLinearGradient(0, y, 0, y + h * 0.5);
+    bg.addColorStop(0, "rgba(16,12,8,0.42)");
     bg.addColorStop(1, "rgba(16,12,8,0)");
     ctx.fillStyle = bg;
-    ctx.fillRect(fL.x - 20, fL.y, fR.x - fL.x + 40, (nL.y - fL.y) * 0.6);
+    ctx.fillRect(x, y, w, h * 0.5);
     ctx.restore();
   }
 
-  // Push the plaza's pieces into the sorted actor list. Court-interior pieces are flagged
-  // `court` so the draw loop wraps them in the perspective scale (they recede down the
-  // promenade); the gate + elephant gateposts are the front plane (full size). Foot-Y sorting
-  // makes the gate's lintel/wings occlude the player once they walk north through the arch.
+  // The court INTERIOR backdrop — one baked parallel-oblique plate (both shop terraces + the back
+  // building, painted so their edges stay PARALLEL, never converging). Drawn as a pre-pass behind
+  // every sorted actor: the player/fountain/palms all sort in front of it; the gate (a real foot-Y
+  // actor) sorts in front once the player walks north past it → framed through the arch. Its floor
+  // + sky regions are transparent so the floor plate shows through and there's no fake horizon.
+  private drawOvertureInterior(): void {
+    if (this.cam.zoom <= TILE_ZOOM_GATE) return;
+    const O = OVERTURE;
+    const img = this.getOverture("overture-court-interior");
+    if (!img || !img.complete || img.naturalWidth === 0) return;
+    const vx = this.cam.x, vR = vx + this.cssW / this.cam.zoom;
+    const H = O.interiorCH * 84;
+    const w = H * (img.naturalWidth / img.naturalHeight);
+    if (O.cx + w / 2 < vx - 40 || O.cx - w / 2 > vR + 40) return;
+    const ctx = this.ctx;
+    const prev = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    // Bottom edge a touch above the gate line so the terrace feet meet the court floor.
+    ctx.drawImage(img, O.cx - w / 2, O.gateFootY - H + O.interiorDrop, w, H);
+    ctx.imageSmoothingEnabled = prev;
+  }
+
+  // Push the court's real actors into the sorted list: fountain + palm rows (constant-size foot-Y
+  // props — the player physically walks past them, so they y-sort/occlude naturally), plus the
+  // gate + elephant gateposts as the full-size front plane (foot-Y makes the gate occlude anyone
+  // who walks north through the arch).
   private collectOvertureActors(out: Actor[], vx: number, vR: number): void {
     const O = OVERTURE;
     if (O.cx + O.gateHalf + 320 < vx || O.cx - O.gateHalf - 320 > vR) return;
     const colPush = 300; // elephant columns flank the arch at the gate front
     const palmX = O.courtWalkHalf + 60; // palm rows just outside the walkable lane
-    // back building — court terminus, furthest north (drawn first, deepest perspective)
-    out.push({ y: O.courtBackY, court: true, draw: () => this.drawOvertureBillboard("overture-court-back", O.cx, O.courtBackY, O.backCH) });
-    // a fountain centred mid-promenade
-    out.push({ y: O.courtBackY + 300, court: true, draw: () => this.drawProp("fountain", O.cx, O.courtBackY + 300) });
-    // palm rows lining both sides of the promenade at several depths → the receding avenue
-    for (const dy of [70, 200, 340, 500]) {
+    // a fountain centred mid-court
+    out.push({ y: O.courtBackY + 380, draw: () => this.drawProp("fountain", O.cx, O.courtBackY + 380) });
+    // palm rows lining both sides of the lane at several depths → framing the promenade
+    for (const dy of [90, 240, 400, 560]) {
       const fy = O.courtBackY + dy;
-      out.push({ y: fy, court: true, draw: () => this.drawProp("palm", O.cx - palmX, fy) });
-      out.push({ y: fy + 1, court: true, draw: () => this.drawProp("palm", O.cx + palmX, fy + 1) });
+      out.push({ y: fy, draw: () => this.drawProp("palm", O.cx - palmX, fy) });
+      out.push({ y: fy + 1, draw: () => this.drawProp("palm", O.cx + palmX, fy + 1) });
     }
     // the gate — front plane, at the boulevard line (drawn late → occludes anyone behind it)
     out.push({ y: O.gateFootY, draw: () => this.drawOvertureBillboard("overture-gate", O.cx, O.gateFootY, O.gateCH) });
