@@ -968,22 +968,31 @@ export class HollywoodRenderer {
       return { x: cx + rx * Math.cos(th), y: horizonY - ry * Math.sin(th) };
     };
     const edgeFade = (p: number) => smoothstep(0, 0.05, p) * (1 - smoothstep(0.95, 1, p)); // fade at the edges
-    const drawBody = (p: number, stem: string, col: string, halo: string, vis: number) => {
+    // Emissive GLOW (canvas technique: additive `lighter` radial bloom + a `shadowBlur` outer glow,
+    // gently PULSED with a sine so it "breathes"). `glow` is the bloom colour (warm sun / cool moon).
+    const pulse = 1 + 0.08 * Math.sin(t * 0.0022); // ~2.9s breathing cycle
+    const drawBody = (p: number, stem: string, col: string, glow: string, vis: number) => {
       const alpha = edgeFade(p) * vis;
       if (alpha < 0.03) return;
       const { x, y } = arcXY(p);
       const spr = this.getOverture(stem);
       const hasSpr = !!(spr && spr.complete && spr.naturalWidth > 0);
+      const faint = (a: number) => glow.replace(/[\d.]+\)\s*$/, a + ")");
       ctx.save();
       ctx.globalAlpha = alpha;
-      // Soft halo behind the body. A baked sprite carries its own corona/glow, so only a small
-      // bloom is added there; the procedural disc gets the full halo.
-      const haloR = hasSpr ? rad * 3.2 : rad * 5;
-      const hg = ctx.createRadialGradient(x, y, rad * 0.4, x, y, haloR);
-      hg.addColorStop(0, hasSpr ? halo.replace(/0\.\d+\)/, "0.28)") : halo);
-      hg.addColorStop(1, "rgba(0,0,0,0)");
-      ctx.fillStyle = hg;
-      ctx.fillRect(x - haloR, y - haloR, haloR * 2, haloR * 2);
+      // additive bloom — actually brightens the sky around the body
+      ctx.globalCompositeOperation = "lighter";
+      const gr = rad * 4.4 * pulse;
+      const bg = ctx.createRadialGradient(x, y, rad * 0.3, x, y, gr);
+      bg.addColorStop(0, glow);
+      bg.addColorStop(0.45, faint(0.16));
+      bg.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = bg;
+      ctx.fillRect(x - gr, y - gr, gr * 2, gr * 2);
+      // the body itself, with a soft shadow-blur halo hugging its shape
+      ctx.globalCompositeOperation = "source-over";
+      ctx.shadowColor = faint(0.9);
+      ctx.shadowBlur = rad * (hasSpr ? 0.7 : 1.1) * pulse;
       if (hasSpr) {
         const w = rad * 3.2, h = w * (spr!.naturalHeight / spr!.naturalWidth);
         ctx.drawImage(spr!, x - w / 2, y - h / 2, w, h);
@@ -998,12 +1007,12 @@ export class HollywoodRenderer {
     const SUNRISE = 360, SUNSET = 1140; // 06:00 → 19:00 the sun is up
     const md = ((mins % 1440) + 1440) % 1440;
     if (md >= SUNRISE && md <= SUNSET) {
-      drawBody((md - SUNRISE) / (SUNSET - SUNRISE), "sun", "rgba(255,246,214,1)", "rgba(255,226,150,0.5)", 1);
+      drawBody((md - SUNRISE) / (SUNSET - SUNRISE), "sun", "rgba(255,246,214,1)", "rgba(255,196,90,0.55)", 1);
     }
     const NIGHT_LEN = SUNRISE + 1440 - SUNSET; // minutes from sunset to next sunrise
     const nm = md >= SUNSET ? md - SUNSET : md + 1440 - SUNSET; // minutes since sunset (wrapped)
     if (nm <= NIGHT_LEN) {
-      drawBody(nm / NIGHT_LEN, "moon", "rgba(226,232,244,1)", "rgba(180,196,230,0.4)", 1);
+      drawBody(nm / NIGHT_LEN, "moon", "rgba(226,232,244,1)", "rgba(170,200,255,0.45)", 1);
     }
     if (golden > 0.02) {
       // warm horizon wash low in the sky
