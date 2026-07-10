@@ -101,6 +101,11 @@ interface AreaView {
   dir?: string; // asset subfolder under public/ (default 'overture'); e.g. 'aguas' for the botanica
   jpg?: boolean; // load the plate as .jpg instead of .png (opaque interior plates compress far smaller)
   exitTo?: string | null; // walking off the front edge goes here: null/undefined = overworld, or a room id
+  entryZoom?: number; // cover-zoom multiplier for the initial framing (default 1.05); >1 frames closer
+  occupants?: { stem: string; x: number; y: number; scale?: number; faceLeft?: boolean }[]; // static room NPCs (billboards)
+  // A beaded-curtain doorway on the right: as the player nears it the plate swaps to the open art,
+  // and stepping into it scene-swaps to `toArea` (the back consultation room).
+  curtain?: { openX: number; openBackdrop: string; enterX: number; toArea: string };
   w: number; h: number; // plate pixel size = room-local world
   floorTop: number; floorBot: number; // walkable band (painted floor), near→far
   halfTop: number; halfBot: number; // floor half-width at back / front (a parallel trapezoid lane)
@@ -137,9 +142,27 @@ const AREAS: Record<string, AreaView> = {
     w: 1536, h: 1024,
     floorTop: 830, floorBot: 1005, // shallow walkable lane along the bottom, in front of the counter
     halfTop: 470, halfBot: 610,
-    cx: 768, entryX: 768, entryY: 965,
-    scaleBack: 0.86,
+    cx: 768, entryX: 760, entryY: 985,
+    scaleBack: 0.86, entryZoom: 1.15, // slightly closer than cover; keeps most of the shop in frame
     exitTo: null, // walk off the front edge → back out to the boulevard
+    occupants: [{ stem: "yara", x: 360, y: 968, scale: 1.35 }], // Yara on the floor at her register end
+    // beaded curtain on the right → the back consultation room
+    curtain: { openX: 1040, openBackdrop: "aguas-front-open", enterX: 1280, toArea: "aguas-back" },
+  },
+  // Yara's botanica — the BACK room (consultation). Open wooden floor foreground; the búzios
+  // table + Oxum altar + Exu corner are baked into the plate. Walking off the front edge steps
+  // back through the beaded curtain into the front botanica.
+  "aguas-back": {
+    id: "aguas-back",
+    view: "topdown",
+    backdrop: "aguas-back",
+    dir: "aguas", jpg: true,
+    w: 1536, h: 1024,
+    floorTop: 560, floorBot: 980, // the open floor in front of the reading table
+    halfTop: 360, halfBot: 640,
+    cx: 768, entryX: 1120, entryY: 900, // arrive by the curtain doorway (right), facing in
+    scaleBack: 0.8,
+    exitTo: "aguas-front", // walk off the front edge → back through the curtain to the botanica
   },
 };
 const ROOM_FADE = 0.42; // seconds for a full fade-through-black scene swap
@@ -639,6 +662,8 @@ export class HollywoodRenderer {
       // HOLD down at the front edge of the floor → leave (tap-walk never exits, to avoid surprises).
       // Where you go is per-room: the overworld (exitTo null) or another room (a deeper→shallower step).
       if (heldDown && pc.y >= R.floorBot - 6) this.startTransition(R.exitTo ?? null);
+      // Reach the beaded curtain on the right → step through into the back consultation room.
+      if (R.curtain && pc.x >= R.curtain.enterX) this.startTransition(R.curtain.toArea);
     }
     this.followCam(pc.x, pc.y); // camera eases to keep the avatar framed (clamped to the plate)
   }
@@ -678,7 +703,7 @@ export class HollywoodRenderer {
       // frame the room at cover-zoom (plate fills the viewport; can't see past its edges), centred
       // on the arrival point then clamped to the plate — same camera model as the city.
       if (R) {
-        this.cam.zoom = minZoomFor(this.cssW, this.cssH, R.w, R.h) * 1.05;
+        this.cam.zoom = minZoomFor(this.cssW, this.cssH, R.w, R.h) * (R.entryZoom ?? 1.05);
         this.cam.x = R.entryX - this.cssW / this.cam.zoom / 2;
         this.cam.y = R.entryY - this.cssH / this.cam.zoom / 2;
         clampCamera(this.cam, this.cssW, this.cssH, R.w, R.h);
@@ -973,7 +998,12 @@ export class HollywoodRenderer {
     // backdrop plate (storefronts + floor) — sits below the sky headroom (skyPad)
     const pad = R.skyPad ?? 0;
     const plateH = R.h - pad;
-    const img = this.getAreaPlate(R, R.backdrop);
+    const pc = this.controlledId ? this.npcs.find((n) => n.soul.id === this.controlledId) : null;
+    // Curtain doorway: once the player nears it, show the open-curtain art (the room's other
+    // furniture is identical between plates, so this reads purely as the beaded curtain opening).
+    let backdropKey = R.backdrop;
+    if (R.curtain && pc && pc.x >= R.curtain.openX) backdropKey = R.curtain.openBackdrop;
+    const img = this.getAreaPlate(R, backdropKey);
     if (img && img.complete && img.naturalWidth > 0) {
       const night = nightAt(this.engine.clockMinutes);
       // DAY BRIGHTNESS: lift the plate's exposure in daylight so the court reads bright & sunny.
@@ -996,18 +1026,28 @@ export class HollywoodRenderer {
       ctx.fillRect(0, R.floorTop - 20, R.w, R.h - R.floorTop + 20);
     }
     this.drawMoveMarker(t); // tap-to-walk destination ring on the painted floor
-    // the avatar — foot-Y anchored, depth-scaled by how far up the floor it stands
-    const pc = this.controlledId ? this.npcs.find((n) => n.soul.id === this.controlledId) : null;
+    // Room actors: the controlled avatar + any static occupants (e.g. Yara at her counter), all
+    // foot-Y sorted so the player passes correctly in front of / behind them. Each is depth-scaled
+    // by how far down the painted floor it stands.
+    const depthScaleAt = (y: number) => {
+      const f = Math.max(0, Math.min(1, (y - R.floorTop) / (R.floorBot - R.floorTop)));
+      return R.scaleBack + (1 - R.scaleBack) * f;
+    };
+    const acts: { y: number; draw: () => void }[] = [];
     if (pc) {
-      const f = Math.max(0, Math.min(1, (pc.y - R.floorTop) / (R.floorBot - R.floorTop)));
-      const sc = R.scaleBack + (1 - R.scaleBack) * f;
-      ctx.save();
-      ctx.translate(pc.x, pc.y);
-      ctx.scale(sc, sc);
-      ctx.translate(-pc.x, -pc.y);
-      this.drawNPC(pc, t);
-      ctx.restore();
+      const sc = depthScaleAt(pc.y);
+      acts.push({ y: pc.y, draw: () => {
+        ctx.save();
+        ctx.translate(pc.x, pc.y); ctx.scale(sc, sc); ctx.translate(-pc.x, -pc.y);
+        this.drawNPC(pc, t);
+        ctx.restore();
+      } });
     }
+    for (const oc of R.occupants ?? []) {
+      acts.push({ y: oc.y, draw: () => this.drawRoomOccupant(oc.stem, oc.x, oc.y, (oc.scale ?? 1) * depthScaleAt(oc.y), oc.faceLeft ?? false) });
+    }
+    acts.sort((a, b) => a.y - b.y);
+    for (const a of acts) a.draw();
     // cohesion grade + vignette (screen space) so the area reads under the same exposure
     this.drawPostGrade();
   }
@@ -2917,6 +2957,37 @@ export class HollywoodRenderer {
       ctx.restore();
     }
     ctx.restore();
+  }
+
+  // A static room occupant (e.g. Yara at her counter): a plain foot-Y billboard drawn at the shared
+  // uniform body height with a soft contact shadow so it grounds on the painted floor. No AI, no walk
+  // FX — it just stands. Front sprite only (mirrored if faceLeft); reuses spriteBounds for scale.
+  private drawRoomOccupant(stem: string, x: number, y: number, scale: number, faceLeft: boolean): void {
+    const ctx = this.ctx;
+    const sprite = this.getSprite(stem);
+    if (!sprite || !sprite.complete || !sprite.naturalWidth) return;
+    const b = this.spriteBounds(stem, sprite);
+    const frameH = (CHAR_BODY_H * scale) / Math.max(0.5, b.b - b.t);
+    const w = frameH * (sprite.naturalWidth / sprite.naturalHeight);
+    const feetY = y + FEET_DROP;
+    const top = feetY - b.b * frameH;
+    // soft contact shadow so she doesn't float on the floor
+    ctx.save();
+    ctx.globalCompositeOperation = "multiply";
+    const rx = w * 0.3, ry = rx * 0.32;
+    const g = ctx.createRadialGradient(x, feetY, 1, x, feetY, rx);
+    g.addColorStop(0, "rgba(10,8,6,0.5)");
+    g.addColorStop(1, "rgba(10,8,6,0)");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.ellipse(x, feetY, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    const prev = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
+    ctx.save();
+    if (faceLeft) { ctx.translate(x, 0); ctx.scale(-1, 1); ctx.translate(-x, 0); }
+    ctx.drawImage(sprite, x - w / 2, top, w, frameH);
+    ctx.restore();
+    ctx.imageSmoothingEnabled = prev;
   }
 
   private drawNPC(s: NpcRuntime, t: number) {
