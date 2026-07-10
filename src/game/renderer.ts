@@ -972,17 +972,21 @@ export class HollywoodRenderer {
       const alpha = edgeFade(p) * vis;
       if (alpha < 0.03) return;
       const { x, y } = arcXY(p);
+      const spr = this.getOverture(stem);
+      const hasSpr = !!(spr && spr.complete && spr.naturalWidth > 0);
       ctx.save();
       ctx.globalAlpha = alpha;
-      const hg = ctx.createRadialGradient(x, y, rad * 0.4, x, y, rad * 5);
-      hg.addColorStop(0, halo);
+      // Soft halo behind the body. A baked sprite carries its own corona/glow, so only a small
+      // bloom is added there; the procedural disc gets the full halo.
+      const haloR = hasSpr ? rad * 3.2 : rad * 5;
+      const hg = ctx.createRadialGradient(x, y, rad * 0.4, x, y, haloR);
+      hg.addColorStop(0, hasSpr ? halo.replace(/0\.\d+\)/, "0.28)") : halo);
       hg.addColorStop(1, "rgba(0,0,0,0)");
       ctx.fillStyle = hg;
-      ctx.fillRect(x - rad * 5, y - rad * 5, rad * 10, rad * 10);
-      const spr = this.getOverture(stem);
-      if (spr && spr.complete && spr.naturalWidth > 0) {
-        const w = rad * 2.6, h = w * (spr.naturalHeight / spr.naturalWidth);
-        ctx.drawImage(spr, x - w / 2, y - h / 2, w, h);
+      ctx.fillRect(x - haloR, y - haloR, haloR * 2, haloR * 2);
+      if (hasSpr) {
+        const w = rad * 3.2, h = w * (spr!.naturalHeight / spr!.naturalWidth);
+        ctx.drawImage(spr!, x - w / 2, y - h / 2, w, h);
       } else {
         ctx.beginPath();
         ctx.arc(x, y, rad, 0, Math.PI * 2);
