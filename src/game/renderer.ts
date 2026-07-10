@@ -106,6 +106,10 @@ interface AreaView {
                       // small painted interiors, so a person must be MUCH bigger than the overworld
                       // body height to read at the furniture's scale (≈0.8×door / ≈2×chair-back).
   occupants?: { stem: string; x: number; y: number; scale?: number; faceLeft?: boolean }[]; // static room NPCs (billboards)
+  // A foreground plate (transparent above it) drawn IN FRONT of occupants but behind the player —
+  // e.g. the shop counter, so a keeper (occupant) reads as standing BEHIND it while the player
+  // stands in front. Loaded from the same dir as the backdrop.
+  foreground?: string;
   // A beaded-curtain doorway on the right: as the player nears it the plate swaps to the open art,
   // and stepping into it scene-swaps to `toArea` (the back consultation room).
   curtain?: { openX: number; openBackdrop: string; enterX: number; toArea: string };
@@ -145,10 +149,11 @@ const AREAS: Record<string, AreaView> = {
     w: 1536, h: 1024,
     floorTop: 830, floorBot: 1005, // shallow walkable lane along the bottom, in front of the counter
     halfTop: 470, halfBot: 610,
-    cx: 768, entryX: 760, entryY: 950,
-    scaleBack: 0.9, entryZoom: 1.0, charScale: 4.5, // people sized to the counter (~1.8× counter height)
+    cx: 768, entryX: 780, entryY: 960,
+    scaleBack: 0.92, entryZoom: 1.0, charScale: 5.5, // matches the back room's human scale
     exitTo: null, // walk off the front edge → back out to the boulevard
-    occupants: [{ stem: "yara", x: 590, y: 952, scale: 1.0 }], // Yara at the counter, kept near centre so she's in view on mobile
+    foreground: "aguas-front-counter", // the counter, drawn IN FRONT of Yara so she stands behind it
+    occupants: [{ stem: "yara", x: 660, y: 780, scale: 1.0 }], // Yara BEHIND the counter — hip at the counter line, legs hidden
     // beaded curtain on the right → the back consultation room
     curtain: { openX: 1040, openBackdrop: "aguas-front-open", enterX: 1280, toArea: "aguas-back" },
   },
@@ -1039,21 +1044,30 @@ export class HollywoodRenderer {
       const f = Math.max(0, Math.min(1, (y - R.floorTop) / (R.floorBot - R.floorTop)));
       return (R.scaleBack + (1 - R.scaleBack) * f) * cs;
     };
-    const acts: { y: number; draw: () => void }[] = [];
-    if (pc) {
+    const drawPlayer = () => {
+      if (!pc) return;
       const sc = depthScaleAt(pc.y);
-      acts.push({ y: pc.y, draw: () => {
-        ctx.save();
-        ctx.translate(pc.x, pc.y); ctx.scale(sc, sc); ctx.translate(-pc.x, -pc.y);
-        this.drawNPC(pc, t);
-        ctx.restore();
-      } });
+      ctx.save();
+      ctx.translate(pc.x, pc.y); ctx.scale(sc, sc); ctx.translate(-pc.x, -pc.y);
+      this.drawNPC(pc, t);
+      ctx.restore();
+    };
+    const drawOccupant = (oc: NonNullable<AreaView["occupants"]>[number]) =>
+      this.drawRoomOccupant(oc.stem, oc.x, oc.y, (oc.scale ?? 1) * depthScaleAt(oc.y), oc.faceLeft ?? false);
+    if (R.foreground) {
+      // Counter-style room: occupants (keeper) BEHIND the foreground plate, player in FRONT of it.
+      for (const oc of R.occupants ?? []) drawOccupant(oc);
+      const fg = this.getAreaPlate(R, R.foreground, false); // overlay is a PNG (needs alpha)
+      if (fg && fg.complete && fg.naturalWidth > 0) ctx.drawImage(fg, 0, pad, R.w, plateH);
+      drawPlayer();
+    } else {
+      // Open room: player + occupants foot-Y sorted so you pass in front of / behind them.
+      const acts: { y: number; draw: () => void }[] = [];
+      if (pc) acts.push({ y: pc.y, draw: drawPlayer });
+      for (const oc of R.occupants ?? []) acts.push({ y: oc.y, draw: () => drawOccupant(oc) });
+      acts.sort((a, b) => a.y - b.y);
+      for (const a of acts) a.draw();
     }
-    for (const oc of R.occupants ?? []) {
-      acts.push({ y: oc.y, draw: () => this.drawRoomOccupant(oc.stem, oc.x, oc.y, (oc.scale ?? 1) * depthScaleAt(oc.y), oc.faceLeft ?? false) });
-    }
-    acts.sort((a, b) => a.y - b.y);
-    for (const a of acts) a.draw();
     // cohesion grade + vignette (screen space) so the area reads under the same exposure
     this.drawPostGrade();
   }
@@ -2558,9 +2572,9 @@ export class HollywoodRenderer {
   // A room's backdrop plate from its own asset folder: /${R.dir ?? 'overture'}/<stem>.<png|jpg>.
   // Opaque interior plates ride as .jpg (far smaller); the Overture court stays .png (needs its
   // transparent sky). Cached under an "a:" prefix keyed by the full path so folders don't collide.
-  private getAreaPlate(R: AreaView, stem: string): HTMLImageElement | null {
+  private getAreaPlate(R: AreaView, stem: string, jpg = R.jpg): HTMLImageElement | null {
     const dir = R.dir ?? "overture";
-    const ext = R.jpg ? "jpg" : "png";
+    const ext = jpg ? "jpg" : "png";
     const path = `/${dir}/${stem}.${ext}`;
     const key = `a:${path}`;
     const cached = this.sprites.get(key);
