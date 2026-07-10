@@ -892,8 +892,8 @@ export class HollywoodRenderer {
     ctx.setTransform(s, 0, 0, s, -this.cam.x * s, -this.cam.y * s);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
-    if (R.view === "headon") this.drawCelestial(t, R); // sun/moon in the sky headroom (behind everything)
     if (R.sky) this.drawAreaSkyline(R); // distant skyline behind the plate
+    if (R.view === "headon") this.drawCelestial(t, R); // sun/moon ON TOP of the skyline, behind the plate
     // backdrop plate (storefronts + floor) — sits below the sky headroom (skyPad)
     const pad = R.skyPad ?? 0;
     const plateH = R.h - pad;
@@ -989,7 +989,9 @@ export class HollywoodRenderer {
     const ctx = this.ctx;
     const mins = this.engine.clockMinutes;
     const cx = R.cx, rx = R.w * 0.42, rad = R.w * 0.05;
-    const peakY = pad * 0.70, horizonY = pad * 1.06, ry = horizonY - peakY; // arc within the sky band
+    // LOW, shallow arc that rides just above the skyline/rooftops (so it's in view on tall mobile
+    // screens) — and drawn on TOP of the skyline silhouette.
+    const peakY = pad * 0.84, horizonY = pad * 1.14, ry = horizonY - peakY;
     const arcXY = (p: number) => {
       const th = Math.PI * (1 - Math.max(0, Math.min(1, p)));
       return { x: cx + rx * Math.cos(th), y: horizonY - ry * Math.sin(th) };
