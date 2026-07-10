@@ -117,7 +117,7 @@ const AREAS: Record<string, AreaView> = {
     halfTop: 520, halfBot: 650,
     cx: 758, entryX: 758, entryY: 940,
     scaleBack: 0.72,
-    sky: { skyline: "skyline-silhouette", windows: "skyline-windows", rooflineY: 250 },
+    sky: { skyline: "skyline-silhouette", windows: "skyline-windows", rooflineY: 360 },
   },
 };
 const ROOM_FADE = 0.42; // seconds for a full fade-through-black scene swap
@@ -372,6 +372,7 @@ export class HollywoodRenderer {
   private room: string | null = null;
   private trans: { to: string | null; t: number; swapped: boolean } | null = null;
   private roomReturn: { x: number; y: number } | null = null;
+  private camReturn: { x: number; y: number; zoom: number } | null = null;
   // Active outfit per soul: soulId → sprite stem (see outfits.ts). Absent → wears its default
   // (stem = soul id). Swapping an entry changes which sprite (front + `_back`) drawNPC loads.
   private outfits = new Map<string, string>();
@@ -555,6 +556,14 @@ export class HollywoodRenderer {
     return this.room ? AREAS[this.room] ?? null : null;
   }
 
+  // Active camera-bounds dimensions: the room's backdrop plate when inside one, else the world.
+  // The camera clamp + min-zoom use these, so a room pans/zooms exactly like the city and NEVER
+  // shows past the plate edges (min-zoom = cover; position clamped to the plate).
+  private worldDims(): [number, number] {
+    const R = this.activeArea();
+    return R ? [R.w, R.h] : [WORLD_W, WORLD_H];
+  }
+
   // Room player step: move within the painted floor trapezoid (room-local coords). Walking down
   // off the front edge exits back to the court.
   private updateRoomPlayer(pc: NpcRuntime, dt: number): void {
@@ -582,6 +591,7 @@ export class HollywoodRenderer {
       // pressing down at the front edge of the floor → walk out, back to the court
       if (vy > 0 && pc.y >= R.floorBot - 6) this.startTransition(null);
     }
+    this.followCam(pc.x, pc.y); // camera eases to keep the avatar framed (clamped to the plate)
   }
 
   // Is a room-local point on the painted floor? A trapezoid lane widening toward the viewer.
@@ -609,14 +619,30 @@ export class HollywoodRenderer {
         pc.x = R.entryX;
         pc.y = R.entryY;
       }
+      this.camReturn = { ...this.cam }; // remember the boulevard view to restore on exit
       this.room = this.trans.to;
       this.facingUp = true; // arrive facing into the scene
+      // frame the room at cover-zoom (plate fills the viewport; can't see past its edges), centred
+      // on the arrival point then clamped to the plate — same camera model as the city.
+      if (R) {
+        const [ww, wh] = [R.w, R.h];
+        this.cam.zoom = minZoomFor(this.cssW, this.cssH, ww, wh) * 1.05;
+        this.cam.x = R.entryX - this.cssW / this.cam.zoom / 2;
+        this.cam.y = R.entryY - this.cssH / this.cam.zoom / 2;
+        clampCamera(this.cam, this.cssW, this.cssH, ww, wh);
+      }
     } else {
       this.room = null;
       if (pc) {
         // return to the court just south of the enter line so you don't instantly re-trigger
         pc.x = this.roomReturn?.x ?? OVERTURE.cx;
         pc.y = COURT_ENTER_Y + 150;
+      }
+      if (this.camReturn) {
+        this.cam.x = this.camReturn.x;
+        this.cam.y = this.camReturn.y;
+        this.cam.zoom = this.camReturn.zoom;
+        this.camReturn = null;
       }
       this.facingUp = false;
     }
@@ -646,19 +672,22 @@ export class HollywoodRenderer {
       this.cam.y = cy - cssH / this.cam.zoom / 2;
       this.centered = true;
     }
-    clampCamera(this.cam, this.cssW, this.cssH, WORLD_W, WORLD_H);
+    const [ww, wh] = this.worldDims();
+    clampCamera(this.cam, this.cssW, this.cssH, ww, wh);
   }
 
   // ---- camera controls (called by input + zoom buttons) ----
 
   private panBy(dxCss: number, dyCss: number) {
+    const [ww, wh] = this.worldDims();
     this.cam.x -= dxCss / this.cam.zoom;
     this.cam.y -= dyCss / this.cam.zoom;
-    clampCamera(this.cam, this.cssW, this.cssH, WORLD_W, WORLD_H);
+    clampCamera(this.cam, this.cssW, this.cssH, ww, wh);
   }
 
   private zoomAt(factor: number, cssX: number, cssY: number) {
-    zoomAbout(this.cam, factor, cssX, cssY, this.cssW, this.cssH, WORLD_W, WORLD_H);
+    const [ww, wh] = this.worldDims();
+    zoomAbout(this.cam, factor, cssX, cssY, this.cssW, this.cssH, ww, wh);
   }
 
   // Zoom about the viewport center — for on-screen +/- buttons.
@@ -668,11 +697,12 @@ export class HollywoodRenderer {
 
   // Ease the camera to keep the controlled character centered.
   private followCam(x: number, y: number) {
+    const [ww, wh] = this.worldDims();
     const tx = x - this.cssW / this.cam.zoom / 2;
     const ty = y - this.cssH / this.cam.zoom / 2;
     this.cam.x += (tx - this.cam.x) * 0.12;
     this.cam.y += (ty - this.cam.y) * 0.12;
-    clampCamera(this.cam, this.cssW, this.cssH, WORLD_W, WORLD_H);
+    clampCamera(this.cam, this.cssW, this.cssH, ww, wh);
   }
 
   // Designate the player-driven character (its patrol AI is suspended), or null
@@ -840,32 +870,40 @@ export class HollywoodRenderer {
     this.drawTransition();
   }
 
-  // Render an AREA (scene-swap room). The backdrop plate is contain-fit to the frame; the avatar
-  // walks the painted floor as a normal foot-Y billboard, mildly depth-scaled. HEAD-ON areas get a
-  // procedural time-of-day SKY behind the plate (+ an optional baked skyline/window layer). All the
-  // character machinery (contact shadow, walk FX, leg-blur, front/back) is reused verbatim — an area
-  // is just a different coordinate space + backdrop + declared view.
+  // Render an AREA (scene-swap room). The backdrop plate is shown through the SAME clamped camera as
+  // the city (world = the plate's pixels), so it pans/zooms and never reveals an edge (min-zoom =
+  // cover). HEAD-ON areas get a procedural time-of-day SKY (screen-space, behind the plate, seen
+  // through the plate's transparent top) + an optional baked skyline/window layer. The avatar walks
+  // the painted floor as a normal foot-Y billboard, mildly depth-scaled. All the character machinery
+  // (contact shadow, walk FX, leg-blur, front/back) is reused verbatim.
   private renderArea(t: number, R: AreaView): void {
     const ctx = this.ctx;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    if (R.view === "headon") this.drawAreaSky(); // time-reactive sky fills the whole frame (bars incl.)
+    if (R.view === "headon") this.drawAreaSky(t); // time-reactive sky behind the plate
     else {
-      ctx.fillStyle = "#0d0b09"; // top-down area: plain letterbox
+      ctx.fillStyle = "#0d0b09";
       ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     }
-    const scale = Math.min(this.cssW / R.w, this.cssH / R.h);
-    const s = this.dpr * scale;
-    const offX = (this.cssW * this.dpr - R.w * s) / 2;
-    const offY = (this.cssH * this.dpr - R.h * s) / 2;
-    ctx.setTransform(s, 0, 0, s, offX, offY);
+    // camera transform (plate-pixel space) — clamped by worldDims() so no border ever shows
+    const s = this.dpr * this.cam.zoom;
+    ctx.setTransform(s, 0, 0, s, -this.cam.x * s, -this.cam.y * s);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
-    // distant skyline (behind the plate) — baked shape multiply-tinted by the clock, night windows added
-    if (R.sky) this.drawAreaSkyline(R);
+    if (R.sky) this.drawAreaSkyline(R); // distant skyline behind the plate
     // backdrop plate (storefronts + floor)
     const img = this.getOverture(R.backdrop);
     if (img && img.complete && img.naturalWidth > 0) {
       ctx.drawImage(img, 0, 0, R.w, R.h);
+      // NIGHT LIFT: additively re-composite the plate so its painted lit windows / signage GLOW after
+      // dark (the bright pixels add, the dark ones add ~nothing) — so buildings read at night.
+      const night = nightAt(this.engine.clockMinutes);
+      if (night > 0.02) {
+        ctx.save();
+        ctx.globalCompositeOperation = "lighter";
+        ctx.globalAlpha = 0.22 * night;
+        ctx.drawImage(img, 0, 0, R.w, R.h);
+        ctx.restore();
+      }
     } else {
       ctx.fillStyle = "#c9b48c";
       ctx.fillRect(0, R.floorTop - 20, R.w, R.h - R.floorTop + 20);
@@ -888,7 +926,7 @@ export class HollywoodRenderer {
 
   // Procedural time-of-day sky (screen space): a zenith→horizon gradient keyed to the sim clock,
   // plus a sun (day) / moon (night) disc with a soft halo, plus a warm golden-hour horizon wash.
-  private drawAreaSky(): void {
+  private drawAreaSky(t: number): void {
     const ctx = this.ctx;
     const W = this.canvas.width, H = this.canvas.height;
     const mins = this.engine.clockMinutes;
@@ -899,12 +937,28 @@ export class HollywoodRenderer {
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
     const night = nightAt(mins), golden = goldenAt(mins);
-    // sun / moon disc arcs left→right across the day; higher at midday. Moon rides the night side.
+    // STARS — a deterministic field scattered across the upper sky, fading in with night (twinkle
+    // via a slow per-star phase). Drawn before sun/moon so the moon reads over them.
+    if (night > 0.02) {
+      ctx.save();
+      ctx.fillStyle = "#eaf0ff";
+      for (let i = 0; i < 90; i++) {
+        const sx = groundHash(i * 2 + 1, 7) * W;
+        const sy = groundHash(i * 2 + 2, 11) * H * 0.62;
+        const tw = 0.5 + 0.5 * Math.sin(t * 0.0015 + i * 1.7);
+        ctx.globalAlpha = night * (0.35 + 0.55 * tw) * (0.5 + 0.5 * groundHash(i, 3));
+        const r = 1.1 + 1.4 * groundHash(i * 3, 5);
+        ctx.fillRect(sx, sy, r, r);
+      }
+      ctx.restore();
+    }
+    // sun / moon — a baked sprite if present (public/overture/sun.png · moon.png), else a soft disc.
+    // Arcs left→right across the day; higher at midday. Moon rides the night side.
     const dayF = Math.max(0, Math.min(1, (((mins % 1440) + 1440) % 1440 - 360) / (1200 - 360)));
     const discX = W * (0.14 + 0.72 * dayF);
     const discY = H * (0.40 - 0.20 * Math.sin(dayF * Math.PI));
-    const rad = Math.min(W, H) * 0.05;
-    const drawDisc = (x: number, y: number, col: string, halo: string, alpha: number) => {
+    const rad = Math.min(W, H) * 0.055;
+    const drawBody = (x: number, y: number, stem: string, col: string, halo: string, alpha: number) => {
       if (alpha < 0.03) return;
       ctx.save();
       ctx.globalAlpha = alpha;
@@ -913,15 +967,20 @@ export class HollywoodRenderer {
       hg.addColorStop(1, "rgba(0,0,0,0)");
       ctx.fillStyle = hg;
       ctx.fillRect(x - rad * 5, y - rad * 5, rad * 10, rad * 10);
-      ctx.globalAlpha = alpha;
-      ctx.beginPath();
-      ctx.arc(x, y, rad, 0, Math.PI * 2);
-      ctx.fillStyle = col;
-      ctx.fill();
+      const spr = this.getOverture(stem);
+      if (spr && spr.complete && spr.naturalWidth > 0) {
+        const w = rad * 2.6, h = w * (spr.naturalHeight / spr.naturalWidth);
+        ctx.drawImage(spr, x - w / 2, y - h / 2, w, h);
+      } else {
+        ctx.beginPath();
+        ctx.arc(x, y, rad, 0, Math.PI * 2);
+        ctx.fillStyle = col;
+        ctx.fill();
+      }
       ctx.restore();
     };
-    drawDisc(discX, discY, "rgba(255,246,214,1)", "rgba(255,226,150,0.5)", 1 - night); // sun
-    drawDisc(W * 0.76, H * 0.2, "rgba(226,232,244,1)", "rgba(180,196,230,0.4)", night * (1 - golden)); // moon
+    drawBody(discX, discY, "sun", "rgba(255,246,214,1)", "rgba(255,226,150,0.5)", 1 - night); // sun
+    drawBody(W * 0.76, H * 0.2, "moon", "rgba(226,232,244,1)", "rgba(180,196,230,0.4)", night * (1 - golden)); // moon
     if (golden > 0.02) {
       // warm horizon wash low in the sky
       ctx.save();

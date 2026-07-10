@@ -111,19 +111,26 @@ feet-anchored to one ground-Y, which is the sort key.
      scale-about-pivot wrap / a trapezoid floor. If a future space needs more
      enclosure, bake a single-angle plate (Gaia-style) — do not compute a VP.
 
-   **7b. Enterable spaces are Gaia-style SCENE-SWAP ROOMS (`renderRoom` / `COURT_ROOM`).**
+   **7b. Enterable spaces are Gaia-style SCENE-SWAP ROOMS (`renderArea` / `AREAS`).**
    The detailed court interior is NOT drawn in the overworld — it's a room you crossfade
    into. Walk deep enough up the court (`pc.y < COURT_ENTER_Y` on the axis) and
    `startTransition("overture-court")` runs a fade-through-black; at the mid-fade
-   `doRoomSwap` stashes the world position and sets `this.room`. `render()` then
-   dispatches to `renderRoom` instead of `renderWorld`: one painted backdrop plate
-   (`overture-court-interior.png`) is contain-fit to the frame (letterboxed), and the
-   avatar walks the painted floor as a **normal foot-Y billboard** (mild depth-scale by
-   `y`), reusing contact shadow / walk FX / leg-blur / front-back **verbatim** — the room
-   is just a different coordinate space (the plate's pixel space) + backdrop. Movement is
-   bounded to a floor trapezoid (`roomCanWalk`); walking down off the front edge exits.
-   This is the generic mechanism for ALL future enterable buildings — add a room def +
-   one painted plate, no new render pass. `setControlled` drops any active room.
+   `doRoomSwap` stashes the world position + camera and sets `this.room`. `render()` then
+   dispatches to `renderArea`. Rooms live in an `AREAS` registry: each area DECLARES its
+   `view` (`'topdown'` city vs `'headon'` elevated), backdrop plate, floor band, and optional
+   `sky` — so adding a rooftop/interior is DATA, not new render code. The plate is shown
+   through the **same clamped camera as the city** (world = the plate's pixels via
+   `worldDims()`), so a room **pans + zooms and NEVER reveals an edge** (min-zoom = cover;
+   position clamped) — never contain-fit/letterbox, which showed borders. The avatar walks the
+   painted floor as a **normal foot-Y billboard** (mild depth-scale by `y`), reusing contact
+   shadow / walk FX / leg-blur / front-back **verbatim**. Movement is bounded to a floor
+   trapezoid (`roomCanWalk`); walking down off the front edge exits. **Head-on areas draw a
+   procedural time-of-day SKY** (`drawAreaSky`: zenith→horizon gradient + sun/moon disc-or-sprite
+   + stars + golden wash, all keyed to the clock) behind the plate, seen through the plate's
+   transparent top, plus an optional baked skyline (`skyline-silhouette` + emissive
+   `skyline-windows`, feathered base tucked behind the buildings). A night additive re-composite
+   of the plate makes its lit windows/signage glow. `setControlled` drops any active room. This
+   is the generic mechanism for ALL future enterable buildings — add an `AREAS` entry + one plate.
 
 ## Asset pipeline
 
