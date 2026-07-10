@@ -390,6 +390,7 @@ export class HollywoodRenderer {
   // height), so we normalize every actor to one body height. Measured once, lazily, on first draw.
   private boundsCache = new Map<string, { t: number; b: number }>();
   private measureCanvas?: HTMLCanvasElement;
+  private skylineBuf?: HTMLCanvasElement; // offscreen for tinting the skyline silhouette in isolation
   private tapHandler: ((cssX: number, cssY: number) => void) | null = null;
 
   // input state
@@ -1052,16 +1053,26 @@ export class HollywoodRenderer {
     if (sil && sil.complete && sil.naturalWidth > 0) {
       const h = R.w * (sil.naturalHeight / sil.naturalWidth);
       const y = R.sky.rooflineY - h;
-      ctx.drawImage(sil, 0, y, R.w, h);
-      // tint only the silhouette pixels toward the ambient colour (darkens at night)
+      // Tint the silhouette toward the ambient colour (darkens at night) in an OFFSCREEN buffer, so
+      // the tint touches only the silhouette SHAPE. Doing source-atop on the main canvas would paint
+      // the whole rectangle (the sky behind is opaque) → a hard horizontal seam. Then blit the shape.
       const amb = ambientAt(mins);
       const tintA = Math.max(0, Math.min(0.7, amb.a + nightAt(mins) * 0.3));
-      ctx.save();
-      ctx.globalCompositeOperation = "source-atop";
-      ctx.globalAlpha = tintA;
-      ctx.fillStyle = `rgb(${Math.round(amb.r)},${Math.round(amb.g)},${Math.round(amb.b)})`;
-      ctx.fillRect(0, y, R.w, h);
-      ctx.restore();
+      const buf = (this.skylineBuf ??= document.createElement("canvas"));
+      if (buf.width !== sil.naturalWidth) { buf.width = sil.naturalWidth; buf.height = sil.naturalHeight; }
+      const bx = buf.getContext("2d")!;
+      bx.setTransform(1, 0, 0, 1, 0, 0);
+      bx.globalCompositeOperation = "source-over";
+      bx.globalAlpha = 1;
+      bx.clearRect(0, 0, buf.width, buf.height);
+      bx.drawImage(sil, 0, 0);
+      bx.globalCompositeOperation = "source-atop"; // tints only where the silhouette has alpha
+      bx.globalAlpha = tintA;
+      bx.fillStyle = `rgb(${Math.round(amb.r)},${Math.round(amb.g)},${Math.round(amb.b)})`;
+      bx.fillRect(0, 0, buf.width, buf.height);
+      bx.globalAlpha = 1;
+      bx.globalCompositeOperation = "source-over";
+      ctx.drawImage(buf, 0, y, R.w, h);
     }
     const win = this.getOverture(R.sky.windows);
     const night = nightAt(mins);
