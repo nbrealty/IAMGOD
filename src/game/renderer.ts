@@ -102,6 +102,9 @@ interface AreaView {
   jpg?: boolean; // load the plate as .jpg instead of .png (opaque interior plates compress far smaller)
   exitTo?: string | null; // walking off the front edge goes here: null/undefined = overworld, or a room id
   entryZoom?: number; // cover-zoom multiplier for the initial framing (default 1.05); >1 frames closer
+  charScale?: number; // multiplier on CHAR_BODY_H for people in this room (default 1). Rooms are
+                      // small painted interiors, so a person must be MUCH bigger than the overworld
+                      // body height to read at the furniture's scale (≈0.8×door / ≈2×chair-back).
   occupants?: { stem: string; x: number; y: number; scale?: number; faceLeft?: boolean }[]; // static room NPCs (billboards)
   // A beaded-curtain doorway on the right: as the player nears it the plate swaps to the open art,
   // and stepping into it scene-swaps to `toArea` (the back consultation room).
@@ -142,10 +145,10 @@ const AREAS: Record<string, AreaView> = {
     w: 1536, h: 1024,
     floorTop: 830, floorBot: 1005, // shallow walkable lane along the bottom, in front of the counter
     halfTop: 470, halfBot: 610,
-    cx: 768, entryX: 760, entryY: 985,
-    scaleBack: 0.86, entryZoom: 1.15, // slightly closer than cover; keeps most of the shop in frame
+    cx: 768, entryX: 760, entryY: 950,
+    scaleBack: 0.9, entryZoom: 1.0, charScale: 4.5, // people sized to the counter (~1.8× counter height)
     exitTo: null, // walk off the front edge → back out to the boulevard
-    occupants: [{ stem: "yara", x: 360, y: 968, scale: 1.35 }], // Yara on the floor at her register end
+    occupants: [{ stem: "yara", x: 590, y: 952, scale: 1.0 }], // Yara at the counter, kept near centre so she's in view on mobile
     // beaded curtain on the right → the back consultation room
     curtain: { openX: 1040, openBackdrop: "aguas-front-open", enterX: 1280, toArea: "aguas-back" },
   },
@@ -160,8 +163,8 @@ const AREAS: Record<string, AreaView> = {
     w: 1536, h: 1024,
     floorTop: 560, floorBot: 980, // the open floor in front of the reading table
     halfTop: 360, halfBot: 640,
-    cx: 768, entryX: 1120, entryY: 900, // arrive by the curtain doorway (right), facing in
-    scaleBack: 0.8,
+    cx: 768, entryX: 1120, entryY: 880, // arrive by the curtain doorway (right), facing in
+    scaleBack: 0.82, charScale: 5.5, // people sized to the chairs/table (~2× chair-back height)
     exitTo: "aguas-front", // walk off the front edge → back through the curtain to the botanica
   },
 };
@@ -638,7 +641,6 @@ export class HollywoodRenderer {
     if (!R) return;
     let vx = (this.held.has("right") ? 1 : 0) - (this.held.has("left") ? 1 : 0);
     let vy = (this.held.has("down") ? 1 : 0) - (this.held.has("up") ? 1 : 0);
-    const heldDown = this.held.has("down");
     if (vx || vy) this.moveTarget = null; // manual input cancels tap-to-walk
     else { const a = this.aimAtTarget(pc); if (a) { vx = a.x; vy = a.y; } }
     pc.moving = vx !== 0 || vy !== 0;
@@ -660,9 +662,10 @@ export class HollywoodRenderer {
       else if (vx !== 0) this.facingUp = false;
       pc.dir = vx < 0 ? -1 : 1;
       if (this.moveTarget && Math.hypot(pc.x - ox, pc.y - oy) < 0.25) this.moveTarget = null;
-      // HOLD down at the front edge of the floor → leave (tap-walk never exits, to avoid surprises).
-      // Where you go is per-room: the overworld (exitTo null) or another room (a deeper→shallower step).
-      if (heldDown && pc.y >= R.floorBot - 6) this.startTransition(R.exitTo ?? null);
+      // Walk DOWN to the front edge of the floor → leave. Works with the D-pad AND tap-to-walk
+      // toward the bottom (vy > 0 = any downward movement), so it's reachable on mobile. Where you
+      // go is per-room: the overworld (exitTo null) or another room (a deeper→shallower step).
+      if (vy > 0 && pc.y >= R.floorBot - 8) this.startTransition(R.exitTo ?? null);
       // Reach the beaded curtain on the right → step through into the back consultation room.
       if (R.curtain && pc.x >= R.curtain.enterX) this.startTransition(R.curtain.toArea);
     }
@@ -687,6 +690,7 @@ export class HollywoodRenderer {
   // and flip `this.room`. Three cases keyed off where we are (`from`) and where we're going (`to`).
   private doRoomSwap(): void {
     if (!this.trans) return;
+    this.moveTarget = null; // drop any stale tap-target so it can't leak across the scene swap
     const pc = this.controlledId ? this.npcs.find((n) => n.soul.id === this.controlledId) : null;
     const to = this.trans.to;
     const from = this.room; // the room we're currently in (null = out in the overworld)
@@ -1030,9 +1034,10 @@ export class HollywoodRenderer {
     // Room actors: the controlled avatar + any static occupants (e.g. Yara at her counter), all
     // foot-Y sorted so the player passes correctly in front of / behind them. Each is depth-scaled
     // by how far down the painted floor it stands.
+    const cs = R.charScale ?? 1; // rooms scale people UP to the painted furniture's human scale
     const depthScaleAt = (y: number) => {
       const f = Math.max(0, Math.min(1, (y - R.floorTop) / (R.floorBot - R.floorTop)));
-      return R.scaleBack + (1 - R.scaleBack) * f;
+      return (R.scaleBack + (1 - R.scaleBack) * f) * cs;
     };
     const acts: { y: number; draw: () => void }[] = [];
     if (pc) {
