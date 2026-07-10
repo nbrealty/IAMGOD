@@ -63,7 +63,8 @@ export function HollywoodScene({ engine, controlledId, onControlledChange }: Pro
     rendererRef.current = renderer;
     renderer.setTapHandler((cssX, cssY) => {
       const id = renderer.hitTest(cssX, cssY);
-      if (id) setSelectedId(id);
+      if (id) setSelectedId(id); // tapped a person → open their Soul Profile
+      else renderer.tapToWalk(cssX, cssY); // tapped the ground → walk the controlled soul there
     });
 
     const fit = () => {

@@ -34,7 +34,7 @@ export default function App() {
       </main>
       <footer className="footnote">
         {controlledName
-          ? `Move ${controlledName} with the D-pad (or WASD / arrows) · pinch or ＋/－ to zoom · tap a person to read their live Soul Profile`
+          ? `Move ${controlledName} with the D-pad / arrows or TAP the ground to walk there · pinch or ＋/－ to zoom · tap a person for their Soul Profile`
           : "Drag to pan · pinch or ＋/－ to zoom · tap a person to read their live Soul Profile"}
       </footer>
     </div>

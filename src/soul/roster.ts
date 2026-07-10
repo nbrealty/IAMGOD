@@ -761,7 +761,11 @@ const HIGHLAND_POSTS: Record<string, { x: number; y: number }> = {
   hector: { x: HIGHLAND_E_SIDEWALK_X, y: 1520 }, // down Highland, south of the blvd
 };
 
-export const ROSTER: Soul[] = RAW.map((s) => {
+// Souls temporarily removed from the game (still fully defined above). To bring one back,
+// delete its id from this set — nothing else needs changing.
+const HIDDEN_SOULS = new Set(["roxy_valente", "maya"]);
+
+export const ROSTER: Soul[] = RAW.filter((s) => !HIDDEN_SOULS.has(s.id)).map((s) => {
   const post = HIGHLAND_POSTS[s.id];
   if (post) {
     return { ...s, xMin: post.x, xMax: post.x, patrolY: post.y };

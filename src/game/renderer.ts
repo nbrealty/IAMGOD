@@ -382,6 +382,9 @@ export class HollywoodRenderer {
   private held = new Set<string>();
   private facingLeft = false;
   private facingUp = false; // moving away from camera → show the back sprite
+  // tap-to-walk destination (world coords overworld / room-local in a room); null = not walking to a
+  // point. Set by tapping the ground; cleared on arrival, on manual D-pad/key input, or when blocked.
+  private moveTarget: { x: number; y: number } | null = null;
 
   private sprites = new Map<string, HTMLImageElement | null>();
   private tiles = new Map<string, HTMLImageElement | null>();
@@ -526,13 +529,16 @@ export class HollywoodRenderer {
   // Overworld player step: move against the walkable "+" corridor + court pocket, face travel,
   // ease the camera to follow. Auto-loads the Overture Court room once you walk deep enough up.
   private updateWorldPlayer(pc: NpcRuntime, dt: number): void {
-    const vx = (this.held.has("right") ? 1 : 0) - (this.held.has("left") ? 1 : 0);
-    const vy = (this.held.has("down") ? 1 : 0) - (this.held.has("up") ? 1 : 0);
+    let vx = (this.held.has("right") ? 1 : 0) - (this.held.has("left") ? 1 : 0);
+    let vy = (this.held.has("down") ? 1 : 0) - (this.held.has("up") ? 1 : 0);
+    if (vx || vy) this.moveTarget = null; // manual input cancels tap-to-walk
+    else { const a = this.aimAtTarget(pc); if (a) { vx = a.x; vy = a.y; } }
     pc.moving = vx !== 0 || vy !== 0;
     if (vx || vy) {
       const m = Math.hypot(vx, vy) || 1;
       const dx = (vx / m) * PLAYER_SPEED * dt;
       const dy = (vy / m) * PLAYER_SPEED * dt;
+      const ox = pc.x, oy = pc.y;
       // Move axis-independently against the street "+" corridor: try the full step, else slide
       // along the wall on whichever axis stays walkable — so you hug the sidewalk and can turn.
       if (canWalk(pc.x + dx, pc.y + dy)) {
@@ -547,6 +553,8 @@ export class HollywoodRenderer {
       if (vy !== 0 && Math.abs(vy) >= Math.abs(vx)) this.facingUp = vy < 0;
       else if (vx !== 0) this.facingUp = false;
       pc.dir = vx < 0 ? -1 : 1;
+      // walking to a tapped point but wall-blocked (barely moved) → give up the target
+      if (this.moveTarget && Math.hypot(pc.x - ox, pc.y - oy) < 0.25) this.moveTarget = null;
       // deep in the court, on the axis → crossfade into the Overture Court room
       if (pc.y < COURT_ENTER_Y && Math.abs(pc.x - OVERTURE.cx) < OVERTURE.courtWalkHalf) {
         this.startTransition("overture-court");
@@ -573,13 +581,17 @@ export class HollywoodRenderer {
   private updateRoomPlayer(pc: NpcRuntime, dt: number): void {
     const R = this.activeArea();
     if (!R) return;
-    const vx = (this.held.has("right") ? 1 : 0) - (this.held.has("left") ? 1 : 0);
-    const vy = (this.held.has("down") ? 1 : 0) - (this.held.has("up") ? 1 : 0);
+    let vx = (this.held.has("right") ? 1 : 0) - (this.held.has("left") ? 1 : 0);
+    let vy = (this.held.has("down") ? 1 : 0) - (this.held.has("up") ? 1 : 0);
+    const heldDown = this.held.has("down");
+    if (vx || vy) this.moveTarget = null; // manual input cancels tap-to-walk
+    else { const a = this.aimAtTarget(pc); if (a) { vx = a.x; vy = a.y; } }
     pc.moving = vx !== 0 || vy !== 0;
     if (vx || vy) {
       const m = Math.hypot(vx, vy) || 1;
       const dx = (vx / m) * PLAYER_SPEED * dt;
       const dy = (vy / m) * PLAYER_SPEED * dt;
+      const ox = pc.x, oy = pc.y;
       if (this.roomCanWalk(R, pc.x + dx, pc.y + dy)) {
         pc.x += dx;
         pc.y += dy;
@@ -592,8 +604,9 @@ export class HollywoodRenderer {
       if (vy !== 0 && Math.abs(vy) >= Math.abs(vx)) this.facingUp = vy < 0;
       else if (vx !== 0) this.facingUp = false;
       pc.dir = vx < 0 ? -1 : 1;
-      // pressing down at the front edge of the floor → walk out, back to the court
-      if (vy > 0 && pc.y >= R.floorBot - 6) this.startTransition(null);
+      if (this.moveTarget && Math.hypot(pc.x - ox, pc.y - oy) < 0.25) this.moveTarget = null;
+      // HOLD down at the front edge of the floor → walk out (tap-walk never exits, to avoid surprises)
+      if (heldDown && pc.y >= R.floorBot - 6) this.startTransition(null);
     }
     this.followCam(pc.x, pc.y); // camera eases to keep the avatar framed (clamped to the plate)
   }
@@ -718,6 +731,7 @@ export class HollywoodRenderer {
     // out in the overworld, not standing in the court plate.
     this.room = null;
     this.trans = null;
+    this.moveTarget = null;
     this.controlledId = id;
     this.held.clear();
     this.facingLeft = false;
@@ -742,6 +756,24 @@ export class HollywoodRenderer {
 
   setTapHandler(fn: (cssX: number, cssY: number) => void) {
     this.tapHandler = fn;
+  }
+
+  // Tap-to-walk: send the controlled character toward the tapped ground point. Works in both the
+  // overworld and a room (both render through this.cam, so screenToWorld gives the right space).
+  tapToWalk(cssX: number, cssY: number): void {
+    if (!this.controlledId) return;
+    const w = screenToWorld(this.cam, cssX, cssY);
+    this.moveTarget = { x: w.x, y: w.y };
+  }
+
+  // Direction (unit vector) from the character toward the active move-target, or null once close
+  // enough (which also clears the target).
+  private aimAtTarget(pc: NpcRuntime): { x: number; y: number } | null {
+    if (!this.moveTarget) return null;
+    const dx = this.moveTarget.x - pc.x, dy = this.moveTarget.y - pc.y;
+    const d = Math.hypot(dx, dy);
+    if (d < 8) { this.moveTarget = null; return null; }
+    return { x: dx / d, y: dy / d };
   }
 
   hitTest(cssX: number, cssY: number): string | null {
@@ -920,6 +952,7 @@ export class HollywoodRenderer {
       ctx.fillStyle = "#c9b48c";
       ctx.fillRect(0, R.floorTop - 20, R.w, R.h - R.floorTop + 20);
     }
+    this.drawMoveMarker(t); // tap-to-walk destination ring on the painted floor
     // the avatar — foot-Y anchored, depth-scaled by how far up the floor it stands
     const pc = this.controlledId ? this.npcs.find((n) => n.soul.id === this.controlledId) : null;
     if (pc) {
@@ -1087,6 +1120,22 @@ export class HollywoodRenderer {
     }
   }
 
+  // Tap-to-walk destination marker: a soft pulsing ground ring where the character is headed.
+  private drawMoveMarker(t: number): void {
+    if (!this.moveTarget) return;
+    const ctx = this.ctx;
+    const pulse = 0.5 + 0.5 * Math.sin(t * 0.006);
+    const rx = 15 + 5 * pulse, ry = rx * 0.5;
+    ctx.save();
+    ctx.globalAlpha = 0.3 + 0.4 * pulse;
+    ctx.strokeStyle = "rgba(255,238,170,0.95)";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.ellipse(this.moveTarget.x, this.moveTarget.y, rx, ry, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   // Fade-through-black overlay for a running scene swap (alpha peaks at the mid-fade swap point).
   private drawTransition(): void {
     if (!this.trans) return;
@@ -1123,6 +1172,7 @@ export class HollywoodRenderer {
     this.drawOvertureFloor(); // baked plaza floor plate behind the Overture gate (walk-in court)
     this.drawSeamBlends(); // feather surface transitions + decal breakup (the "smudge")
     this.drawFloorGlow(); // lamp light cast ON the floor — UNDER the actors (they stand IN it)
+    this.drawMoveMarker(t); // tap-to-walk destination ring, on the ground under the actors
 
     // distant skyline silhouette — always furthest back
     for (const b of BACKDROP_BUILDINGS) this.drawBuilding(b);
