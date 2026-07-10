@@ -893,10 +893,15 @@ export class HollywoodRenderer {
     // backdrop plate (storefronts + floor)
     const img = this.getOverture(R.backdrop);
     if (img && img.complete && img.naturalWidth > 0) {
+      const night = nightAt(this.engine.clockMinutes);
+      // DAY BRIGHTNESS: lift the plate's exposure in daylight so the court reads bright & sunny.
+      const day = 1 - night;
+      const prevFilter = ctx.filter;
+      if (day > 0.02) ctx.filter = `brightness(${(1 + 0.18 * day).toFixed(3)}) saturate(${(1 + 0.06 * day).toFixed(3)})`;
       ctx.drawImage(img, 0, 0, R.w, R.h);
+      ctx.filter = prevFilter;
       // NIGHT LIFT: additively re-composite the plate so its painted lit windows / signage GLOW after
       // dark (the bright pixels add, the dark ones add ~nothing) — so buildings read at night.
-      const night = nightAt(this.engine.clockMinutes);
       if (night > 0.02) {
         ctx.save();
         ctx.globalCompositeOperation = "lighter";
