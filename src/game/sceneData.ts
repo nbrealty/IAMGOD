@@ -253,10 +253,10 @@ const PLACEMENT: { n?: string[]; s?: string[] }[] = [
   //    plaza (see OVERTURE), rendered separately and pinned to the block's west end; these
   //    three lay out EAST of the gate.
   { n: ["vantage-theatre", "crescendo-hotel", "thunderclap-cafe"], s: ["blackwood-odditorium", "apex-records"] },
-  { n: ["aguas-douradas"] }, // 3  McCadden→Las Palmas (6770–6720): Yara's botanica (enterable) + storefronts
+  {}, // 3  McCadden→Las Palmas (6770–6720): Egyptian 6712 S (no asset yet) → storefronts
   { s: ["marchetti-vane-grill"] }, // 4  Las Palmas→Cherokee (6720–6660): Musso & Frank 6667 S
   { s: ["reel-page-bookshop"] }, //   5  Cherokee→Wilcox (6660–6600): Larry Edmunds 6644 S
-  {}, // 6  Wilcox→Cahuenga (6600–6500)
+  { n: ["aguas-douradas"] }, // 6  Wilcox→Cahuenga (6600–6500): Yara's botanica (enterable) — the player spawns here
   {}, // 7  Cahuenga→Ivar (6500–6420)
   {}, // 8  Ivar→Vine (6420–6300)
   { n: ["meridian-hotel"] }, // 9  Vine→Argyle (6300–6250): W Hollywood 6250 N (Pantages 6233, no asset)

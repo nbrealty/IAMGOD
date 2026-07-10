@@ -427,6 +427,7 @@ export class HollywoodRenderer {
   // tap-to-walk destination (world coords overworld / room-local in a room); null = not walking to a
   // point. Set by tapping the ground; cleared on arrival, on manual D-pad/key input, or when blocked.
   private moveTarget: { x: number; y: number } | null = null;
+  private startFramed = false; // one-time: drop the player in front of the enterable shop on first frame
 
   private sprites = new Map<string, HTMLImageElement | null>();
   private tiles = new Map<string, HTMLImageElement | null>();
@@ -608,7 +609,7 @@ export class HollywoodRenderer {
           for (const b of f.buildings) {
             if (!b.enter || (b.side ?? "north") !== "north") continue;
             const bx = b.x ?? 0, bw = b.width ?? 0;
-            if (pc.x >= bx + bw * 0.5 && pc.x <= bx + bw) { this.startTransition(b.enter); break; }
+            if (pc.x >= bx + bw * 0.3 && pc.x <= bx + bw) { this.startTransition(b.enter); break; }
           }
           if (this.trans) break;
         }
@@ -1246,6 +1247,25 @@ export class HollywoodRenderer {
     for (const f of NORTH_FRONTAGES) layoutFrontage(f, this.aspectOf);
     for (const f of SOUTH_FRONTAGES) layoutFrontage(f, this.aspectOf);
     for (const f of RES_FRONTAGES) layoutFrontage(f, this.aspectOf);
+
+    // One-time on the first drawn frame: engine soul positions are random, so drop the controlled
+    // player right in front of the enterable shop (and frame the camera on it) so the shop is the
+    // first thing you see and can walk straight into — regardless of where the soul spawned.
+    if (!this.startFramed && this.controlledId) {
+      const pc = this.npcs.find((n) => n.soul.id === this.controlledId);
+      let shop: Building | null = null;
+      for (const f of ALL_FRONTAGES) { for (const b of f.buildings) if (b.enter) { shop = b; break; } if (shop) break; }
+      if (pc && shop) {
+        pc.x = (shop.x ?? 0) + (shop.width ?? 0) / 2;
+        pc.y = NORTH_BASELINE + 46; // on the north sidewalk, just in front of the door
+        this.facingUp = true;
+        this.cam.zoom = minZoomFor(this.cssW, this.cssH, WORLD_W, WORLD_H) * 1.9;
+        this.cam.x = pc.x - this.cssW / this.cam.zoom / 2;
+        this.cam.y = pc.y - this.cssH / this.cam.zoom / 2;
+        clampCamera(this.cam, this.cssW, this.cssH, WORLD_W, WORLD_H);
+        this.startFramed = true;
+      }
+    }
 
     // (a) GROUND pre-pass — flat surfaces, always beneath every actor.
     this.drawGround();
