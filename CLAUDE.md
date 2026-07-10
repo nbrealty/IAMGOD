@@ -78,6 +78,30 @@ feet-anchored to one ground-Y, which is the sort key.
    ped) gets the leg-blur automatically** — no per-character art or wiring. Give
    each mover a distinct `phase` so a crowd doesn't swing in sync.
 
+7. **Overture is a WALK-IN plaza, not a facade — with a fake-perspective court.**
+   `OVERTURE` (sceneData.ts) pins a monumental gate on block-2 north (Overture is
+   removed from the auto-layout; the block's other 3 landmarks start east of the
+   gate). Behind the gate is a deep axial courtyard modelled on the real Babylon
+   Court (Ovation Hollywood): elephant-column gateposts, palm rows lining the
+   promenade, a fountain, a small back building terminating the axis. You walk in
+   through the gate's TRUE open arch — no loading. Two layers of correctness:
+   - **Walkability is flat WORLD space.** `canWalk` opens a keyhole: a narrow arch
+     *throat* (only under the arch opening, so the solid gate wings can't be walked
+     through) widening into the *court pocket*. Movement never sees perspective.
+   - **Depth is a VISUAL fake 1-point perspective.** Court-interior actors (back
+     building, fountain, palms, and any soul who walks in — `inCourt`) are flagged
+     `court` and the sorted-pass draw loop wraps them in a scale-about-the-vanishing-
+     pivot `(cx, vpY)` by `courtScale(footY)` (1 at the gate → `minScale` at the
+     back), so the promenade recedes instead of two flat side billboards crossing in
+     an X. The floor is a matching receding TRAPEZOID (`drawOverturePlaza`). The
+     gate + elephant gateposts stay full-size (front plane). Because the player is
+     DRAWN at its projected position, the follow-camera tracks `projCourt(pc)` while
+     `inCourt`, or it drifts off-centre. The gate itself is a normal foot-Y actor at
+     `gateFootY`, so walking north (foot-Y < 1000) sorts the player BEHIND it →
+     framed through the arch. Side-terrace art (`overture-court-side`) is a FRONT
+     elevation and can't be a flat side wall — it's held for an angled/sheared
+     treatment, not placed in the court.
+
 ## Asset pipeline
 
 - Raw magenta/white-keyed source art lives in `art-src/` (NOT shipped).

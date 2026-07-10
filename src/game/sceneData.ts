@@ -81,9 +81,49 @@ export const CROSS_STREETS: CrossStreet[] = [
   { name: "GOWER", x: 16550 },
 ];
 
+// ============================================================================
+// OVERTURE HOLLYWOOD — the first WALK-IN building. Not a flat facade: a monumental
+// gateway on the north side (block 2, Highland→McCadden) with a TRUE open archway you
+// walk through into a real 2.5D courtyard that lies NORTH of (behind) the gate, framed by
+// a back building + side terraces + elephant-column gateposts. No loading, no scene swap —
+// the court is just more walkable world behind a facade-with-a-hole, and the single foot-Y
+// depth sort makes the gate's lintel/wings occlude the player once they step through.
+//
+//   depth:  gate feet at y=gateFootY(1000). Court floor is y ∈ [courtBackY, gateFootY],
+//   i.e. SMALLER y = further north = drawn earlier = behind. Walk UP (north) through the
+//   arch and your footY drops below 1000 → you sort BEHIND the gate → seen through the arch.
+//
+// The plaza is pinned to fixed world constants (NOT the auto-layout) so canWalk and the
+// renderer agree without threading live layout through both. Block-2 north's other three
+// landmarks lay out EAST of the gate (see buildFace).
+// The court is drawn in fake 1-point PERSPECTIVE: every court actor (and any soul who walks
+// in) is scaled about a world vanishing pivot (cx, vpY) by a factor that shrinks with depth
+// (near gate = full size, far back = minScale). That converges the side terraces toward the
+// centre and shrinks the fountain/palms/back building into the distance — the real Babylon
+// Court's deep axial promenade — instead of two flat billboards crossing like an X. Movement
+// (canWalk) stays in flat WORLD space; perspective is purely visual.
+export const OVERTURE = {
+  cx: 4420, // gate + court centre x (world)
+  gateCH: 6, // gate height in character-heights
+  gateAspect: 1.625, // keyed gate art w/h (public/overture/overture-gate.png, 1396×859)
+  gateFootY: NORTH_SIDEWALK_TOP, // 1000 — gate feet on the north blvd sidewalk line (near plane, s=1)
+  gateHalf: (6 * 84 * 1.625) / 2, // ≈410 — half the rendered gate width
+  archHalf: 100, // half-width of the see-through arch throat (art arch ≈0.128·W each side)
+  courtBackY: 220, // far (north) edge of the court = back building feet (deep — expanded north)
+  courtHalf: 430, // half-width of the terrazzo court FLOOR at the NEAR plane
+  courtWalkHalf: 250, // half-width of the walkable lane (world space)
+  throatTopY: 958, // top of the narrow arch throat; court widens north of here
+  minScale: 0.32, // perspective scale at the far (back) plane
+  vpY: 120, // world y of the vanishing pivot (above courtBackY → far things lift + compress)
+  backCH: 6, // court-terminus back building height
+  sideCH: 3.4, // side terrace height (near the gate mouth)
+  columnCH: 5, // elephant-column gatepost height
+};
+
 // ---- walkability: the Blvd (north sidewalk+road band and the foreground south walk, full
 // width) joined by every cross-street corridor (full height). A block's buildings sit in
-// the gaps between; the player walks the Blvd and turns down any cross street. ----
+// the gaps between; the player walks the Blvd and turns down any cross street. Plus the
+// Overture courtyard pocket, reached through the gate's arch throat. ----
 export function canWalk(x: number, y: number): boolean {
   if (x < 20 || x > WORLD_W - 20 || y < 20 || y > WORLD_H - 20) return false;
   const onNorthBand = y >= NORTH_SIDEWALK_TOP && y <= ROAD_BOTTOM;
@@ -92,6 +132,12 @@ export function canWalk(x: number, y: number): boolean {
   for (const cs of CROSS_STREETS) {
     if (x >= cs.x - CS_HALF && x <= cs.x + CS_HALF) return true;
   }
+  // Overture courtyard keyhole: a narrow arch throat (only under the arch opening) that
+  // widens into the court pocket, so the gate's solid wings can't be walked through.
+  const O = OVERTURE;
+  const inThroat = y >= O.throatTopY && y < O.gateFootY && x >= O.cx - O.archHalf && x <= O.cx + O.archHalf;
+  const inCourt = y >= O.courtBackY + 26 && y < O.throatTopY && x >= O.cx - O.courtWalkHalf && x <= O.cx + O.courtWalkHalf;
+  if (inThroat || inCourt) return true;
   return false;
 }
 
@@ -200,8 +246,10 @@ const PLACEMENT: { n?: string[]; s?: string[] }[] = [
   // 1  Orange→Highland (6900–6800): El Capitan 6838 N · Hollywood Museum (Max Factor) S
   { n: ["wonderland-theatre"], s: ["glamour-archive"] },
   // 2  Highland→McCadden (6800–6770): Ovation complex 6801 N (Dolby/Loews/Hard Rock) ·
-  //    Ripley's 6780 + Guinness 6764 S
-  { n: ["overture-hollywood", "vantage-theatre", "crescendo-hotel", "thunderclap-cafe"], s: ["blackwood-odditorium", "apex-records"] },
+  //    Ripley's 6780 + Guinness 6764 S. Overture is NOT in this list — it's the walk-in
+  //    plaza (see OVERTURE), rendered separately and pinned to the block's west end; these
+  //    three lay out EAST of the gate.
+  { n: ["vantage-theatre", "crescendo-hotel", "thunderclap-cafe"], s: ["blackwood-odditorium", "apex-records"] },
   {}, // 3  McCadden→Las Palmas (6770–6720): Egyptian 6712 S (no asset yet) → storefronts
   { s: ["marchetti-vane-grill"] }, // 4  Las Palmas→Cherokee (6720–6660): Musso & Frank 6667 S
   { s: ["reel-page-bookshop"] }, //   5  Cherokee→Wilcox (6660–6600): Larry Edmunds 6644 S
@@ -220,7 +268,10 @@ const blockX1 = (i: number) => CROSS_STREETS[i + 1].x - CS_HALF - 24;
 // Build one block face: place its landmarks (if any), then pad with storefronts until the
 // face is roughly full, so the block reads as a continuous street with no dead lots.
 function buildFace(i: number, side: "north" | "south", lmKeys: string[]): Frontage {
-  const x0 = blockX0(i), x1 = blockX1(i);
+  // Block-2 north's west end is reserved for the Overture walk-in gate + court, so its
+  // three remaining landmarks start east of the gate rather than at the block edge.
+  const x0 = i === 2 && side === "north" ? OVERTURE.cx + OVERTURE.gateHalf + 80 : blockX0(i);
+  const x1 = blockX1(i);
   const target = x1 - x0;
   // Tight seam so the row reads as one continuous streetwall (like the reference). The art is
   // isolated-on-magenta with its own margin, so a small seam already gives visible separation —
