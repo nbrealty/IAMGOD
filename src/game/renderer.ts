@@ -84,6 +84,21 @@ interface Actor {
   draw: () => void;
 }
 
+// Overture Court "room" — a Gaia-style scene swap. Walk deep enough up the sparse walk-in court
+// and the game crossfades into this single painted backdrop plate (overture-court-interior.png),
+// a closer, richer view of the storefronts you browse. Room-local coordinates ARE the plate's
+// pixel space (0..w, 0..h); the avatar is a normal foot-Y billboard walking the painted floor.
+const COURT_ROOM = {
+  w: 1536, h: 758, // backdrop plate pixel size (= room-local world; dead sky cropped)
+  floorTop: 434, floorBot: 740, // walkable band (the painted plaza floor), near→far
+  halfTop: 300, halfBot: 560, // floor half-width at the back / the front (a trapezoid lane)
+  cx: 768, // room centre x
+  entryX: 768, entryY: 712, // where you arrive on entering (front-centre, facing in)
+  scaleBack: 0.7, // avatar depth scale at the back vs 1.0 at the front (mild, parallel-safe)
+};
+const ROOM_FADE = 0.42; // seconds for a full fade-through-black scene swap
+const COURT_ENTER_Y = OVERTURE.courtBackY + 200; // walk north of this line in the court → load room
+
 // Vehicle sprites (public/vehicles/<type>.png), drawn feet(wheels)-anchored to a road lane.
 // Art faces LEFT; a car travelling right (dir +1) is mirrored. `h` is the draw height in world
 // units (width follows the loaded image aspect).
@@ -290,6 +305,11 @@ export class HollywoodRenderer {
 
   // player control
   private controlledId: string | null = null;
+  // scene-swap state: `room` = active room id (null = overworld); `trans` = a running fade;
+  // `roomReturn` = the world position to restore the player to on exit.
+  private room: string | null = null;
+  private trans: { to: string | null; t: number; swapped: boolean } | null = null;
+  private roomReturn: { x: number; y: number } | null = null;
   // Active outfit per soul: soulId → sprite stem (see outfits.ts). Absent → wears its default
   // (stem = soul id). Swapping an entry changes which sprite (front + `_back`) drawNPC loads.
   private outfits = new Map<string, string>();
@@ -397,37 +417,23 @@ export class HollywoodRenderer {
         else if (ped.x < 100) ped.dir = 1;
       }
 
-      // player-controlled character: WASD / arrows / on-screen D-pad. Real-time speed
-      // (not scaled by sim time-speed), and the camera eases to follow.
-      if (this.controlledId) {
-        const pc = this.npcs.find((n) => n.soul.id === this.controlledId);
-        if (pc) {
-          const vx = (this.held.has("right") ? 1 : 0) - (this.held.has("left") ? 1 : 0);
-          const vy = (this.held.has("down") ? 1 : 0) - (this.held.has("up") ? 1 : 0);
-          pc.moving = vx !== 0 || vy !== 0;
-          if (vx || vy) {
-            const m = Math.hypot(vx, vy) || 1;
-            const dx = (vx / m) * PLAYER_SPEED * dt;
-            const dy = (vy / m) * PLAYER_SPEED * dt;
-            // Move axis-independently against the street "+" corridor: try the full
-            // step, else slide along the wall on whichever axis stays walkable — so you
-            // hug the sidewalk and can turn the corner at the intersection.
-            if (canWalk(pc.x + dx, pc.y + dy)) {
-              pc.x += dx;
-              pc.y += dy;
-            } else {
-              if (canWalk(pc.x + dx, pc.y)) pc.x += dx;
-              if (canWalk(pc.x, pc.y + dy)) pc.y += dy;
-            }
-            if (vx < 0) this.facingLeft = true;
-            else if (vx > 0) this.facingLeft = false;
-            // vertical dominates → face toward/away camera (front/back sprite)
-            if (vy !== 0 && Math.abs(vy) >= Math.abs(vx)) this.facingUp = vy < 0;
-            else if (vx !== 0) this.facingUp = false;
-            pc.dir = vx < 0 ? -1 : 1;
-          }
-          this.followCam(pc.x, pc.y);
+      // advance any running scene-swap fade (fade-through-black; swap at the midpoint)
+      if (this.trans) {
+        this.trans.t += dt / ROOM_FADE;
+        if (!this.trans.swapped && this.trans.t >= 0.5) {
+          this.doRoomSwap();
+          this.trans.swapped = true;
         }
+        if (this.trans.t >= 1) this.trans = null;
+      }
+
+      // player-controlled character: WASD / arrows / on-screen D-pad. Real-time speed
+      // (not scaled by sim time-speed). Frozen mid-transition. In a room, movement is bounded
+      // to the painted floor and there's no follow-camera (the plate fills the frame).
+      if (this.controlledId && !this.trans) {
+        const pc = this.npcs.find((n) => n.soul.id === this.controlledId);
+        if (pc && this.room) this.updateRoomPlayer(pc, dt);
+        else if (pc) this.updateWorldPlayer(pc, dt);
       }
       for (const car of this.cars) {
         car.x += car.dir * car.speed * dt * moveScale;
@@ -446,6 +452,105 @@ export class HollywoodRenderer {
     this.raf = 0;
     this.cleanupInput?.();
     this.cleanupInput = null;
+  }
+
+  // ---- movement (overworld vs room) + scene-swap transitions ----
+
+  // Overworld player step: move against the walkable "+" corridor + court pocket, face travel,
+  // ease the camera to follow. Auto-loads the Overture Court room once you walk deep enough up.
+  private updateWorldPlayer(pc: NpcRuntime, dt: number): void {
+    const vx = (this.held.has("right") ? 1 : 0) - (this.held.has("left") ? 1 : 0);
+    const vy = (this.held.has("down") ? 1 : 0) - (this.held.has("up") ? 1 : 0);
+    pc.moving = vx !== 0 || vy !== 0;
+    if (vx || vy) {
+      const m = Math.hypot(vx, vy) || 1;
+      const dx = (vx / m) * PLAYER_SPEED * dt;
+      const dy = (vy / m) * PLAYER_SPEED * dt;
+      // Move axis-independently against the street "+" corridor: try the full step, else slide
+      // along the wall on whichever axis stays walkable — so you hug the sidewalk and can turn.
+      if (canWalk(pc.x + dx, pc.y + dy)) {
+        pc.x += dx;
+        pc.y += dy;
+      } else {
+        if (canWalk(pc.x + dx, pc.y)) pc.x += dx;
+        if (canWalk(pc.x, pc.y + dy)) pc.y += dy;
+      }
+      if (vx < 0) this.facingLeft = true;
+      else if (vx > 0) this.facingLeft = false;
+      if (vy !== 0 && Math.abs(vy) >= Math.abs(vx)) this.facingUp = vy < 0;
+      else if (vx !== 0) this.facingUp = false;
+      pc.dir = vx < 0 ? -1 : 1;
+      // deep in the court, on the axis → crossfade into the Overture Court room
+      if (pc.y < COURT_ENTER_Y && Math.abs(pc.x - OVERTURE.cx) < OVERTURE.courtWalkHalf) {
+        this.startTransition("overture-court");
+      }
+    }
+    this.followCam(pc.x, pc.y);
+  }
+
+  // Room player step: move within the painted floor trapezoid (room-local coords). Walking down
+  // off the front edge exits back to the court.
+  private updateRoomPlayer(pc: NpcRuntime, dt: number): void {
+    const vx = (this.held.has("right") ? 1 : 0) - (this.held.has("left") ? 1 : 0);
+    const vy = (this.held.has("down") ? 1 : 0) - (this.held.has("up") ? 1 : 0);
+    pc.moving = vx !== 0 || vy !== 0;
+    if (vx || vy) {
+      const m = Math.hypot(vx, vy) || 1;
+      const dx = (vx / m) * PLAYER_SPEED * dt;
+      const dy = (vy / m) * PLAYER_SPEED * dt;
+      if (this.roomCanWalk(pc.x + dx, pc.y + dy)) {
+        pc.x += dx;
+        pc.y += dy;
+      } else {
+        if (this.roomCanWalk(pc.x + dx, pc.y)) pc.x += dx;
+        if (this.roomCanWalk(pc.x, pc.y + dy)) pc.y += dy;
+      }
+      if (vx < 0) this.facingLeft = true;
+      else if (vx > 0) this.facingLeft = false;
+      if (vy !== 0 && Math.abs(vy) >= Math.abs(vx)) this.facingUp = vy < 0;
+      else if (vx !== 0) this.facingUp = false;
+      pc.dir = vx < 0 ? -1 : 1;
+      // pressing down at the front edge of the floor → walk out, back to the court
+      if (vy > 0 && pc.y >= COURT_ROOM.floorBot - 6) this.startTransition(null);
+    }
+  }
+
+  // Is a room-local point on the painted floor? A trapezoid lane widening toward the viewer.
+  private roomCanWalk(x: number, y: number): boolean {
+    const R = COURT_ROOM;
+    if (y < R.floorTop || y > R.floorBot) return false;
+    const f = (y - R.floorTop) / (R.floorBot - R.floorTop);
+    const half = R.halfTop + (R.halfBot - R.halfTop) * f;
+    return Math.abs(x - R.cx) <= half;
+  }
+
+  // Begin a fade-through-black scene swap. `to` = room id to enter, or null to exit to overworld.
+  private startTransition(to: string | null): void {
+    if (this.trans) return;
+    this.trans = { to, t: 0, swapped: false };
+  }
+
+  // The mid-fade swap: move the player between the overworld and the room and flip `this.room`.
+  private doRoomSwap(): void {
+    if (!this.trans) return;
+    const pc = this.controlledId ? this.npcs.find((n) => n.soul.id === this.controlledId) : null;
+    if (this.trans.to) {
+      if (pc) {
+        this.roomReturn = { x: pc.x, y: pc.y };
+        pc.x = COURT_ROOM.entryX;
+        pc.y = COURT_ROOM.entryY;
+      }
+      this.room = this.trans.to;
+      this.facingUp = true; // arrive facing into the scene
+    } else {
+      this.room = null;
+      if (pc) {
+        // return to the court just south of the enter line so you don't instantly re-trigger
+        pc.x = this.roomReturn?.x ?? OVERTURE.cx;
+        pc.y = COURT_ENTER_Y + 150;
+      }
+      this.facingUp = false;
+    }
   }
 
   // Match the backing store to the on-screen size (CSS px × device pixel ratio) and
@@ -506,6 +611,10 @@ export class HollywoodRenderer {
   // so a held direction or mid-turn facing doesn't leak from the previous
   // character.
   setControlled(id: string | null) {
+    // switching characters (or to Observer) drops any active room/transition — the new soul is
+    // out in the overworld, not standing in the court plate.
+    this.room = null;
+    this.trans = null;
     this.controlledId = id;
     this.held.clear();
     this.facingLeft = false;
@@ -653,7 +762,67 @@ export class HollywoodRenderer {
 
   // ---- drawing ----
 
+  // Frame dispatcher: draw the overworld or the active room, then the scene-swap fade on top.
   private render(t: number) {
+    if (this.cssW === 0) return;
+    if (this.room) this.renderRoom(t);
+    else this.renderWorld(t);
+    this.drawTransition();
+  }
+
+  // The Overture Court room: the painted backdrop plate fills the frame (contain-fit, letterboxed);
+  // the avatar (and any future room NPCs) walk the painted floor as normal foot-Y billboards, mildly
+  // depth-scaled. All the character machinery (contact shadow, walk FX, leg-blur, front/back) is
+  // reused verbatim — the room is just a different coordinate space + backdrop.
+  private renderRoom(t: number): void {
+    const ctx = this.ctx;
+    const R = COURT_ROOM;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = "#0d0b09"; // letterbox bars
+    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    const scale = Math.min(this.cssW / R.w, this.cssH / R.h);
+    const s = this.dpr * scale;
+    const offX = (this.cssW * this.dpr - R.w * s) / 2;
+    const offY = (this.cssH * this.dpr - R.h * s) / 2;
+    ctx.setTransform(s, 0, 0, s, offX, offY);
+    const img = this.getOverture("overture-court-interior");
+    if (img && img.complete && img.naturalWidth > 0) {
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(img, 0, 0, R.w, R.h);
+    } else {
+      ctx.fillStyle = "#c9b48c";
+      ctx.fillRect(0, 0, R.w, R.h);
+    }
+    // the avatar — foot-Y anchored, depth-scaled by how far up the floor it stands
+    const pc = this.controlledId ? this.npcs.find((n) => n.soul.id === this.controlledId) : null;
+    if (pc) {
+      const f = Math.max(0, Math.min(1, (pc.y - R.floorTop) / (R.floorBot - R.floorTop)));
+      const sc = R.scaleBack + (1 - R.scaleBack) * f;
+      ctx.save();
+      ctx.translate(pc.x, pc.y);
+      ctx.scale(sc, sc);
+      ctx.translate(-pc.x, -pc.y);
+      this.drawNPC(pc, t);
+      ctx.restore();
+    }
+    // cohesion grade + vignette (screen space) so the room reads under the same exposure
+    this.drawPostGrade();
+  }
+
+  // Fade-through-black overlay for a running scene swap (alpha peaks at the mid-fade swap point).
+  private drawTransition(): void {
+    if (!this.trans) return;
+    const ctx = this.ctx;
+    const a = 1 - Math.abs(2 * this.trans.t - 1);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = Math.max(0, Math.min(1, a));
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    ctx.globalAlpha = 1;
+  }
+
+  private renderWorld(t: number) {
     const ctx = this.ctx;
     if (this.cssW === 0) return;
 
@@ -680,12 +849,6 @@ export class HollywoodRenderer {
 
     // distant skyline silhouette — always furthest back
     for (const b of BACKDROP_BUILDINGS) this.drawBuilding(b);
-
-    // Overture court interior backdrop — one baked parallel-oblique plate (both shop terraces +
-    // the back building, painted so their edges stay PARALLEL → no vanishing point, no funnel).
-    // A pre-pass behind every actor: the player, fountain and palms sort in front of it; the gate
-    // (a real foot-Y actor) sorts in front once the player walks north past it → framed by the arch.
-    this.drawOvertureInterior();
 
     // (b) UNIFIED DEPTH PASS — every upright actor (buildings, cars, lamps, props, peds, souls)
     // collected, viewport-culled, sorted by foot-Y (baseline), and drawn far→near. This is what
@@ -2166,28 +2329,9 @@ export class HollywoodRenderer {
     ctx.restore();
   }
 
-  // The court INTERIOR backdrop — one baked parallel-oblique plate (both shop terraces + the back
-  // building, painted so their edges stay PARALLEL, never converging). Drawn as a pre-pass behind
-  // every sorted actor: the player/fountain/palms all sort in front of it; the gate (a real foot-Y
-  // actor) sorts in front once the player walks north past it → framed through the arch. Its floor
-  // + sky regions are transparent so the floor plate shows through and there's no fake horizon.
-  private drawOvertureInterior(): void {
-    if (this.cam.zoom <= TILE_ZOOM_GATE) return;
-    const O = OVERTURE;
-    const img = this.getOverture("overture-court-interior");
-    if (!img || !img.complete || img.naturalWidth === 0) return;
-    const vx = this.cam.x, vR = vx + this.cssW / this.cam.zoom;
-    const H = O.interiorCH * 84;
-    const w = H * (img.naturalWidth / img.naturalHeight);
-    if (O.cx + w / 2 < vx - 40 || O.cx - w / 2 > vR + 40) return;
-    const ctx = this.ctx;
-    const prev = ctx.imageSmoothingEnabled;
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
-    // Bottom edge a touch above the gate line so the terrace feet meet the court floor.
-    ctx.drawImage(img, O.cx - w / 2, O.gateFootY - H + O.interiorDrop, w, H);
-    ctx.imageSmoothingEnabled = prev;
-  }
+  // (The court INTERIOR is no longer an in-world backdrop — the painted plate is the Overture Court
+  // ROOM you crossfade into; see renderRoom / COURT_ROOM. The seamless court is just the sparse
+  // approach: floor + palms + fountain + gate.)
 
   // Push the court's real actors into the sorted list: fountain + palm rows (constant-size foot-Y
   // props — the player physically walks past them, so they y-sort/occlude naturally), plus the

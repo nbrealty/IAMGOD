@@ -98,11 +98,11 @@ export const CROSS_STREETS: CrossStreet[] = [
 // landmarks lay out EAST of the gate (see buildFace).
 // The court is drawn PARALLEL / axonometric — NO vanishing point (research: faking a 1-point VP
 // in a flat dimetric billboard scene makes the side walls converge to an ugly "X" funnel, à la the
-// old build). The FLOOR is a symmetric rectangle (constant courtHalf front→back, so the sides can't
-// pinch); the side terraces + back building are baked into ONE parallel-oblique backdrop plate
-// (overture-court-interior.png) the renderer just places behind the gate; the fountain + palms are
-// real foot-Y props the player walks past. All depth is painted into the art — the engine does no
-// per-object perspective scaling. Movement (canWalk) is flat WORLD space, as always.
+// old build). The seamless court is the sparse APPROACH: a symmetric-rectangle floor (constant
+// courtHalf front→back, so the sides can't pinch) + palms + fountain + the gate. Walk deep enough up
+// and the game CROSSFADES into the Overture Court "room" — one painted backdrop plate
+// (overture-court-interior.png), Gaia-style, where you browse the storefronts (see COURT_ROOM /
+// renderRoom in renderer.ts). Movement (canWalk) is flat WORLD space, as always.
 export const OVERTURE = {
   cx: 4420, // gate + court centre x (world)
   gateCH: 6, // gate height in character-heights
@@ -114,8 +114,6 @@ export const OVERTURE = {
   courtHalf: 430, // half-width of the court FLOOR rectangle (CONSTANT front→back → parallel, no funnel)
   courtWalkHalf: 250, // half-width of the walkable lane (world space)
   throatTopY: 958, // top of the narrow arch throat; court widens north of here
-  interiorCH: 8.5, // court-interior backdrop plate height (baked parallel-oblique terraces + back bldg)
-  interiorDrop: 40, // px the interior plate's bottom sits below the gate line so terrace feet meet floor
   columnCH: 5, // elephant-column gatepost height
 };
 

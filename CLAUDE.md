@@ -102,22 +102,28 @@ feet-anchored to one ground-Y, which is the sort key.
      is geometrically impossible. One baked non-repeating plate
      (`overture-court-floor.png`) drawn with a single `drawImage` (a warm fill stands
      in until it decodes — never a repeating tile grid).
-   - **Terraces + back building = ONE baked parallel-oblique backdrop plate**
-     (`overture-court-interior.png`, drawn by the artist in cabinet-oblique with
-     **parallel, non-converging edges**), placed by `drawOvertureInterior` as a
-     pre-pass right after the skyline and BEFORE the sorted actor loop — so every
-     actor (player, fountain, palms) sorts in front of it. No foot-Y, no scaling: the
-     art's own parallel geometry can never converge.
-   - **Fountain + palms are plain foot-Y props** (constant size) — the player
-     physically walks past them, so they y-sort/occlude for real. That, plus overlap,
-     is where the sense of depth now comes from — NOT from geometry that converges.
+   - **Fountain + palms are plain foot-Y props** (constant size) in the seamless
+     approach court — the player walks past them, so they y-sort/occlude for real.
    - The **gate + elephant columns** stay full-size foot-Y actors at `gateFootY`, so
      walking north (foot-Y < 1000) sorts the player BEHIND the gate → framed through
      the arch. The follow-camera tracks the player's true `x/y` (no projection branch).
    - **Never reintroduce** `courtScale` / `projCourt` / a `court` actor flag / a
      scale-about-pivot wrap / a trapezoid floor. If a future space needs more
-     enclosure, bake a new single-angle plate (Gaia-style) — do not compute a
-     vanishing point.
+     enclosure, bake a single-angle plate (Gaia-style) — do not compute a VP.
+
+   **7b. Enterable spaces are Gaia-style SCENE-SWAP ROOMS (`renderRoom` / `COURT_ROOM`).**
+   The detailed court interior is NOT drawn in the overworld — it's a room you crossfade
+   into. Walk deep enough up the court (`pc.y < COURT_ENTER_Y` on the axis) and
+   `startTransition("overture-court")` runs a fade-through-black; at the mid-fade
+   `doRoomSwap` stashes the world position and sets `this.room`. `render()` then
+   dispatches to `renderRoom` instead of `renderWorld`: one painted backdrop plate
+   (`overture-court-interior.png`) is contain-fit to the frame (letterboxed), and the
+   avatar walks the painted floor as a **normal foot-Y billboard** (mild depth-scale by
+   `y`), reusing contact shadow / walk FX / leg-blur / front-back **verbatim** — the room
+   is just a different coordinate space (the plate's pixel space) + backdrop. Movement is
+   bounded to a floor trapezoid (`roomCanWalk`); walking down off the front edge exits.
+   This is the generic mechanism for ALL future enterable buildings — add a room def +
+   one painted plate, no new render pass. `setControlled` drops any active room.
 
 ## Asset pipeline
 
