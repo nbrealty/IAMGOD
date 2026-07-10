@@ -38,6 +38,9 @@ export interface Building {
   // (far/north row + the residential houses). false = street-front (top) ON the line,
   // hangs DOWN into the foreground (near/south row — the mirror). Defaults by side.
   growUp?: boolean;
+  // Enterable storefront: the AREAS room id to crossfade into when the controlled player walks
+  // up to this building's door. Undefined = a normal (non-enterable) facade.
+  enter?: string;
 }
 
 // The whole DISTRICT — the real Hollywood Blvd Commercial & Entertainment District,
@@ -184,9 +187,10 @@ export function layoutFrontage(f: Frontage, aspectOf: (b: Building) => number): 
   }
 }
 
-// A landmark lot: art + fictional signage + character-height scale + nominal aspect.
-function lot(sprite: string, ch: number, aspect: number, label: string, marquee: string, marqueeColor: string, side: "north" | "south"): Building {
-  return { x: 0, ch, aspect, side, sprite, label, marquee, marqueeColor };
+// A landmark lot: art + fictional signage + character-height scale + nominal aspect. `enter`
+// (optional) marks it as an enterable storefront and names the AREAS room to load.
+function lot(sprite: string, ch: number, aspect: number, label: string, marquee: string, marqueeColor: string, side: "north" | "south", enter?: string): Building {
+  return { x: 0, ch, aspect, side, sprite, label, marquee, marqueeColor, enter };
 }
 // A plain filler lot (shop / apartment / parking): art + scale + aspect only.
 function fill(sprite: string, ch: number, aspect: number, side: "north" | "south", baseY?: number, growUp?: boolean): Building {
@@ -194,8 +198,10 @@ function fill(sprite: string, ch: number, aspect: number, side: "north" | "south
 }
 
 // ---- the 14 keyed landmark facades, keyed by sprite stem (ch / aspect / signage) ----
-type LmSpec = { ch: number; aspect: number; label: string; marquee: string; mc: string };
+type LmSpec = { ch: number; aspect: number; label: string; marquee: string; mc: string; enter?: string };
 const LANDMARKS: Record<string, LmSpec> = {
+  // Yara's botanica — the first enterable regular shop (walk to its door → interior scene-swap).
+  "aguas-douradas": { ch: 3.9, aspect: 0.804, label: "ÁGUAS DOURADAS", marquee: "CONSULTORA ESPIRITUAL", mc: "#c9a34a", enter: "aguas-front" },
   "sovereign-hotel": { ch: 7, aspect: 0.728, label: "SOVEREIGN", marquee: "HOTEL", mc: "#d8b25a" },
   "madame-rousseau": { ch: 5, aspect: 0.918, label: "MADAME ROUSSEAU'S", marquee: "WAX MUSEUM", mc: "#c9962c" },
   "jade-pagoda": { ch: 7, aspect: 1.159, label: "JADE PAGODA", marquee: "THEATRE", mc: "#c9a34a" },
@@ -247,7 +253,7 @@ const PLACEMENT: { n?: string[]; s?: string[] }[] = [
   //    plaza (see OVERTURE), rendered separately and pinned to the block's west end; these
   //    three lay out EAST of the gate.
   { n: ["vantage-theatre", "crescendo-hotel", "thunderclap-cafe"], s: ["blackwood-odditorium", "apex-records"] },
-  {}, // 3  McCadden→Las Palmas (6770–6720): Egyptian 6712 S (no asset yet) → storefronts
+  { n: ["aguas-douradas"] }, // 3  McCadden→Las Palmas (6770–6720): Yara's botanica (enterable) + storefronts
   { s: ["marchetti-vane-grill"] }, // 4  Las Palmas→Cherokee (6720–6660): Musso & Frank 6667 S
   { s: ["reel-page-bookshop"] }, //   5  Cherokee→Wilcox (6660–6600): Larry Edmunds 6644 S
   {}, // 6  Wilcox→Cahuenga (6600–6500)
@@ -279,7 +285,7 @@ function buildFace(i: number, side: "north" | "south", lmKeys: string[]): Fronta
   const push = (b: Building, w: number) => { out.push(b); used += w + gap; };
   for (const k of lmKeys) {
     const s = LANDMARKS[k];
-    push(lot(k, s.ch, s.aspect, s.label, s.marquee, s.mc, side), s.ch * 84 * s.aspect);
+    push(lot(k, s.ch, s.aspect, s.label, s.marquee, s.mc, side, s.enter), s.ch * 84 * s.aspect);
   }
   let towerPlaced = false;
   // Fill closer to the block edge so the frontage doesn't leave a wide dead margin at each

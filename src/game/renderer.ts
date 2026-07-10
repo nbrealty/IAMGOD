@@ -97,7 +97,10 @@ type ViewMode = "topdown" | "headon";
 interface AreaView {
   id: string;
   view: ViewMode; // 'headon' = elevated plate that may show sky; 'topdown' = city (no sky)
-  backdrop: string; // interior plate key under /overture/
+  backdrop: string; // interior plate key (loaded from /${dir ?? 'overture'}/<backdrop>.<png|jpg>)
+  dir?: string; // asset subfolder under public/ (default 'overture'); e.g. 'aguas' for the botanica
+  jpg?: boolean; // load the plate as .jpg instead of .png (opaque interior plates compress far smaller)
+  exitTo?: string | null; // walking off the front edge goes here: null/undefined = overworld, or a room id
   w: number; h: number; // plate pixel size = room-local world
   floorTop: number; floorBot: number; // walkable band (painted floor), near→far
   halfTop: number; halfBot: number; // floor half-width at back / front (a parallel trapezoid lane)
@@ -121,6 +124,22 @@ const AREAS: Record<string, AreaView> = {
     cx: 758, entryX: 758, entryY: 1460,
     scaleBack: 0.72,
     sky: { skyline: "skyline-silhouette", windows: "skyline-windows", rooflineY: 880 },
+  },
+  // Yara's botanica — the FRONT room (retail). A cozy interior plate (1536×1024, opaque) shown
+  // through the same clamped cover-zoom camera as the city, so it pans and never shows an edge.
+  // The avatar walks a shallow floor lane in front of the counter; walking off the front edge
+  // exits to the boulevard. Geometry tuned by eye against the plate.
+  "aguas-front": {
+    id: "aguas-front",
+    view: "topdown", // interior: no sky / no celestial arc
+    backdrop: "aguas-front",
+    dir: "aguas", jpg: true,
+    w: 1536, h: 1024,
+    floorTop: 830, floorBot: 1005, // shallow walkable lane along the bottom, in front of the counter
+    halfTop: 470, halfBot: 610,
+    cx: 768, entryX: 768, entryY: 965,
+    scaleBack: 0.86,
+    exitTo: null, // walk off the front edge → back out to the boulevard
   },
 };
 const ROOM_FADE = 0.42; // seconds for a full fade-through-black scene swap
@@ -559,6 +578,18 @@ export class HollywoodRenderer {
       if (pc.y < COURT_ENTER_Y && Math.abs(pc.x - OVERTURE.cx) < OVERTURE.courtWalkHalf) {
         this.startTransition("overture-court");
       }
+      // enterable storefront: walk fully UP to a shop's door (top of the north sidewalk, within the
+      // door's x-span on the right of the facade) → crossfade into its interior room.
+      if (!this.trans && this.facingUp && pc.y < NORTH_BASELINE + 24) {
+        for (const f of ALL_FRONTAGES) {
+          for (const b of f.buildings) {
+            if (!b.enter || (b.side ?? "north") !== "north") continue;
+            const bx = b.x ?? 0, bw = b.width ?? 0;
+            if (pc.x >= bx + bw * 0.5 && pc.x <= bx + bw) { this.startTransition(b.enter); break; }
+          }
+          if (this.trans) break;
+        }
+      }
     }
     this.followCam(pc.x, pc.y);
   }
@@ -605,8 +636,9 @@ export class HollywoodRenderer {
       else if (vx !== 0) this.facingUp = false;
       pc.dir = vx < 0 ? -1 : 1;
       if (this.moveTarget && Math.hypot(pc.x - ox, pc.y - oy) < 0.25) this.moveTarget = null;
-      // HOLD down at the front edge of the floor → walk out (tap-walk never exits, to avoid surprises)
-      if (heldDown && pc.y >= R.floorBot - 6) this.startTransition(null);
+      // HOLD down at the front edge of the floor → leave (tap-walk never exits, to avoid surprises).
+      // Where you go is per-room: the overworld (exitTo null) or another room (a deeper→shallower step).
+      if (heldDown && pc.y >= R.floorBot - 6) this.startTransition(R.exitTo ?? null);
     }
     this.followCam(pc.x, pc.y); // camera eases to keep the avatar framed (clamped to the plate)
   }
@@ -625,35 +657,46 @@ export class HollywoodRenderer {
     this.trans = { to, t: 0, swapped: false };
   }
 
-  // The mid-fade swap: move the player between the overworld and the room and flip `this.room`.
+  // The mid-fade swap: move the player between the overworld and a room, or between two rooms,
+  // and flip `this.room`. Three cases keyed off where we are (`from`) and where we're going (`to`).
   private doRoomSwap(): void {
     if (!this.trans) return;
     const pc = this.controlledId ? this.npcs.find((n) => n.soul.id === this.controlledId) : null;
-    if (this.trans.to) {
-      const R = AREAS[this.trans.to];
-      if (pc && R) {
-        this.roomReturn = { x: pc.x, y: pc.y };
-        pc.x = R.entryX;
-        pc.y = R.entryY;
+    const to = this.trans.to;
+    const from = this.room; // the room we're currently in (null = out in the overworld)
+    if (to) {
+      const R = AREAS[to];
+      if (!from) {
+        // overworld → room: stash the world position + boulevard camera to restore on final exit.
+        if (pc) this.roomReturn = { x: pc.x, y: pc.y };
+        this.camReturn = { ...this.cam };
       }
-      this.camReturn = { ...this.cam }; // remember the boulevard view to restore on exit
-      this.room = this.trans.to;
+      // (room → room keeps the same roomReturn/camReturn so a later exit still lands outside.)
+      if (pc && R) { pc.x = R.entryX; pc.y = R.entryY; }
+      this.room = to;
       this.facingUp = true; // arrive facing into the scene
       // frame the room at cover-zoom (plate fills the viewport; can't see past its edges), centred
       // on the arrival point then clamped to the plate — same camera model as the city.
       if (R) {
-        const [ww, wh] = [R.w, R.h];
-        this.cam.zoom = minZoomFor(this.cssW, this.cssH, ww, wh) * 1.05;
+        this.cam.zoom = minZoomFor(this.cssW, this.cssH, R.w, R.h) * 1.05;
         this.cam.x = R.entryX - this.cssW / this.cam.zoom / 2;
         this.cam.y = R.entryY - this.cssH / this.cam.zoom / 2;
-        clampCamera(this.cam, this.cssW, this.cssH, ww, wh);
+        clampCamera(this.cam, this.cssW, this.cssH, R.w, R.h);
       }
     } else {
+      // room → overworld.
       this.room = null;
       if (pc) {
-        // return to the court just south of the enter line so you don't instantly re-trigger
-        pc.x = this.roomReturn?.x ?? OVERTURE.cx;
-        pc.y = COURT_ENTER_Y + 150;
+        if (from === "overture-court") {
+          // return to the court just south of the enter line so you don't instantly re-trigger
+          pc.x = this.roomReturn?.x ?? OVERTURE.cx;
+          pc.y = COURT_ENTER_Y + 150;
+        } else {
+          // shop interior → step back onto the boulevard just south of the door, clear of the
+          // enter-trigger band so you don't immediately walk back in.
+          pc.x = this.roomReturn?.x ?? pc.x;
+          pc.y = NORTH_BASELINE + 52;
+        }
       }
       if (this.camReturn) {
         this.cam.x = this.camReturn.x;
@@ -930,7 +973,7 @@ export class HollywoodRenderer {
     // backdrop plate (storefronts + floor) — sits below the sky headroom (skyPad)
     const pad = R.skyPad ?? 0;
     const plateH = R.h - pad;
-    const img = this.getOverture(R.backdrop);
+    const img = this.getAreaPlate(R, R.backdrop);
     if (img && img.complete && img.naturalWidth > 0) {
       const night = nightAt(this.engine.clockMinutes);
       // DAY BRIGHTNESS: lift the plate's exposure in daylight so the court reads bright & sunny.
@@ -2443,6 +2486,23 @@ export class HollywoodRenderer {
     const img = new Image();
     img.onerror = () => this.sprites.set(key, null);
     img.src = `/overture/${stem}.png`;
+    this.sprites.set(key, img);
+    return img;
+  }
+
+  // A room's backdrop plate from its own asset folder: /${R.dir ?? 'overture'}/<stem>.<png|jpg>.
+  // Opaque interior plates ride as .jpg (far smaller); the Overture court stays .png (needs its
+  // transparent sky). Cached under an "a:" prefix keyed by the full path so folders don't collide.
+  private getAreaPlate(R: AreaView, stem: string): HTMLImageElement | null {
+    const dir = R.dir ?? "overture";
+    const ext = R.jpg ? "jpg" : "png";
+    const path = `/${dir}/${stem}.${ext}`;
+    const key = `a:${path}`;
+    const cached = this.sprites.get(key);
+    if (cached !== undefined) return cached;
+    const img = new Image();
+    img.onerror = () => this.sprites.set(key, null);
+    img.src = path;
     this.sprites.set(key, img);
     return img;
   }
