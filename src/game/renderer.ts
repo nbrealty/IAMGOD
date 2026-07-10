@@ -953,13 +953,25 @@ export class HollywoodRenderer {
       ctx.restore();
     }
     // sun / moon — a baked sprite if present (public/overture/sun.png · moon.png), else a soft disc.
-    // Arcs left→right across the day; higher at midday. Moon rides the night side.
-    const dayF = Math.max(0, Math.min(1, (((mins % 1440) + 1440) % 1440 - 360) / (1200 - 360)));
-    const discX = W * (0.14 + 0.72 * dayF);
-    const discY = H * (0.40 - 0.20 * Math.sin(dayF * Math.PI));
-    const rad = Math.min(W, H) * 0.055;
-    const drawBody = (x: number, y: number, stem: string, col: string, halo: string, alpha: number) => {
+    // Each rides a CELESTIAL ARC: rises from behind the buildings on the LEFT, sweeps up over the
+    // top-centre, and sets behind the buildings on the RIGHT. The SUN runs that arc across the day
+    // (sunrise→sunset); the MOON runs it across the night (sunset→sunrise). They hand off at
+    // dusk/dawn (sun setting right as the moon rises left), so it reads as one continuous cycle.
+    const rad = Math.min(W, H) * 0.06;
+    // Circular sweep: angle θ goes π→0 as the body's phase p goes 0→1, so it rises in from the LEFT
+    // edge (θ=π), peaks up-centre (θ=π/2), and exits the RIGHT edge (θ=0). cos drives the east→west
+    // x, sin the altitude — a SHALLOW elliptical arc that rides the thin sky strip above the rooftops
+    // (this plate has little sky headroom). rx > W/2 so it enters/exits off the screen edges.
+    const cx = W * 0.5, rx = W * 0.6, ry = H * 0.085, horizonY = H * 0.14;
+    const arcXY = (p: number) => {
+      const th = Math.PI * (1 - Math.max(0, Math.min(1, p)));
+      return { x: cx + rx * Math.cos(th), y: horizonY - ry * Math.sin(th) };
+    };
+    const edgeFade = (p: number) => smoothstep(0, 0.05, p) * (1 - smoothstep(0.95, 1, p)); // fade at the edges
+    const drawBody = (p: number, stem: string, col: string, halo: string, vis: number) => {
+      const alpha = edgeFade(p) * vis;
       if (alpha < 0.03) return;
+      const { x, y } = arcXY(p);
       ctx.save();
       ctx.globalAlpha = alpha;
       const hg = ctx.createRadialGradient(x, y, rad * 0.4, x, y, rad * 5);
@@ -979,8 +991,16 @@ export class HollywoodRenderer {
       }
       ctx.restore();
     };
-    drawBody(discX, discY, "sun", "rgba(255,246,214,1)", "rgba(255,226,150,0.5)", 1 - night); // sun
-    drawBody(W * 0.76, H * 0.2, "moon", "rgba(226,232,244,1)", "rgba(180,196,230,0.4)", night * (1 - golden)); // moon
+    const SUNRISE = 360, SUNSET = 1140; // 06:00 → 19:00 the sun is up
+    const md = ((mins % 1440) + 1440) % 1440;
+    if (md >= SUNRISE && md <= SUNSET) {
+      drawBody((md - SUNRISE) / (SUNSET - SUNRISE), "sun", "rgba(255,246,214,1)", "rgba(255,226,150,0.5)", 1);
+    }
+    const NIGHT_LEN = SUNRISE + 1440 - SUNSET; // minutes from sunset to next sunrise
+    const nm = md >= SUNSET ? md - SUNSET : md + 1440 - SUNSET; // minutes since sunset (wrapped)
+    if (nm <= NIGHT_LEN) {
+      drawBody(nm / NIGHT_LEN, "moon", "rgba(226,232,244,1)", "rgba(180,196,230,0.4)", 1);
+    }
     if (golden > 0.02) {
       // warm horizon wash low in the sky
       ctx.save();
