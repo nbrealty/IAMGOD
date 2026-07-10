@@ -104,6 +104,8 @@ interface AreaView {
   cx: number;
   entryX: number; entryY: number; // where you arrive on entering
   scaleBack: number; // avatar depth scale at the back vs 1.0 front (mild, parallel-safe)
+  skyPad?: number; // head-on: transparent SKY headroom (world px) above the plate, so the sun/moon
+                   // have a band to arc through that sits BELOW the top HUD instead of behind it.
   floorTile?: string; // optional shared ground tile key
   sky?: { skyline: string; windows: string; rooflineY: number }; // head-on areas only; procedural sky + these
 }
@@ -112,12 +114,13 @@ const AREAS: Record<string, AreaView> = {
     id: "overture-court",
     view: "headon",
     backdrop: "overture-court-interior", // transparent-sky plate (1517×1037), floor baked in
-    w: 1517, h: 1037,
-    floorTop: 660, floorBot: 1010, // painted plaza floor band (in front of the storefronts)
+    // world = skyPad sky headroom on top + the 1037-tall plate below it (h = 520 + 1037)
+    w: 1517, h: 1557, skyPad: 520,
+    floorTop: 1180, floorBot: 1530, // plaza floor band (plate coords + skyPad)
     halfTop: 520, halfBot: 650,
-    cx: 758, entryX: 758, entryY: 940,
+    cx: 758, entryX: 758, entryY: 1460,
     scaleBack: 0.72,
-    sky: { skyline: "skyline-silhouette", windows: "skyline-windows", rooflineY: 360 },
+    sky: { skyline: "skyline-silhouette", windows: "skyline-windows", rooflineY: 880 },
   },
 };
 const ROOM_FADE = 0.42; // seconds for a full fade-through-black scene swap
@@ -889,8 +892,11 @@ export class HollywoodRenderer {
     ctx.setTransform(s, 0, 0, s, -this.cam.x * s, -this.cam.y * s);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
+    if (R.view === "headon") this.drawCelestial(t, R); // sun/moon in the sky headroom (behind everything)
     if (R.sky) this.drawAreaSkyline(R); // distant skyline behind the plate
-    // backdrop plate (storefronts + floor)
+    // backdrop plate (storefronts + floor) — sits below the sky headroom (skyPad)
+    const pad = R.skyPad ?? 0;
+    const plateH = R.h - pad;
     const img = this.getOverture(R.backdrop);
     if (img && img.complete && img.naturalWidth > 0) {
       const night = nightAt(this.engine.clockMinutes);
@@ -898,7 +904,7 @@ export class HollywoodRenderer {
       const day = 1 - night;
       const prevFilter = ctx.filter;
       if (day > 0.02) ctx.filter = `brightness(${(1 + 0.18 * day).toFixed(3)}) saturate(${(1 + 0.06 * day).toFixed(3)})`;
-      ctx.drawImage(img, 0, 0, R.w, R.h);
+      ctx.drawImage(img, 0, pad, R.w, plateH);
       ctx.filter = prevFilter;
       // NIGHT LIFT: additively re-composite the plate so its painted lit windows / signage GLOW after
       // dark (the bright pixels add, the dark ones add ~nothing) — so buildings read at night.
@@ -906,7 +912,7 @@ export class HollywoodRenderer {
         ctx.save();
         ctx.globalCompositeOperation = "lighter";
         ctx.globalAlpha = 0.22 * night;
-        ctx.drawImage(img, 0, 0, R.w, R.h);
+        ctx.drawImage(img, 0, pad, R.w, plateH);
         ctx.restore();
       }
     } else {
@@ -957,27 +963,41 @@ export class HollywoodRenderer {
       }
       ctx.restore();
     }
-    // sun / moon — a baked sprite if present (public/overture/sun.png · moon.png), else a soft disc.
-    // Each rides a CELESTIAL ARC: rises from behind the buildings on the LEFT, sweeps up over the
-    // top-centre, and sets behind the buildings on the RIGHT. The SUN runs that arc across the day
-    // (sunrise→sunset); the MOON runs it across the night (sunset→sunrise). They hand off at
-    // dusk/dawn (sun setting right as the moon rises left), so it reads as one continuous cycle.
-    const rad = Math.min(W, H) * 0.06;
-    // Circular sweep: angle θ goes π→0 as the body's phase p goes 0→1, so it rises in from the LEFT
-    // edge (θ=π), peaks up-centre (θ=π/2), and exits the RIGHT edge (θ=0). cos drives the east→west
-    // x, sin the altitude — a SHALLOW elliptical arc that rides the thin sky strip above the rooftops
-    // (this plate has little sky headroom). rx > W/2 so it enters/exits off the screen edges.
-    const cx = W * 0.5, rx = W * 0.6, ry = H * 0.085, horizonY = H * 0.14;
+    // (Sun/moon are drawn in WORLD space by drawCelestial so they sit in the plate's sky headroom,
+    // clear of the top HUD — not here in screen space.)
+    if (golden > 0.02) {
+      // warm horizon wash low in the sky
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      const gw = ctx.createLinearGradient(0, H * 0.45, 0, H);
+      gw.addColorStop(0, "rgba(255,150,70,0)");
+      gw.addColorStop(1, `rgba(255,150,70,${0.35 * golden})`);
+      ctx.fillStyle = gw;
+      ctx.fillRect(0, H * 0.45, W, H * 0.55);
+      ctx.restore();
+    }
+  }
+
+  // Sun / moon, drawn in WORLD (area) space so they ride the plate's sky HEADROOM (`skyPad`) — a band
+  // that sits BELOW the top HUD, not behind it. Each sweeps a CELESTIAL ARC (cos→east/west x, sin→
+  // altitude): rises in from the left, peaks up-centre, sets on the right, dipping behind the buildings
+  // at the horizons. The SUN runs it across the day (sunrise→sunset), the MOON across the night, handing
+  // off at dusk/dawn. Emissive GLOW = additive `lighter` bloom + a `shadowBlur`, sine-PULSED to breathe.
+  private drawCelestial(t: number, R: AreaView): void {
+    const pad = R.skyPad ?? 0;
+    if (pad <= 0) return;
+    const ctx = this.ctx;
+    const mins = this.engine.clockMinutes;
+    const cx = R.cx, rx = R.w * 0.42, rad = R.w * 0.05;
+    const peakY = pad * 0.70, horizonY = pad * 1.06, ry = horizonY - peakY; // arc within the sky band
     const arcXY = (p: number) => {
       const th = Math.PI * (1 - Math.max(0, Math.min(1, p)));
       return { x: cx + rx * Math.cos(th), y: horizonY - ry * Math.sin(th) };
     };
-    const edgeFade = (p: number) => smoothstep(0, 0.05, p) * (1 - smoothstep(0.95, 1, p)); // fade at the edges
-    // Emissive GLOW (canvas technique: additive `lighter` radial bloom + a `shadowBlur` outer glow,
-    // gently PULSED with a sine so it "breathes"). `glow` is the bloom colour (warm sun / cool moon).
-    const pulse = 1 + 0.08 * Math.sin(t * 0.0022); // ~2.9s breathing cycle
-    const drawBody = (p: number, stem: string, col: string, glow: string, vis: number) => {
-      const alpha = edgeFade(p) * vis;
+    const edgeFade = (p: number) => smoothstep(0, 0.05, p) * (1 - smoothstep(0.95, 1, p));
+    const pulse = 1 + 0.08 * Math.sin(t * 0.0022);
+    const drawBody = (p: number, stem: string, col: string, glow: string) => {
+      const alpha = edgeFade(p);
       if (alpha < 0.03) return;
       const { x, y } = arcXY(p);
       const spr = this.getOverture(stem);
@@ -985,7 +1005,6 @@ export class HollywoodRenderer {
       const faint = (a: number) => glow.replace(/[\d.]+\)\s*$/, a + ")");
       ctx.save();
       ctx.globalAlpha = alpha;
-      // additive bloom — actually brightens the sky around the body
       ctx.globalCompositeOperation = "lighter";
       const gr = rad * 4.4 * pulse;
       const bg = ctx.createRadialGradient(x, y, rad * 0.3, x, y, gr);
@@ -994,7 +1013,6 @@ export class HollywoodRenderer {
       bg.addColorStop(1, "rgba(0,0,0,0)");
       ctx.fillStyle = bg;
       ctx.fillRect(x - gr, y - gr, gr * 2, gr * 2);
-      // the body itself, with a soft shadow-blur halo hugging its shape
       ctx.globalCompositeOperation = "source-over";
       ctx.shadowColor = faint(0.9);
       ctx.shadowBlur = rad * (hasSpr ? 0.7 : 1.1) * pulse;
@@ -1009,26 +1027,15 @@ export class HollywoodRenderer {
       }
       ctx.restore();
     };
-    const SUNRISE = 360, SUNSET = 1140; // 06:00 → 19:00 the sun is up
+    const SUNRISE = 360, SUNSET = 1140;
     const md = ((mins % 1440) + 1440) % 1440;
     if (md >= SUNRISE && md <= SUNSET) {
-      drawBody((md - SUNRISE) / (SUNSET - SUNRISE), "sun", "rgba(255,246,214,1)", "rgba(255,196,90,0.55)", 1);
+      drawBody((md - SUNRISE) / (SUNSET - SUNRISE), "sun", "rgba(255,246,214,1)", "rgba(255,196,90,0.55)");
     }
-    const NIGHT_LEN = SUNRISE + 1440 - SUNSET; // minutes from sunset to next sunrise
-    const nm = md >= SUNSET ? md - SUNSET : md + 1440 - SUNSET; // minutes since sunset (wrapped)
+    const NIGHT_LEN = SUNRISE + 1440 - SUNSET;
+    const nm = md >= SUNSET ? md - SUNSET : md + 1440 - SUNSET;
     if (nm <= NIGHT_LEN) {
-      drawBody(nm / NIGHT_LEN, "moon", "rgba(226,232,244,1)", "rgba(170,200,255,0.45)", 1);
-    }
-    if (golden > 0.02) {
-      // warm horizon wash low in the sky
-      ctx.save();
-      ctx.globalCompositeOperation = "lighter";
-      const gw = ctx.createLinearGradient(0, H * 0.45, 0, H);
-      gw.addColorStop(0, "rgba(255,150,70,0)");
-      gw.addColorStop(1, `rgba(255,150,70,${0.35 * golden})`);
-      ctx.fillStyle = gw;
-      ctx.fillRect(0, H * 0.45, W, H * 0.55);
-      ctx.restore();
+      drawBody(nm / NIGHT_LEN, "moon", "rgba(226,232,244,1)", "rgba(170,200,255,0.45)");
     }
   }
 
