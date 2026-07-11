@@ -9,10 +9,12 @@ export interface Camera {
   zoom: number; // CSS pixels per world unit
 }
 
-// The minimum zoom that still covers the viewport in at least one axis, so you can't
-// pan past the edge of the world in that axis (the other axis stays pannable).
-export function minZoomFor(vw: number, vh: number, ww: number, wh: number): number {
-  return Math.max(vw / ww, vh / wh);
+// The minimum zoom. `cover` (default) = fill the viewport in at least one axis so you never see
+// past the world edge (used for the boulevard, and a room's default framing). `cover=false` =
+// CONTAIN: the whole world can fit on screen, so a room can be zoomed all the way out to show the
+// entire plate (with the empty area centered/letterboxed).
+export function minZoomFor(vw: number, vh: number, ww: number, wh: number, cover = true): number {
+  return cover ? Math.max(vw / ww, vh / wh) : Math.min(vw / ww, vh / wh);
 }
 
 function maxZoomFor(minZ: number): number {
@@ -20,13 +22,15 @@ function maxZoomFor(minZ: number): number {
   return Math.max(minZ * 5, 3);
 }
 
-export function clampCamera(cam: Camera, vw: number, vh: number, ww: number, wh: number): void {
-  const minZ = minZoomFor(vw, vh, ww, wh);
+export function clampCamera(cam: Camera, vw: number, vh: number, ww: number, wh: number, cover = true): void {
+  const minZ = minZoomFor(vw, vh, ww, wh, cover);
   cam.zoom = Math.min(maxZoomFor(minZ), Math.max(minZ, cam.zoom));
   const viewW = vw / cam.zoom;
   const viewH = vh / cam.zoom;
-  cam.x = Math.min(Math.max(0, cam.x), Math.max(0, ww - viewW));
-  cam.y = Math.min(Math.max(0, cam.y), Math.max(0, wh - viewH));
+  // When the view is wider/taller than the world (zoomed out past cover), CENTER the world in that
+  // axis instead of pinning it to the top-left; otherwise clamp so no edge shows.
+  cam.x = viewW >= ww ? (ww - viewW) / 2 : Math.min(Math.max(0, cam.x), ww - viewW);
+  cam.y = viewH >= wh ? (wh - viewH) / 2 : Math.min(Math.max(0, cam.y), wh - viewH);
 }
 
 export function screenToWorld(cam: Camera, sx: number, sy: number): { x: number; y: number } {
@@ -43,11 +47,12 @@ export function zoomAbout(
   vh: number,
   ww: number,
   wh: number,
+  cover = true,
 ): void {
   const before = screenToWorld(cam, sx, sy);
-  const minZ = minZoomFor(vw, vh, ww, wh);
+  const minZ = minZoomFor(vw, vh, ww, wh, cover);
   cam.zoom = Math.min(maxZoomFor(minZ), Math.max(minZ, cam.zoom * factor));
   cam.x = before.x - sx / cam.zoom;
   cam.y = before.y - sy / cam.zoom;
-  clampCamera(cam, vw, vh, ww, wh);
+  clampCamera(cam, vw, vh, ww, wh, cover);
 }

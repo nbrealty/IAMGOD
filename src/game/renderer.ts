@@ -113,6 +113,7 @@ interface AreaView {
   // A beaded-curtain doorway on the right: as the player nears it the plate swaps to the open art,
   // and stepping into it scene-swaps to `toArea` (the back consultation room).
   curtain?: { openX: number; openBackdrop: string; enterX: number; toArea: string };
+  exitCurtainX?: number; // walking RIGHT past this x leaves via exitTo (the curtain you came in through)
   w: number; h: number; // plate pixel size = room-local world
   floorTop: number; floorBot: number; // walkable band (painted floor), near→far
   halfTop: number; halfBot: number; // floor half-width at back / front (a parallel trapezoid lane)
@@ -170,9 +171,10 @@ const AREAS: Record<string, AreaView> = {
     w: 1536, h: 1024,
     floorTop: 560, floorBot: 980, // the open floor in front of the reading table
     halfTop: 360, halfBot: 640,
-    cx: 768, entryX: 1120, entryY: 880, // arrive by the curtain doorway (right), facing in
+    cx: 768, entryX: 1080, entryY: 860, // arrive just inside the curtain doorway (right), facing in
     scaleBack: 0.82, charScale: 5.5, // people sized to the chairs/table (~2× chair-back height)
-    exitTo: "aguas-front", // walk off the front edge → back through the curtain to the botanica
+    exitTo: "aguas-front", // leave (walk down the front edge OR right into the curtain) → the botanica
+    exitCurtainX: 1290, // walk RIGHT into the beaded curtain you entered through → back to the botanica
   },
 };
 const ROOM_FADE = 0.42; // seconds for a full fade-through-black scene swap
@@ -438,6 +440,8 @@ export class HollywoodRenderer {
   // point. Set by tapping the ground; cleared on arrival, on manual D-pad/key input, or when blocked.
   private moveTarget: { x: number; y: number } | null = null;
   private startFramed = false; // one-time: drop the player in front of the enterable shop on first frame
+  private transGuard = 0; // seconds after a scene swap during which enter/exit triggers are ignored
+                          // (so holding a direction can't instantly bounce you back through a doorway)
 
   private sprites = new Map<string, HTMLImageElement | null>();
   private tiles = new Map<string, HTMLImageElement | null>();
@@ -582,6 +586,7 @@ export class HollywoodRenderer {
   // Overworld player step: move against the walkable "+" corridor + court pocket, face travel,
   // ease the camera to follow. Auto-loads the Overture Court room once you walk deep enough up.
   private updateWorldPlayer(pc: NpcRuntime, dt: number): void {
+    if (this.transGuard > 0) this.transGuard -= dt;
     let vx = (this.held.has("right") ? 1 : 0) - (this.held.has("left") ? 1 : 0);
     let vy = (this.held.has("down") ? 1 : 0) - (this.held.has("up") ? 1 : 0);
     if (vx || vy) this.moveTarget = null; // manual input cancels tap-to-walk
@@ -609,12 +614,12 @@ export class HollywoodRenderer {
       // walking to a tapped point but wall-blocked (barely moved) → give up the target
       if (this.moveTarget && Math.hypot(pc.x - ox, pc.y - oy) < 0.25) this.moveTarget = null;
       // deep in the court, on the axis → crossfade into the Overture Court room
-      if (pc.y < COURT_ENTER_Y && Math.abs(pc.x - OVERTURE.cx) < OVERTURE.courtWalkHalf) {
+      if (this.transGuard <= 0 && pc.y < COURT_ENTER_Y && Math.abs(pc.x - OVERTURE.cx) < OVERTURE.courtWalkHalf) {
         this.startTransition("overture-court");
       }
       // enterable storefront: walk fully UP to a shop's door (top of the north sidewalk, within the
       // door's x-span on the right of the facade) → crossfade into its interior room.
-      if (!this.trans && this.facingUp && pc.y < NORTH_BASELINE + 24) {
+      if (this.transGuard <= 0 && !this.trans && this.facingUp && pc.y < NORTH_BASELINE + 24) {
         for (const f of ALL_FRONTAGES) {
           for (const b of f.buildings) {
             if (!b.enter || (b.side ?? "north") !== "north") continue;
@@ -646,6 +651,7 @@ export class HollywoodRenderer {
   private updateRoomPlayer(pc: NpcRuntime, dt: number): void {
     const R = this.activeArea();
     if (!R) return;
+    if (this.transGuard > 0) this.transGuard -= dt;
     let vx = (this.held.has("right") ? 1 : 0) - (this.held.has("left") ? 1 : 0);
     let vy = (this.held.has("down") ? 1 : 0) - (this.held.has("up") ? 1 : 0);
     if (vx || vy) this.moveTarget = null; // manual input cancels tap-to-walk
@@ -653,8 +659,11 @@ export class HollywoodRenderer {
     pc.moving = vx !== 0 || vy !== 0;
     if (vx || vy) {
       const m = Math.hypot(vx, vy) || 1;
-      const dx = (vx / m) * PLAYER_SPEED * dt;
-      const dy = (vy / m) * PLAYER_SPEED * dt;
+      // Rooms scale people way up (charScale), so overworld speed feels like a crawl — scale the
+      // walk speed with the character so it covers the small plate at a natural pace.
+      const speed = PLAYER_SPEED * Math.max(1, (R.charScale ?? 1) * 0.6);
+      const dx = (vx / m) * speed * dt;
+      const dy = (vy / m) * speed * dt;
       const ox = pc.x, oy = pc.y;
       if (this.roomCanWalk(R, pc.x + dx, pc.y + dy)) {
         pc.x += dx;
@@ -672,9 +681,13 @@ export class HollywoodRenderer {
       // Walk DOWN to the front edge of the floor → leave. Works with the D-pad AND tap-to-walk
       // toward the bottom (vy > 0 = any downward movement), so it's reachable on mobile. Where you
       // go is per-room: the overworld (exitTo null) or another room (a deeper→shallower step).
-      if (vy > 0 && pc.y >= R.floorBot - 8) this.startTransition(R.exitTo ?? null);
-      // Reach the beaded curtain on the right → step through into the back consultation room.
-      if (R.curtain && pc.x >= R.curtain.enterX) this.startTransition(R.curtain.toArea);
+      if (this.transGuard <= 0) {
+        if (vy > 0 && pc.y >= R.floorBot - 8) this.startTransition(R.exitTo ?? null);
+        // Reach the beaded curtain on the right → step through into the back consultation room.
+        else if (R.curtain && pc.x >= R.curtain.enterX) this.startTransition(R.curtain.toArea);
+        // Back rooms: walk RIGHT into the curtain you came in through → step back out (to exitTo).
+        else if (R.exitCurtainX && pc.x >= R.exitCurtainX) this.startTransition(R.exitTo ?? null);
+      }
     }
     this.followCam(pc.x, pc.y); // camera eases to keep the avatar framed (clamped to the plate)
   }
@@ -718,7 +731,7 @@ export class HollywoodRenderer {
         this.cam.zoom = minZoomFor(this.cssW, this.cssH, R.w, R.h) * (R.entryZoom ?? 1.05);
         this.cam.x = R.entryX - this.cssW / this.cam.zoom / 2;
         this.cam.y = R.entryY - this.cssH / this.cam.zoom / 2;
-        clampCamera(this.cam, this.cssW, this.cssH, R.w, R.h);
+        clampCamera(this.cam, this.cssW, this.cssH, R.w, R.h, false); // room: allow zoom-out to contain
       }
     } else {
       // room → overworld.
@@ -743,6 +756,7 @@ export class HollywoodRenderer {
       }
       this.facingUp = false;
     }
+    this.transGuard = 0.6; // ignore enter/exit triggers briefly so a held direction can't bounce
   }
 
   // Match the backing store to the on-screen size (CSS px × device pixel ratio) and
@@ -770,7 +784,7 @@ export class HollywoodRenderer {
       this.centered = true;
     }
     const [ww, wh] = this.worldDims();
-    clampCamera(this.cam, this.cssW, this.cssH, ww, wh);
+    clampCamera(this.cam, this.cssW, this.cssH, ww, wh, !this.room);
   }
 
   // ---- camera controls (called by input + zoom buttons) ----
@@ -779,12 +793,13 @@ export class HollywoodRenderer {
     const [ww, wh] = this.worldDims();
     this.cam.x -= dxCss / this.cam.zoom;
     this.cam.y -= dyCss / this.cam.zoom;
-    clampCamera(this.cam, this.cssW, this.cssH, ww, wh);
+    clampCamera(this.cam, this.cssW, this.cssH, ww, wh, !this.room);
   }
 
   private zoomAt(factor: number, cssX: number, cssY: number) {
     const [ww, wh] = this.worldDims();
-    zoomAbout(this.cam, factor, cssX, cssY, this.cssW, this.cssH, ww, wh);
+    // Rooms may zoom out to CONTAIN (whole plate); the city stays COVER (never past the edge).
+    zoomAbout(this.cam, factor, cssX, cssY, this.cssW, this.cssH, ww, wh, !this.room);
   }
 
   // Zoom about the viewport center — for on-screen +/- buttons.
@@ -799,7 +814,7 @@ export class HollywoodRenderer {
     const ty = y - this.cssH / this.cam.zoom / 2;
     this.cam.x += (tx - this.cam.x) * 0.12;
     this.cam.y += (ty - this.cam.y) * 0.12;
-    clampCamera(this.cam, this.cssW, this.cssH, ww, wh);
+    clampCamera(this.cam, this.cssW, this.cssH, ww, wh, !this.room);
   }
 
   // Designate the player-driven character (its patrol AI is suspended), or null
