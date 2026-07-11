@@ -132,6 +132,16 @@ feet-anchored to one ground-Y, which is the sort key.
    of the plate makes its lit windows/signage glow. `setControlled` drops any active room. This
    is the generic mechanism for ALL future enterable buildings — add an `AREAS` entry + one plate.
 
+   **RULE — every enterable area ALWAYS shows an on-screen "← Leave" button.** Walking to an edge /
+   tapping the exact exit is too fiddly on touch, so the guaranteed way out is a button. It's wired
+   generically: the renderer calls `onRoomChange(room)` (set via `setRoomHandler`) on every room
+   swap; `HollywoodScene` shows the `.leave-room-btn` whenever `room !== null`; tapping it calls
+   `renderer.leaveRoom()`, which transitions along the area's `exitTo` (room→room steps out one
+   level, e.g. back consultation → botanica → street). The button uses `onPointerUp` (not `onClick`,
+   which some mobile PWA webviews drop) and `leaveRoom()` cancels any half-finished transition
+   first. Any new `AREAS` entry inherits the button for free — never ship an enterable area without
+   a working Leave, and never gate the only exit behind a walk-to-edge trigger.
+
    **7c. Room human scale — people are sized to the PAINTED FURNITURE, not the overworld.** A room
    plate is a small interior; the overworld `CHAR_BODY_H` is a fraction of it, so an un-scaled avatar
    renders child-sized. Each `AREAS` entry sets `charScale` (multiplier on `CHAR_BODY_H`, applied to
