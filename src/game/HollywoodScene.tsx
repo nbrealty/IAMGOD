@@ -135,7 +135,15 @@ export function HollywoodScene({ engine, controlledId, onControlledChange }: Pro
       )}
 
       {inRoom && (
-        <button className="leave-room-btn" onClick={() => rendererRef.current?.leaveRoom()}>
+        <button
+          className="leave-room-btn"
+          // Use pointer events (like the D-pad) rather than onClick — some mobile PWA webviews drop
+          // synthetic click on dynamically-shown buttons. onPointerUp fires reliably on touch.
+          onPointerUp={(e) => {
+            e.preventDefault();
+            rendererRef.current?.leaveRoom();
+          }}
+        >
           ← Leave
         </button>
       )}

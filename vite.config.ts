@@ -1,9 +1,21 @@
+import { execSync } from "node:child_process";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
+// A visible build stamp so we can tell exactly which build a device is running (git short sha +
+// build time). Shown in a corner of the UI; if the phone shows an old stamp, it's a stale cache.
+let buildId = "dev";
+try {
+  buildId = execSync("git rev-parse --short HEAD").toString().trim();
+} catch {
+  /* not a git checkout — leave 'dev' */
+}
+const BUILD_STAMP = `${buildId}`;
+
 // https://vite.dev/config/
 export default defineConfig({
+  define: { __BUILD_ID__: JSON.stringify(BUILD_STAMP) },
   // Relative base so the same build works when wrapped by Capacitor (file://) and
   // Electron (file://) as well as served from a web root (Vercel).
   base: "./",

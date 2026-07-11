@@ -269,21 +269,27 @@
 }
 .leave-room-btn {
   position: absolute;
-  top: 46px;
+  top: 44px;
   right: 10px;
-  z-index: 6;
-  font-size: 14px;
-  padding: 9px 17px;
-  border-radius: 20px;
-  background: rgba(30, 20, 10, 0.9);
-  border: 1px solid #d8a24a;
-  color: #f4d79a;
+  z-index: 12;
+  font-size: 16px;
+  padding: 12px 20px;
+  border-radius: 22px;
+  background: rgba(30, 20, 10, 0.94);
+  border: 2px solid #e8b45a;
+  color: #ffe6ad;
   cursor: pointer;
-  font-weight: 700;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
+  font-weight: 800;
+  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.5);
+  touch-action: manipulation;
 }
 .leave-room-btn:active {
-  transform: scale(0.96);
+  transform: scale(0.95);
+  background: rgba(60, 42, 18, 0.98);
+}
+.build-stamp {
+  opacity: 0.5;
+  font-size: 10px;
 }
 .inv-card {
   max-width: 440px;

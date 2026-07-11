@@ -36,6 +36,7 @@ export default function App() {
         {controlledName
           ? `Move ${controlledName} with the D-pad / arrows or TAP the ground to walk there · pinch or ＋/－ to zoom · tap a person for their Soul Profile`
           : "Drag to pan · pinch or ＋/－ to zoom · tap a person to read their live Soul Profile"}
+        <span className="build-stamp"> · build {__BUILD_ID__}</span>
       </footer>
     </div>
   );

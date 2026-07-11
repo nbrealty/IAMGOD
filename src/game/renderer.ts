@@ -859,9 +859,11 @@ export class HollywoodRenderer {
   }
 
   // Public: leave the current room via its exit (the on-screen Leave button). The one guaranteed
-  // way out, independent of walking to an edge.
+  // way out, independent of walking to an edge. Cancels any half-finished transition first so a
+  // stuck fade can't wedge the button.
   leaveRoom() {
-    if (!this.room || this.trans) return;
+    if (!this.room) return;
+    this.trans = null;
     this.startTransition(this.activeArea()?.exitTo ?? null);
   }
 
