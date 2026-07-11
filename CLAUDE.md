@@ -4,6 +4,52 @@ God-game in a fictionalized 2026 Los Angeles (Hollywood Blvd district).
 Targets: iOS App Store, Windows, Mac. Vite + React 19 + TypeScript, a canvas 2D
 billboard/dimetric renderer with a pan/zoom/DPR camera.
 
+## Character art style — "chibi-realism" (the house look for all souls)
+
+Every character sprite (playable soul, NPC, friend cameo) is drawn in one house
+style we call **chibi-realism**: a caricatured chibi head/proportion on a fully
+realistic, detailed body. It is NOT flat pixel-art and NOT baby-proportioned
+classic chibi — it's a premium caricature / high-end sticker-avatar look. When
+you write an art prompt or judge a delivered sprite, hold it to these traits:
+
+- **Proportion (semi-chibi caricature).** An oversized head with a big expressive
+  face on a body that is roughly **3.5–4.5 heads tall** — shorter and heads-bigger
+  than real life, but clearly an adult, never a toddler-proportioned mini. Head is
+  ~¼–⅓ of total height, not the tiny 1/3-head classic chibi.
+- **Body = realism.** Full, truthful adult anatomy rendered with real volume —
+  visible muscle (quads, calves, abs, biceps), real curves and build, correct
+  hands and feet. The person's actual build/weight is honored, not slimmed or
+  idealized.
+- **Face = caricature-realism.** Enlarged, detailed eyes with painted irises,
+  catchlights and long lashes; strong groomed brows; full realistic lips; a real
+  nose/jaw; contouring, blush, freckles, moles. Very expressive and warm, usually
+  a slight confident smile. The face must stay a **true likeness** of the source
+  person — keep face shape, features, hair, skin tone, glasses/facial hair/tattoos.
+- **Line & color.** Bold, clean **black ink outlines** (heavy outer contour, finer
+  interior lines) over rich **glossy cel-shading blended with airbrushed gradient
+  volume** — not flat fills. High saturation, high contrast, punchy; specular
+  highlights on skin, hair sheen, fabric gloss.
+- **Material detail.** Photoreal textures — denim rips, leather sheen, knit ribbing,
+  jersey fabric, studs, chains, jewelry, watches; **legible logos/crests/tattoos**
+  (e.g. a CBF crest, a Nike swoosh, "Los Angeles" script, rose/palm tattoos).
+- **Framing.** A single full-body figure, standing, **feet planted, front-facing
+  near eye-level (straight-on)**, centered with a small even margin. (Note this is
+  straight-on, flatter than the older cast's raised 3/4 dimetric angle — chibi-
+  realism is the current, definitive look; the reference set lives in
+  `/root/.claude/uploads` and characters like the Brazilian tank-top/shorts woman,
+  the soccer-jersey man, the rock-tee woman, the detective, and the Oxum figure.)
+- **Lighting.** Bright, even, gently top-lit; strong rounded form shadows plus
+  glossy highlights; **no cast ground shadow** (grounding is added by the engine).
+- **Background / keying.** Delivered on a **flat solid hot-magenta** key field (or
+  transparent) so the pipeline can crop cleanly; grounded American streetwear,
+  **no anime tropes** (no sparkle-eyes, no twin-tails, no unnatural hair unless the
+  real person dyes theirs).
+
+`docs/CHARACTER_PROMPT.md` holds the paste-ready, reusable prompt (with WEARING /
+POSE / NAME slots + a back-view companion) built from these traits — use it for
+every new likeness sprite. Save keyed finals to `public/spirits/` per the outfits
+spec below.
+
 ## Rendering rules (must honor — regressions here are visible bugs)
 
 The world is a flat billboard scene faked into 2.5D. The projection rule is:
