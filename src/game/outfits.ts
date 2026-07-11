@@ -21,13 +21,8 @@ export const OUTFITS: Record<string, Outfit[]> = {
     { id: "gingham", label: "Gingham", stem: "lori__gingham-going-out" },
     { id: "shark", label: "Shark Shorts", stem: "lori__shark-shorts" },
   ],
-  // Sorriso (soul id "nathaniel"). Brasil jersey is his default look.
-  nathaniel: [
-    { id: "brasil", label: "Brasil", stem: "nathaniel" },
-    { id: "loyalty", label: "Loyalty", stem: "nathaniel_loyalty" },
-    { id: "varsity", label: "Varsity", stem: "nathaniel_varsity" },
-    { id: "bomber", label: "Bomber", stem: "nathaniel_bomber" },
-  ],
+  // Sorriso (soul id "nathaniel"). Brasil jersey is his default look. New costumes incoming.
+  nathaniel: [{ id: "brasil", label: "Brasil", stem: "nathaniel" }],
   // Vee Knox. "Rock Forever" street-glam look is her default.
   vee_knox: [
     { id: "rock", label: "Rock", stem: "vee_knox" },
