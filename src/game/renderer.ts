@@ -152,10 +152,10 @@ const AREAS: Record<string, AreaView> = {
     cx: 768, entryX: 780, entryY: 962,
     // COUNTER RULE: a person's WAIST must sit on the counter line. The floor is ~y960 and the
     // counter top ~y600, so an adult (waist ≈ half height) needs ~8× the overworld body height.
-    scaleBack: 0.94, entryZoom: 1.0, charScale: 8.0,
+    scaleBack: 0.94, entryZoom: 1.0, charScale: 10.0,
     exitTo: null, // walk off the front edge → back out to the boulevard
     foreground: "aguas-front-counter", // the counter, drawn IN FRONT of Yara so she stands behind it
-    occupants: [{ stem: "yara", x: 660, y: 870, scale: 1.0 }], // Yara BEHIND the counter — waist on the counter line, legs hidden
+    occupants: [{ stem: "yara", x: 660, y: 912, scale: 1.0 }], // Yara BEHIND the counter — waist on the counter line, legs hidden
     // beaded curtain on the right → the back consultation room
     curtain: { openX: 1040, openBackdrop: "aguas-front-open", enterX: 1280, toArea: "aguas-back" },
   },
@@ -1051,6 +1051,9 @@ export class HollywoodRenderer {
       const sc = depthScaleAt(pc.y);
       ctx.save();
       ctx.translate(pc.x, pc.y); ctx.scale(sc, sc); ctx.translate(-pc.x, -pc.y);
+      // drawNPC anchors feet at pc.y + FEET_DROP; that small overworld nudge, ×charScale, would
+      // sink the avatar ~100px. Cancel it so the feet sit at pc.y and the waist lands on the counter.
+      ctx.translate(0, -FEET_DROP);
       this.drawNPC(pc, t);
       ctx.restore();
     };
