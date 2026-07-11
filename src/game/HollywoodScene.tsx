@@ -48,6 +48,7 @@ export function HollywoodScene({ engine, controlledId, onControlledChange }: Pro
   const rendererRef = useRef<HollywoodRenderer | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [invOpen, setInvOpen] = useState(false); // inventory sheet for the controlled character
+  const [inRoom, setInRoom] = useState(false); // true while inside an enterable interior (shows Leave)
   // Equipped outfit stem per soul (any soul absent here wears its default look). Remembered across
   // character switches; applied live to the renderer. Drives both inventory grids.
   const [equipped, setEquipped] = useState<Record<string, string>>({});
@@ -66,6 +67,7 @@ export function HollywoodScene({ engine, controlledId, onControlledChange }: Pro
       if (id) setSelectedId(id); // tapped a person → open their Soul Profile
       else renderer.tapToWalk(cssX, cssY); // tapped the ground → walk the controlled soul there
     });
+    renderer.setRoomHandler((room) => setInRoom(room !== null)); // show the Leave button inside a room
 
     const fit = () => {
       const r = wrap.getBoundingClientRect();
@@ -129,6 +131,12 @@ export function HollywoodScene({ engine, controlledId, onControlledChange }: Pro
       {controlledId !== null && (
         <button className="inv-open-btn" onClick={() => setInvOpen(true)}>
           🎒 Inventory
+        </button>
+      )}
+
+      {inRoom && (
+        <button className="leave-room-btn" onClick={() => rendererRef.current?.leaveRoom()}>
+          ← Leave
         </button>
       )}
 

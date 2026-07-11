@@ -113,7 +113,6 @@ interface AreaView {
   // A beaded-curtain doorway on the right: as the player nears it the plate swaps to the open art,
   // and stepping into it scene-swaps to `toArea` (the back consultation room).
   curtain?: { openX: number; openBackdrop: string; enterX: number; toArea: string };
-  exitCurtainX?: number; // walking RIGHT past this x leaves via exitTo (the curtain you came in through)
   w: number; h: number; // plate pixel size = room-local world
   floorTop: number; floorBot: number; // walkable band (painted floor), near→far
   halfTop: number; halfBot: number; // floor half-width at back / front (a parallel trapezoid lane)
@@ -158,7 +157,7 @@ const AREAS: Record<string, AreaView> = {
     foreground: "aguas-front-counter", // the counter, drawn IN FRONT of Yara so she stands behind it
     occupants: [{ stem: "yara", x: 660, y: 912, scale: 1.0 }], // Yara BEHIND the counter — waist on the counter line, legs hidden
     // beaded curtain on the right → the back consultation room
-    curtain: { openX: 1040, openBackdrop: "aguas-front-open", enterX: 1280, toArea: "aguas-back" },
+    curtain: { openX: 1000, openBackdrop: "aguas-front-open", enterX: 1150, toArea: "aguas-back" },
   },
   // Yara's botanica — the BACK room (consultation). Open wooden floor foreground; the búzios
   // table + Oxum altar + Exu corner are baked into the plate. Walking off the front edge steps
@@ -173,8 +172,7 @@ const AREAS: Record<string, AreaView> = {
     halfTop: 360, halfBot: 640,
     cx: 768, entryX: 1080, entryY: 860, // arrive just inside the curtain doorway (right), facing in
     scaleBack: 0.82, charScale: 5.5, // people sized to the chairs/table (~2× chair-back height)
-    exitTo: "aguas-front", // leave (walk down the front edge OR right into the curtain) → the botanica
-    exitCurtainX: 1290, // walk RIGHT into the beaded curtain you entered through → back to the botanica
+    exitTo: "aguas-front", // leave via the on-screen Leave button or by walking down → the botanica
   },
 };
 const ROOM_FADE = 0.42; // seconds for a full fade-through-black scene swap
@@ -452,6 +450,7 @@ export class HollywoodRenderer {
   private measureCanvas?: HTMLCanvasElement;
   private skylineBuf?: HTMLCanvasElement; // offscreen for tinting the skyline silhouette in isolation
   private tapHandler: ((cssX: number, cssY: number) => void) | null = null;
+  private onRoomChange: ((room: string | null) => void) | null = null;
 
   // input state
   private pointers = new Map<number, { x: number; y: number }>();
@@ -685,8 +684,6 @@ export class HollywoodRenderer {
         if (vy > 0 && pc.y >= R.floorBot - 8) this.startTransition(R.exitTo ?? null);
         // Reach the beaded curtain on the right → step through into the back consultation room.
         else if (R.curtain && pc.x >= R.curtain.enterX) this.startTransition(R.curtain.toArea);
-        // Back rooms: walk RIGHT into the curtain you came in through → step back out (to exitTo).
-        else if (R.exitCurtainX && pc.x >= R.exitCurtainX) this.startTransition(R.exitTo ?? null);
       }
     }
     this.followCam(pc.x, pc.y); // camera eases to keep the avatar framed (clamped to the plate)
@@ -757,6 +754,7 @@ export class HollywoodRenderer {
       this.facingUp = false;
     }
     this.transGuard = 0.6; // ignore enter/exit triggers briefly so a held direction can't bounce
+    this.onRoomChange?.(this.room); // let React show/hide the Leave button
   }
 
   // Match the backing store to the on-screen size (CSS px × device pixel ratio) and
@@ -824,6 +822,7 @@ export class HollywoodRenderer {
   setControlled(id: string | null) {
     // switching characters (or to Observer) drops any active room/transition — the new soul is
     // out in the overworld, not standing in the court plate.
+    const wasRoom = this.room;
     this.room = null;
     this.trans = null;
     this.moveTarget = null;
@@ -831,6 +830,7 @@ export class HollywoodRenderer {
     this.held.clear();
     this.facingLeft = false;
     this.facingUp = false;
+    if (wasRoom) this.onRoomChange?.(null);
   }
 
   getControlled(): string | null {
@@ -851,6 +851,18 @@ export class HollywoodRenderer {
 
   setTapHandler(fn: (cssX: number, cssY: number) => void) {
     this.tapHandler = fn;
+  }
+
+  // React registers here so it can show a "Leave" button whenever a room is active (null = overworld).
+  setRoomHandler(fn: (room: string | null) => void) {
+    this.onRoomChange = fn;
+  }
+
+  // Public: leave the current room via its exit (the on-screen Leave button). The one guaranteed
+  // way out, independent of walking to an edge.
+  leaveRoom() {
+    if (!this.room || this.trans) return;
+    this.startTransition(this.activeArea()?.exitTo ?? null);
   }
 
   // Tap-to-walk: send the controlled character toward the tapped ground point. Works in both the
