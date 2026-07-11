@@ -100,7 +100,12 @@ interface AreaView {
   backdrop: string; // interior plate key (loaded from /${dir ?? 'overture'}/<backdrop>.<png|jpg>)
   dir?: string; // asset subfolder under public/ (default 'overture'); e.g. 'aguas' for the botanica
   jpg?: boolean; // load the plate as .jpg instead of .png (opaque interior plates compress far smaller)
-  exitTo?: string | null; // walking off the front edge goes here: null/undefined = overworld, or a room id
+  exitTo?: string | null; // where the walk-out exit goes: null/undefined = overworld, or a room id
+  exitDown?: boolean; // walk-down off the front floor edge exits (default true). Set false where the
+                      // natural exit is a doorway on a side (e.g. the back room's beaded curtain), so
+                      // walking down doesn't drop you out somewhere the plate has no door.
+  exitCurtainX?: number; // if set, reaching this x (a doorway on the right, e.g. the bead curtain)
+                         // triggers the exitTo transition — the intuitive "walk back out the door" exit.
   entryZoom?: number; // cover-zoom multiplier for the initial framing (default 1.05); >1 frames closer
   charScale?: number; // multiplier on CHAR_BODY_H for people in this room (default 1). Rooms are
                       // small painted interiors, so a person must be MUCH bigger than the overworld
@@ -170,9 +175,12 @@ const AREAS: Record<string, AreaView> = {
     w: 1536, h: 1024,
     floorTop: 560, floorBot: 980, // the open floor in front of the reading table
     halfTop: 360, halfBot: 640,
-    cx: 768, entryX: 1080, entryY: 860, // arrive just inside the curtain doorway (right), facing in
+    cx: 768, entryX: 980, entryY: 860, // arrive just inside the curtain doorway (right), facing in
     scaleBack: 0.82, charScale: 5.5, // people sized to the chairs/table (~2× chair-back height)
-    exitTo: "aguas-front", // leave via the on-screen Leave button or by walking down → the botanica
+    exitTo: "aguas-front", // back through the beaded curtain → the front botanica
+    // The doorway is the beaded curtain on the RIGHT, NOT the south edge — so exit at the curtain x
+    // (walk right into it) and disable the walk-down exit, which would drop you out at a wall.
+    exitDown: false, exitCurtainX: 1160,
   },
 };
 const ROOM_FADE = 0.42; // seconds for a full fade-through-black scene swap
@@ -681,7 +689,10 @@ export class HollywoodRenderer {
       // toward the bottom (vy > 0 = any downward movement), so it's reachable on mobile. Where you
       // go is per-room: the overworld (exitTo null) or another room (a deeper→shallower step).
       if (this.transGuard <= 0) {
-        if (vy > 0 && pc.y >= R.floorBot - 8) this.startTransition(R.exitTo ?? null);
+        // Walk-out exit. By default it's the front floor edge (walk down), but a room whose door is
+        // on a side sets exitDown:false + exitCurtainX so you leave through the painted doorway.
+        if (R.exitCurtainX != null && pc.x >= R.exitCurtainX) this.startTransition(R.exitTo ?? null);
+        else if ((R.exitDown ?? true) && vy > 0 && pc.y >= R.floorBot - 8) this.startTransition(R.exitTo ?? null);
         // Reach the beaded curtain on the right → step through into the back consultation room.
         else if (R.curtain && pc.x >= R.curtain.enterX) this.startTransition(R.curtain.toArea);
       }
