@@ -761,6 +761,30 @@ const RAW: Soul[] = [
     xMax: 600,
     baseSpeed: 18,
   }),
+  soul({
+    id: "bianca",
+    name: "Bianca Moreira",
+    occupation: "Fashion Designer & CEO · Boss Energy",
+    archetype: "Fashion Mogul",
+    age: 32,
+    narrative:
+      "Lua's older sister. Same Salvador roots, opposite hustle — while Lua chased the booth, Bianca chased the boardroom, and built 'Boss Energy' from a market stall of hand-sewn pieces into a Hollywood fashion house dressing half the red carpets in town. Immaculate, calculating, allergic to being underestimated: BUILD, BRAND, BANK is printed on her card and tattooed on her decisions. She loves Lua fiercely and worries about the blade her sister carries — but the two of them against this city is the only partnership she fully trusts.",
+    needs: { survival: 70, safety: 66, belonging: 56, esteem: 84, actualization: 74 },
+    traits: traits({ negativeAffectivity: 22, detachment: 40, antagonism: 42, disinhibition: 30, psychoticism: 12 }),
+    aceScore: 4,
+    resilience: 86,
+    kohlberg: 4,
+    soulAge: "Mature",
+    initiationLevel: 3,
+    chakras: chakras([66, 60, 78, 58, 70, 54, 36]),
+    consciousAspiration: "Make Boss Energy a global name — dress the world, answer to no one",
+    soulPurpose: "Prove where she came from is a crown, not a ceiling — and let her worth rest on more than the empire",
+    affinities: { hustle: 1.7, work: 1.5, gaze: 1.3, socialize: 1.3, perform: 1.0, rest: 0.9 },
+    row: "north",
+    xMin: 640,
+    xMax: 760,
+    baseSpeed: 16,
+  }),
 ];
 
 // The cast was authored for the old 1600-wide single boulevard. Phase 2b opened the
