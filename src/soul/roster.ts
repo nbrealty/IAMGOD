@@ -737,6 +737,30 @@ const RAW: Soul[] = [
     xMax: 300,
     baseSpeed: 15,
   }),
+  soul({
+    id: "lua",
+    name: 'Rafaela "Lua" Moreira',
+    occupation: "DJ & Owner · Eclipse Nightclub",
+    archetype: "Nightlife Mogul",
+    age: 29,
+    narrative:
+      "Brazilian, born in Salvador, raised half in São Paulo's warehouse-party scene. She came to Hollywood with two crates of records and a chip on her shoulder, spun other people's rooms for six years, then bet everything and opened Eclipse — now the club everyone's trying to get into. She headlines her own booth. The brass knuckles and the blade aren't for show: a woman who owns the door in this town learns fast that charm is a tool and fear is a lock. Warm to the people she claims, ice to the ones who try her.",
+    needs: { survival: 62, safety: 58, belonging: 54, esteem: 80, actualization: 72 },
+    traits: traits({ negativeAffectivity: 24, detachment: 30, antagonism: 46, disinhibition: 52, psychoticism: 18 }),
+    aceScore: 4,
+    resilience: 88,
+    kohlberg: 4,
+    soulAge: "Mature",
+    initiationLevel: 3,
+    chakras: chakras([64, 74, 70, 60, 66, 52, 34]),
+    consciousAspiration: "Make Eclipse the name in LA nightlife — and never answer to anyone again",
+    soulPurpose: "Turn a room full of strangers into one heartbeat — and learn to let someone past the door she guards",
+    affinities: { perform: 1.7, socialize: 1.5, hustle: 1.4, gaze: 1.2, work: 1.1, rest: 0.9 },
+    row: "north",
+    xMin: 480,
+    xMax: 600,
+    baseSpeed: 18,
+  }),
 ];
 
 // The cast was authored for the old 1600-wide single boulevard. Phase 2b opened the

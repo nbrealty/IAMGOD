@@ -32,6 +32,8 @@ export const OUTFITS: Record<string, Outfit[]> = {
     { id: "palm-tee", label: "Palm Tee", stem: "nathaniel_palm-tee" },
     { id: "camp", label: "Camp Shirt", stem: "nathaniel_camp" },
   ],
+  // Lua (Rafaela "Lua" Moreira) — Eclipse DJ/owner. Black bomber "club owner" fit is her default.
+  lua: [{ id: "eclipse", label: "Eclipse", stem: "lua" }],
   // Vee Knox. "Rock Forever" street-glam look is her default.
   vee_knox: [
     { id: "rock", label: "Rock", stem: "vee_knox" },
