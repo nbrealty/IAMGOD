@@ -124,6 +124,18 @@ feet-anchored to one ground-Y, which is the sort key.
    ped) gets the leg-blur automatically** — no per-character art or wiring. Give
    each mover a distinct `phase` so a crowd doesn't swing in sync.
 
+   **The walk FX is gated ONLY on `moving`, NEVER on being selected.** It fires
+   for a character whether the player is driving them or they're wandering
+   autonomously as an unselected NPC — the controlled soul and every other soul
+   run the *same* `if (s.moving) { drawWalkFX(); drawLegBlur(); }` in `drawNPC`.
+   An autonomous soul's `moving` is `!activityIsStationary(activity)` (it walks
+   its `xMin`→`xMax` patrol; planted while doing a stationary activity). So the
+   rule for a NEW playable/NPC character is: **do nothing** — dropping its sprite
+   in and adding the soul is enough; it blurs when walking, selected or not.
+   Never add a per-character or "only if controlled" gate to the walk FX. When
+   you add a character, verify (observe mode, force a non-stationary activity)
+   that the leg-blur + smoke show while they walk unselected.
+
 7. **Overture is a WALK-IN court — PARALLEL / axonometric, NEVER a fake vanishing point.**
    `OVERTURE` (sceneData.ts) pins a monumental gate on block-2 north (Overture is
    removed from the auto-layout; the block's other 3 landmarks start east of the
