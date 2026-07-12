@@ -34,8 +34,8 @@ export const OUTFITS: Record<string, Outfit[]> = {
   ],
   // Lua (Rafaela "Lua" Moreira) — Eclipse DJ/owner. Black bomber "club owner" fit is her default.
   lua: [{ id: "eclipse", label: "Eclipse", stem: "lua" }],
-  // Bianca Moreira — Lua's sister, "Boss Energy" fashion CEO. Black/gold baroque trench is default.
-  bianca: [{ id: "boss-energy", label: "Boss Energy", stem: "bianca" }],
+  // Beatriz "Bibi" Moreira — Lua's sister, "Boss Energy" fashion CEO. Black/gold baroque trench default.
+  bibi: [{ id: "boss-energy", label: "Boss Energy", stem: "bibi" }],
   // Vee Knox. "Rock Forever" street-glam look is her default.
   vee_knox: [
     { id: "rock", label: "Rock", stem: "vee_knox" },

@@ -762,13 +762,13 @@ const RAW: Soul[] = [
     baseSpeed: 18,
   }),
   soul({
-    id: "bianca",
-    name: "Bianca Moreira",
+    id: "bibi",
+    name: 'Beatriz "Bibi" Moreira',
     occupation: "Fashion Designer & CEO · Boss Energy",
     archetype: "Fashion Mogul",
     age: 32,
     narrative:
-      "Lua's older sister. Same Salvador roots, opposite hustle — while Lua chased the booth, Bianca chased the boardroom, and built 'Boss Energy' from a market stall of hand-sewn pieces into a Hollywood fashion house dressing half the red carpets in town. Immaculate, calculating, allergic to being underestimated: BUILD, BRAND, BANK is printed on her card and tattooed on her decisions. She loves Lua fiercely and worries about the blade her sister carries — but the two of them against this city is the only partnership she fully trusts.",
+      "Lua's older sister. Same Salvador roots, opposite hustle — while Lua chased the booth, Bibi chased the boardroom, and built 'Boss Energy' from a market stall of hand-sewn pieces into a Hollywood fashion house dressing half the red carpets in town. Immaculate, calculating, allergic to being underestimated: BUILD, BRAND, BANK is printed on her card and tattooed on her decisions. She loves Lua fiercely and worries about the blade her sister carries — but the two of them against this city is the only partnership she fully trusts.",
     needs: { survival: 70, safety: 66, belonging: 56, esteem: 84, actualization: 74 },
     traits: traits({ negativeAffectivity: 22, detachment: 40, antagonism: 42, disinhibition: 30, psychoticism: 12 }),
     aceScore: 4,
