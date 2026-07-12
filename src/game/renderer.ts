@@ -2564,7 +2564,10 @@ export class HollywoodRenderer {
     const bob = Math.sin((t + ped.bob) / 150) * 1.6;
     const feetY = ped.y + FEET_DROP + bob;
     const top = feetY - b.b * frameH;
-    // smoky walk FX + pendulum leg-blur behind the ped (they're always walking)
+    // Sun cast shadow + soft foot contact (same sun as everything else), then the smoky walk FX +
+    // pendulum leg-blur behind the ped (they're always walking).
+    this.drawCastShadow(`n:${ped.sprite}`, img, ped.x, feetY, w, frameH, 0.85);
+    this.drawContactShadow(ped.x, feetY, w * 0.5, frameH, 1, true);
     this.drawWalkFX(ped.x, ped.y + FEET_DROP, w, ped.dir, t, (ped.bob % 1000) / 1000);
     this.drawLegBlur(img, b, ped.x, feetY, w, ped.dir < 0, t, ped.bob);
     const prev = ctx.imageSmoothingEnabled;
@@ -2748,7 +2751,7 @@ export class HollywoodRenderer {
   // actor's own draw (before its sprite) so it sorts with the actor and lands on the ground it
   // stands on — nearer actors draw over it. Silhouette-shaped, so it never bleeds a rectangle onto
   // the ground/neighbours the way the old box-edge AO/skirt overlays did.
-  private drawCastShadow(key: string, img: HTMLImageElement, cx: number, footY: number, w: number, H: number): void {
+  private drawCastShadow(key: string, img: HTMLImageElement, cx: number, footY: number, w: number, H: number, strength = 1): void {
     const sun = sunShadowAt(this.engine.clockMinutes);
     if (sun.alpha <= 0) return;
     const sil = this.spriteSilhouette(key, img);
@@ -2756,7 +2759,7 @@ export class HollywoodRenderer {
     const ctx = this.ctx;
     ctx.save();
     ctx.globalCompositeOperation = "multiply";
-    ctx.globalAlpha = sun.alpha;
+    ctx.globalAlpha = sun.alpha * strength;
     ctx.translate(cx, footY);
     // Upright sprite (foot at y=0, top at y=-H) → ground: transform(a,b,c,d,e,f) gives
     // x' = x - skewX·y (skew grows with height) and y' = -lenY·y (flatten forward, down-screen).
@@ -3199,6 +3202,12 @@ export class HollywoodRenderer {
         ctx.restore();
       };
 
+      // Grounding, under the SAME sun as the buildings: the time-of-day directional cast shadow
+      // (the character's own silhouette, flattened + skewed by the sun; never flipped with the
+      // sprite so it stays light-consistent) + a soft foot contact so they're grounded standing OR
+      // moving. Drawn before the FX and the body.
+      this.drawCastShadow(spriteKey, sprite, s.x, feetY, w, frameH, 0.85);
+      this.drawContactShadow(s.x, feetY, w * 0.5, frameH, 1, true);
       // Smoky Gaia-style walk FX behind the body, the pendulum leg-blur at the feet, then the
       // crisp body on top. Every moving character gets both (see drawLegBlur).
       if (s.moving) {

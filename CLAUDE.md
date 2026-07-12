@@ -75,15 +75,19 @@ feet-anchored to one ground-Y, which is the sort key.
    `multiply` contact shadow at its foot-Y **inside its own draw, just before the
    sprite** (`drawContactShadow` in `renderer.ts`) so the shadow sorts with the
    actor and lands on the ground it stands on — never as a separate pass.
-   Buildings + props ALSO draw a **directional time-of-day CAST shadow**
-   (`drawCastShadow`): the sprite's OWN silhouette (baked cool-dark + soft-edged,
-   `spriteSilhouette`), flattened forward onto the ground and skewed away from a
-   single global sun (`sunShadowAt(clockMinutes)`). It **swings + lengthens with
-   the clock** — short & straight at solar noon, long & leaning one way in the
-   morning, long & leaning the other at golden hour, and **gone at night** (signage
-   light takes over). Because they carry the real cast shadow, buildings/props use
-   the **seam-only** contact shadow (`drawContactShadow(..., seamOnly=true)`) so the
-   two directional cues don't fight; characters keep the full contact stack.
+   Buildings, props, AND characters/peds (`drawNPC`, `drawPed`) ALSO draw a
+   **directional time-of-day CAST shadow** (`drawCastShadow`): the sprite's OWN
+   silhouette (baked cool-dark + soft-edged, `spriteSilhouette`), flattened forward
+   onto the ground and skewed away from a single global sun
+   (`sunShadowAt(clockMinutes)`) — and **never flipped with the sprite** (a shadow
+   follows the light, not the character's facing). It **swings + lengthens with the
+   clock** — short & straight at solar noon, long & leaning one way in the morning,
+   long & leaning the other at golden hour, and **gone at night** (signage light
+   takes over). Everything that carries the real cast shadow uses the **seam-only**
+   contact shadow (`drawContactShadow(..., seamOnly=true)`) so the two directional
+   cues don't fight; characters keep their moving walk FX (crescent + smoke +
+   leg-blur) on top. Room interiors have no sun, so they keep their plain soft
+   contact shadow (no cast shadow indoors).
    **NEVER re-add axis-aligned box overlays** (the old base-skirt / inter-building
    AO / far-row haze `fillRect`s) — they printed onto the ground/neighbour through
    the sprites' transparent padding as vertical "black streaks." All grounding must
