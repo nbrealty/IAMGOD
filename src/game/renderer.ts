@@ -1598,30 +1598,16 @@ export class HollywoodRenderer {
 
     // 1. street lamps — airborne light from each globe + a bloom halo (the floor pool is a
     // separate ground pre-pass, drawFloorGlow, so it sits under the actors).
+    // Baked glow textures (pixel-identical to the old per-frame gradients; blitted with α=night).
+    const globe = this.bakedGlow("lampGlobe", [[0, "rgba(255,216,152,1)"], [0.45, "rgba(255,196,120,0.32)"], [1, "rgba(255,196,120,0)"]]);
+    const bloom = this.bakedGlow("lampBloom", [[0, "rgba(255,214,150,1)"], [1, "rgba(255,214,150,0)"]]);
     this.forEachLamp((x, _baseY, headY) => {
       const gy = headY - 8;
-      for (const gx of [x - LAMP_ARM, x + LAMP_ARM, x]) {
-        const rr = 48;
-        const g = ctx.createRadialGradient(gx, gy, 1, gx, gy, rr);
-        g.addColorStop(0, `rgba(255,216,152,${0.5 * night})`);
-        g.addColorStop(0.45, `rgba(255,196,120,${0.16 * night})`);
-        g.addColorStop(1, "rgba(255,196,120,0)");
-        ctx.fillStyle = g;
-        ctx.beginPath();
-        ctx.arc(gx, gy, rr, 0, Math.PI * 2);
-        ctx.fill();
-      }
+      for (const gx of [x - LAMP_ARM, x + LAMP_ARM, x]) this.blitBlob(globe, gx, gy, 48, 48, 0.5 * night, "lighter");
       // (the warm pool the lamp casts ON the sidewalk is drawn in drawFloorGlow, a GROUND pre-pass
       // before the actors, so people stand IN the light instead of under it — not here on top.)
       // bloom — a big soft halo over the whole lamp head so the light blooms into the dark
-      const br = 104;
-      const bg = ctx.createRadialGradient(x, gy, 4, x, gy, br);
-      bg.addColorStop(0, `rgba(255,214,150,${0.12 * night})`);
-      bg.addColorStop(1, "rgba(255,214,150,0)");
-      ctx.fillStyle = bg;
-      ctx.beginPath();
-      ctx.arc(x, gy, br, 0, Math.PI * 2);
-      ctx.fill();
+      this.blitBlob(bloom, x, gy, 104, 104, 0.12 * night, "lighter");
     });
 
     // 2. building light — a tight warm glow at the shop-window band (low on the facade, where
@@ -1642,25 +1628,15 @@ export class HollywoodRenderer {
         const band = Math.min(H, 150);
         const gy = baseY + dir * band * 0.5;
         const rad = Math.min(bw * 0.55, 150);
-        const gr = ctx.createRadialGradient(cx, gy, 2, cx, gy, rad);
-        gr.addColorStop(0, `rgba(255,206,140,${0.14 * night})`);
-        gr.addColorStop(1, "rgba(255,206,140,0)");
-        ctx.fillStyle = gr;
-        ctx.beginPath();
-        ctx.ellipse(cx, gy, rad, Math.min(band * 0.6, 88), 0, 0, Math.PI * 2);
-        ctx.fill();
+        const win = this.bakedGlow("win", [[0, "rgba(255,206,140,1)"], [1, "rgba(255,206,140,0)"]]);
+        this.blitBlob(win, cx, gy, rad, Math.min(band * 0.6, 88), 0.14 * night, "lighter");
         // marquee bloom, on the sign band (kept on the facade, not overhead)
         if (b.marquee) {
           const my = baseY + dir * Math.min(H * 0.55, 210);
           const mc = b.marqueeColor ?? "#e0b23a";
           const mr = Math.min(bw * 0.5, 150);
-          const mg = ctx.createRadialGradient(cx, my, 2, cx, my, mr);
-          mg.addColorStop(0, hexAlpha(mc, 0.5 * night));
-          mg.addColorStop(1, hexAlpha(mc, 0));
-          ctx.fillStyle = mg;
-          ctx.beginPath();
-          ctx.ellipse(cx, my, mr, Math.min(H * 0.12, 44), 0, 0, Math.PI * 2);
-          ctx.fill();
+          const mg = this.bakedGlow(`mq:${mc}`, [[0, hexAlpha(mc, 1)], [1, hexAlpha(mc, 0)]]);
+          this.blitBlob(mg, cx, my, mr, Math.min(H * 0.12, 44), 0.5 * night, "lighter");
         }
       }
     }
@@ -1671,15 +1647,9 @@ export class HollywoodRenderer {
       if (s.x < vL - 60 || s.x > vR + 60) continue;
       const aura = auraColor(s.soul);
       const r = 20;
-      const a = 0.12 * night;
       const fy = s.y + 6;
-      const g = ctx.createRadialGradient(s.x, fy, 1, s.x, fy, r);
-      g.addColorStop(0, hexAlpha(aura, a));
-      g.addColorStop(1, hexAlpha(aura, 0));
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.ellipse(s.x, fy, r, r * 0.45, 0, 0, Math.PI * 2);
-      ctx.fill();
+      const g = this.bakedGlow(`pool:${aura}`, [[0, hexAlpha(aura, 1)], [1, hexAlpha(aura, 0)]]);
+      this.blitBlob(g, s.x, fy, r, r * 0.45, 0.12 * night, "lighter");
     }
 
     // moonlight: a faint cool wash from the top of the frame on deep, non-golden nights, so
@@ -2006,19 +1976,8 @@ export class HollywoodRenderer {
         const ry = rx * 0.42;
         const cxk = x + ox, cyk = baseY + oy;
         const a = (k === 0 ? 0.5 : 0.3) * night;
-        ctx.save();
-        ctx.translate(cxk, cyk);
-        ctx.scale(1, ry / rx);
-        ctx.translate(-cxk, -cyk);
-        const g = ctx.createRadialGradient(cxk, cyk, 1, cxk, cyk, rx);
-        g.addColorStop(0, `rgba(255,190,110,${a})`);
-        g.addColorStop(0.55, `rgba(255,186,106,${a * 0.38})`);
-        g.addColorStop(1, "rgba(255,190,110,0)");
-        ctx.fillStyle = g;
-        ctx.beginPath();
-        ctx.arc(cxk, cyk, rx, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
+        const pool = this.bakedGlow("floorPool", [[0, "rgba(255,190,110,1)"], [0.55, "rgba(255,186,106,0.38)"], [1, "rgba(255,190,110,0)"]]);
+        this.blitBlob(pool, cxk, cyk, rx, ry, a, "lighter");
       }
     });
     ctx.restore();
@@ -2873,6 +2832,26 @@ export class HollywoodRenderer {
     this.blobCache.set(key, c);
     return c;
   }
+  // A radial glow baked ONCE from an exact set of colour stops (at full strength) and cached, so the
+  // night lighting can blit it with globalAlpha=night instead of allocating a fresh radial gradient
+  // per lamp/window/marquee every frame. Because globalAlpha scales all stops uniformly, blitting at
+  // α reproduces the old per-stop `×night` output EXACTLY (pixel-identical), just cached.
+  private glowCache = new Map<string, HTMLCanvasElement>();
+  private bakedGlow(key: string, stops: [number, string][]): HTMLCanvasElement {
+    const hit = this.glowCache.get(key);
+    if (hit) return hit;
+    const S = 128;
+    const c = document.createElement("canvas");
+    c.width = S; c.height = S;
+    const x = c.getContext("2d")!;
+    const g = x.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
+    for (const [stop, col] of stops) g.addColorStop(stop, col);
+    x.fillStyle = g;
+    x.fillRect(0, 0, S, S);
+    this.glowCache.set(key, c);
+    return c;
+  }
+
   // Blit a cached blob as an ellipse centred at (cx,cy) with half-extents (hw,hh), tinted by the
   // blob's colour, at `alpha` under composite op `op`. One drawImage — no gradient alloc, no path.
   private blitBlob(blob: HTMLCanvasElement, cx: number, cy: number, hw: number, hh: number, alpha: number, op: GlobalCompositeOperation): void {
