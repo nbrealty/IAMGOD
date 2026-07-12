@@ -76,6 +76,16 @@ const PED_FRONT = [
 // head-top to sole — spans CHAR_BODY_H, then anchor the content bottom (feet) at y + FEET_DROP.
 const CHAR_BODY_H = 78;
 const FEET_DROP = 10;
+// Overworld characters draw at most ~CHAR_BODY_H/contentFrac × maxZoom(3) × maxDPR(3) ≈ 830 device
+// px tall. Source spirit PNGs are ~1400px, so the per-frame hi-quality downscale reads ~3× the
+// pixels it needs. Cache a one-time 1024px-tall downscale for the OVERWORLD draw (comfortably above
+// 830 → always a downscale, never soft). ROOMS use the full-res source (charScale blows the sprite
+// up large), so the in-shop NPC stays pixel-sharp. Sprites already ≤1024 (peds, small art) are used
+// as-is.
+const OVERWORLD_MAX_H = 1024;
+// Pixel dims of an image OR a canvas (canvas has no naturalWidth).
+function srcW(x: CanvasImageSource): number { return (x as HTMLImageElement).naturalWidth || (x as HTMLCanvasElement).width; }
+function srcH(x: CanvasImageSource): number { return (x as HTMLImageElement).naturalHeight || (x as HTMLCanvasElement).height; }
 
 // One entry in the unified depth pass: an upright actor keyed by its foot-Y (baseline), with a
 // closure that draws it. Sorted ascending → far (small y) drawn first, near (large y) on top.
@@ -2753,10 +2763,10 @@ export class HollywoodRenderer {
   // Baked cool-dark, edge-softened silhouette of a sprite (alpha-shaped), for the directional cast
   // shadow. Built once per sprite src and cached — the soft edge is baked in so the runtime shadow
   // needs no per-frame blur filter.
-  private spriteSilhouette(key: string, img: HTMLImageElement): HTMLCanvasElement | null {
+  private spriteSilhouette(key: string, img: CanvasImageSource): HTMLCanvasElement | null {
     const hit = this.silCache.get(key);
     if (hit) return hit;
-    const w = img.naturalWidth, h = img.naturalHeight;
+    const w = srcW(img), h = srcH(img);
     if (!w || !h) return null;
     const solid = document.createElement("canvas");
     solid.width = w; solid.height = h;
@@ -2782,7 +2792,7 @@ export class HollywoodRenderer {
   // actor's own draw (before its sprite) so it sorts with the actor and lands on the ground it
   // stands on — nearer actors draw over it. Silhouette-shaped, so it never bleeds a rectangle onto
   // the ground/neighbours the way the old box-edge AO/skirt overlays did.
-  private drawCastShadow(key: string, img: HTMLImageElement, cx: number, footY: number, w: number, H: number, strength = 1): void {
+  private drawCastShadow(key: string, img: CanvasImageSource, cx: number, footY: number, w: number, H: number, strength = 1): void {
     const sun = sunShadowAt(this.engine.clockMinutes);
     if (sun.alpha <= 0) return;
     const sil = this.spriteSilhouette(key, img);
@@ -2814,6 +2824,25 @@ export class HollywoodRenderer {
   // A soft radial "blob" texture (256-step falloff) baked ONCE per color and cached, so the hot
   // grounding/FX paths can blit a pre-rendered gradient instead of calling createRadialGradient +
   // arc + fill (+ save/restore) on every actor every frame — the dominant per-frame cost.
+  // One-time 1024px-tall downscale of oversized character sprites, for the OVERWORLD draw only.
+  private scaledCache = new Map<string, HTMLCanvasElement | null>();
+  private overworldSprite(img: HTMLImageElement): CanvasImageSource {
+    const key = img.src;
+    const hit = this.scaledCache.get(key);
+    if (hit !== undefined) return hit ?? img;
+    const nH = img.naturalHeight, nW = img.naturalWidth;
+    if (!nH || nH <= OVERWORLD_MAX_H) { this.scaledCache.set(key, null); return img; } // already small enough
+    const scale = OVERWORLD_MAX_H / nH;
+    const c = document.createElement("canvas");
+    c.width = Math.round(nW * scale); c.height = OVERWORLD_MAX_H;
+    const x = c.getContext("2d");
+    if (!x) { this.scaledCache.set(key, null); return img; }
+    x.imageSmoothingEnabled = true; x.imageSmoothingQuality = "high";
+    x.drawImage(img, 0, 0, c.width, c.height);
+    this.scaledCache.set(key, c);
+    return c;
+  }
+
   private blobCache = new Map<string, HTMLCanvasElement>();
   private softBlob(r: number, g: number, b: number): HTMLCanvasElement {
     const key = `${r},${g},${b}`;
@@ -3106,7 +3135,7 @@ export class HollywoodRenderer {
   // The fan spans the full swing arc (the persistent blur); alpha peaks at the current swing angle
   // (a bright copy that tracks the legs actually moving). Drawn UNDER the crisp body. Moving-only.
   private drawLegBlur(
-    img: HTMLImageElement,
+    img: CanvasImageSource,
     b: { t: number; b: number },
     cx: number,
     feetY: number,
@@ -3118,8 +3147,8 @@ export class HollywoodRenderer {
     const ctx = this.ctx;
     const legFrac = 0.36; // fraction of the body height that is "legs" (shins, hem, feet)
     const contentFrac = b.b - b.t;
-    const nW = img.naturalWidth;
-    const nH = img.naturalHeight;
+    const nW = srcW(img);
+    const nH = srcH(img);
     const sy0 = (b.b - legFrac * contentFrac) * nH;
     const sH = legFrac * contentFrac * nH;
     const destLegH = legFrac * CHAR_BODY_H;
@@ -3237,6 +3266,9 @@ export class HollywoodRenderer {
       ctx.imageSmoothingEnabled = true; // smooth downscale — these are painted, not pixel art
       ctx.imageSmoothingQuality = "high";
 
+      // Overworld draw uses a one-time downscaled copy of the (large) source sprite — same output,
+      // ~3× less per-frame resample. Rooms draw the full-res source elsewhere (renderArea).
+      const drawImg = this.overworldSprite(sprite);
       const drawAt = (cx: number, alpha: number) => {
         ctx.save();
         ctx.globalAlpha = alpha;
@@ -3245,7 +3277,7 @@ export class HollywoodRenderer {
           ctx.scale(-1, 1);
           ctx.translate(-cx, 0);
         }
-        ctx.drawImage(sprite, cx - w / 2, top, w, frameH);
+        ctx.drawImage(drawImg, cx - w / 2, top, w, frameH);
         ctx.restore();
       };
 
@@ -3253,13 +3285,13 @@ export class HollywoodRenderer {
       // (the character's own silhouette, flattened + skewed by the sun; never flipped with the
       // sprite so it stays light-consistent) + a soft foot contact so they're grounded standing OR
       // moving. Drawn before the FX and the body.
-      this.drawCastShadow(spriteKey, sprite, s.x, feetY, w, frameH, 0.85);
+      this.drawCastShadow(spriteKey, drawImg, s.x, feetY, w, frameH, 0.85);
       this.drawContactShadow(s.x, feetY, w * 0.5, frameH, 1, true);
       // Smoky Gaia-style walk FX behind the body, the pendulum leg-blur at the feet, then the crisp
       // body on top. Gated to a readable zoom (FX_ZOOM) — invisible but costly when zoomed way out.
       if (s.moving && this.cam.zoom >= FX_ZOOM) {
         this.drawWalkFX(s.x, feetY, w, s.dir, t, (s.x * 0.0131) % 1);
-        this.drawLegBlur(sprite, b, s.x, feetY, w, flip, t, s.x * 0.05);
+        this.drawLegBlur(drawImg, b, s.x, feetY, w, flip, t, s.x * 0.05);
       }
       drawAt(s.x, 1);
       ctx.imageSmoothingEnabled = prev;
