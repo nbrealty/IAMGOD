@@ -260,6 +260,9 @@ const GROUND_FALLBACK: Record<string, string> = {
 };
 // Below this zoom the whole district is in frame; skip pattern tiling and just flat-fill.
 const TILE_ZOOM_GATE = 0.24;
+// Below this zoom, characters are small enough that the smoky walk FX + leg-blur read as noise but
+// still cost ~9 blits/drawImages per mover per frame — so skip them (contact + cast shadow stay).
+const FX_ZOOM = 0.5;
 // One smooth low-frequency mottle tile spans this many world units (large = broad, organic
 // variation that never reads as a repeating stamp).
 const NOISE_WORLD = 420;
@@ -478,9 +481,17 @@ export class HollywoodRenderer {
   private sprites = new Map<string, HTMLImageElement | null>();
   private tiles = new Map<string, HTMLImageElement | null>();
   private patterns = new Map<string, CanvasPattern>();
+  private patternMatrix = new Map<string, DOMMatrix>(); // cached fillTiled scale per tile name
+  // Cached screen-space post-grade gradients (geometry-only, full alpha; time strength applied via
+  // globalAlpha). Rebuilt only when the backing-store size changes, not every frame.
+  private postGrad: { w: number; h: number; warm: CanvasGradient; vig: CanvasGradient } | null = null;
   // Baked cool-dark silhouettes (alpha-shaped, edge-softened) per sprite src, for the directional
   // time-of-day cast shadow. Built once on first use.
   private silCache = new Map<string, HTMLCanvasElement>();
+  // Frontage layout (building x/width) only changes when a facade sprite decodes (its true aspect
+  // becomes known). Re-run layoutFrontage only when this is set, not every frame. Starts true so the
+  // first frame lays out with nominal aspects; each building sprite's onload re-flags it.
+  private layoutDirty = true;
   // Cached non-transparent vertical bounds per character sprite ({ t, b } as fractions of natural
   // height), so we normalize every actor to one body height. Measured once, lazily, on first draw.
   private boundsCache = new Map<string, { t: number; b: number }>();
@@ -1340,11 +1351,16 @@ export class HollywoodRenderer {
     const s = this.dpr * this.cam.zoom;
     ctx.setTransform(s, 0, 0, s, -this.cam.x * s, -this.cam.y * s);
 
-    // Lay out every frontage once so both the ground detail and the actor pass read current
-    // building x/width.
-    for (const f of NORTH_FRONTAGES) layoutFrontage(f, this.aspectOf);
-    for (const f of SOUTH_FRONTAGES) layoutFrontage(f, this.aspectOf);
-    for (const f of RES_FRONTAGES) layoutFrontage(f, this.aspectOf);
+    // Lay out every frontage so both the ground detail and the actor pass read current building
+    // x/width. Building x/width only change when a facade sprite decodes (its aspect becomes known),
+    // so this runs on the first frame and then only when `layoutDirty` is re-flagged by a sprite's
+    // onload — NOT every frame (was ~150–200 buildings × map/reduce/string-concat per frame).
+    if (this.layoutDirty) {
+      for (const f of NORTH_FRONTAGES) layoutFrontage(f, this.aspectOf);
+      for (const f of SOUTH_FRONTAGES) layoutFrontage(f, this.aspectOf);
+      for (const f of RES_FRONTAGES) layoutFrontage(f, this.aspectOf);
+      this.layoutDirty = false;
+    }
 
     // One-time on the first drawn frame: engine soul positions are random, so drop the controlled
     // player right in front of the enterable shop (and frame the camera on it) so the shop is the
@@ -1406,35 +1422,41 @@ export class HollywoodRenderer {
     const night = nightAt(this.engine.clockMinutes);
     const golden = goldenAt(this.engine.clockMinutes);
     const W = this.canvas.width, Hh = this.canvas.height;
-    const cx = W / 2, cy = Hh * 0.5;
-    const rad = Math.hypot(W, Hh) * 0.62;
+    // Rebuild the (geometry-only) gradients only on a size change; strength is applied via alpha.
+    if (!this.postGrad || this.postGrad.w !== W || this.postGrad.h !== Hh) {
+      const cx = W / 2, cy = Hh * 0.5, rad = Math.hypot(W, Hh) * 0.62;
+      const warm = ctx.createRadialGradient(cx, cy, rad * 0.15, cx, cy, rad);
+      warm.addColorStop(0, "rgba(255,204,146,1)");
+      warm.addColorStop(1, "rgba(255,204,146,0)");
+      const vig = ctx.createRadialGradient(cx, cy, rad * 0.38, cx, cy, rad);
+      vig.addColorStop(0, "rgba(4,4,8,0)");
+      vig.addColorStop(1, "rgba(4,4,8,1)");
+      this.postGrad = { w: W, h: Hh, warm, vig };
+    }
+    const { warm, vig } = this.postGrad;
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     // (1) cool-shadow duotone — steal a little warmth from the darks so they read cinematic cool.
     ctx.globalCompositeOperation = "multiply";
     ctx.fillStyle = `rgba(146,166,204,${0.16 + 0.08 * night})`;
     ctx.fillRect(0, 0, W, Hh);
-    // (2) warm highlight lift — a soft additive glow toward the center (the lit street), warmer at
-    // golden hour, cooler/dimmer at night.
+    // (2) warm highlight lift — soft additive glow toward the lit street center, warmer at golden
+    // hour, dimmer at night. Cached gradient, time strength via globalAlpha.
     ctx.globalCompositeOperation = "lighter";
-    const warm = ctx.createRadialGradient(cx, cy, rad * 0.15, cx, cy, rad);
-    warm.addColorStop(0, `rgba(255,204,146,${0.2 * (1 - 0.5 * night) + 0.08 * golden})`);
-    warm.addColorStop(1, "rgba(255,204,146,0)");
+    ctx.globalAlpha = 0.2 * (1 - 0.5 * night) + 0.08 * golden;
     ctx.fillStyle = warm;
     ctx.fillRect(0, 0, W, Hh);
-    // (3) overlay punch — widen contrast so the value structure (shadow / body / highlight)
-    // separates. `overlay` darkens darks and lightens lights around mid-grey.
+    ctx.globalAlpha = 1;
+    // (3) overlay punch — widen contrast so shadow / body / highlight separate.
     ctx.globalCompositeOperation = "overlay";
     ctx.fillStyle = "rgba(128,128,128,0.26)";
     ctx.fillRect(0, 0, W, Hh);
-    // (4) dual vignette — darken the corners (heavier than before) AND the center push from (2)
-    // gives the center-to-edge contrast that makes a vignette actually read.
+    // (4) dual vignette — darken the corners; the center push from (2) gives real edge contrast.
     ctx.globalCompositeOperation = "source-over";
-    const vg = ctx.createRadialGradient(cx, cy, rad * 0.38, cx, cy, rad);
-    vg.addColorStop(0, "rgba(4,4,8,0)");
-    vg.addColorStop(1, `rgba(4,4,8,${0.54 + 0.16 * night})`);
-    ctx.fillStyle = vg;
+    ctx.globalAlpha = 0.54 + 0.16 * night;
+    ctx.fillStyle = vig;
     ctx.fillRect(0, 0, W, Hh);
+    ctx.globalAlpha = 1;
     ctx.restore();
   }
 
@@ -2565,11 +2587,14 @@ export class HollywoodRenderer {
     const feetY = ped.y + FEET_DROP + bob;
     const top = feetY - b.b * frameH;
     // Sun cast shadow + soft foot contact (same sun as everything else), then the smoky walk FX +
-    // pendulum leg-blur behind the ped (they're always walking).
+    // pendulum leg-blur behind the ped. The FX is imperceptible when zoomed out but costs ~9
+    // gradient-blits + drawImages per ped per frame, so gate it to a readable zoom (FX_ZOOM).
     this.drawCastShadow(`n:${ped.sprite}`, img, ped.x, feetY, w, frameH, 0.85);
     this.drawContactShadow(ped.x, feetY, w * 0.5, frameH, 1, true);
-    this.drawWalkFX(ped.x, ped.y + FEET_DROP, w, ped.dir, t, (ped.bob % 1000) / 1000);
-    this.drawLegBlur(img, b, ped.x, feetY, w, ped.dir < 0, t, ped.bob);
+    if (this.cam.zoom >= FX_ZOOM) {
+      this.drawWalkFX(ped.x, ped.y + FEET_DROP, w, ped.dir, t, (ped.bob % 1000) / 1000);
+      this.drawLegBlur(img, b, ped.x, feetY, w, ped.dir < 0, t, ped.bob);
+    }
     const prev = ctx.imageSmoothingEnabled;
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
@@ -2634,7 +2659,9 @@ export class HollywoodRenderer {
     const cached = this.sprites.get(key);
     if (cached !== undefined) return cached;
     const img = new Image();
+    img.decoding = "async";
     img.onerror = () => this.sprites.set(key, null);
+    img.onload = () => { this.layoutDirty = true; }; // true aspect known → re-flow the row once
     img.src = `/buildings/${stem}.png`;
     this.sprites.set(key, img);
     return img;
@@ -2713,8 +2740,15 @@ export class HollywoodRenderer {
       return;
     }
     const img = this.getTile(name)!;
-    const k = (TILE_WORLD[name] ?? 160) / img.naturalWidth;
-    pat.setTransform(new DOMMatrix([k, 0, 0, k, 0, 0]));
+    // The pattern scale only depends on TILE_WORLD/naturalWidth (constant once decoded) — cache the
+    // matrix instead of allocating a new DOMMatrix on every fill (fillTiled runs ~15–30×/frame).
+    let m = this.patternMatrix.get(name);
+    if (!m) {
+      const k = (TILE_WORLD[name] ?? 160) / img.naturalWidth;
+      m = new DOMMatrix([k, 0, 0, k, 0, 0]);
+      this.patternMatrix.set(name, m);
+    }
+    pat.setTransform(m);
     ctx.fillStyle = pat;
     ctx.fillRect(cx0, cy0, cx1 - cx0, cy1 - cy0);
   }
@@ -2780,52 +2814,54 @@ export class HollywoodRenderer {
   // `seamOnly` drops the fake directional cast BODY (part 2) — pass it for objects that now have the
   // REAL time-of-day cast shadow (buildings, props), so the two directional cues don't fight; the
   // lift + tight foot seam still glue the base to the ground. Characters keep the full stack.
-  private drawContactShadow(cx: number, footY: number, w: number, h: number, scale = 1, seamOnly = false): void {
+  // A soft radial "blob" texture (256-step falloff) baked ONCE per color and cached, so the hot
+  // grounding/FX paths can blit a pre-rendered gradient instead of calling createRadialGradient +
+  // arc + fill (+ save/restore) on every actor every frame — the dominant per-frame cost.
+  private blobCache = new Map<string, HTMLCanvasElement>();
+  private softBlob(r: number, g: number, b: number): HTMLCanvasElement {
+    const key = `${r},${g},${b}`;
+    const hit = this.blobCache.get(key);
+    if (hit) return hit;
+    const S = 64;
+    const c = document.createElement("canvas");
+    c.width = S; c.height = S;
+    const x = c.getContext("2d")!;
+    const grad = x.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
+    grad.addColorStop(0, `rgba(${r},${g},${b},1)`);
+    grad.addColorStop(0.6, `rgba(${r},${g},${b},0.5)`);
+    grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+    x.fillStyle = grad;
+    x.fillRect(0, 0, S, S);
+    this.blobCache.set(key, c);
+    return c;
+  }
+  // Blit a cached blob as an ellipse centred at (cx,cy) with half-extents (hw,hh), tinted by the
+  // blob's colour, at `alpha` under composite op `op`. One drawImage — no gradient alloc, no path.
+  private blitBlob(blob: HTMLCanvasElement, cx: number, cy: number, hw: number, hh: number, alpha: number, op: GlobalCompositeOperation): void {
+    if (alpha <= 0 || hw <= 0 || hh <= 0) return;
     const ctx = this.ctx;
+    const prevOp = ctx.globalCompositeOperation;
+    ctx.globalCompositeOperation = op;
+    ctx.globalAlpha = alpha;
+    ctx.drawImage(blob, cx - hw, cy - hh, hw * 2, hh * 2);
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = prevOp;
+  }
+
+  private drawContactShadow(cx: number, footY: number, w: number, h: number, scale = 1, seamOnly = false): void {
     const rx = Math.max(10, w * 0.5);
-    // one light everywhere: upper-left → shadow falls down (+Y, toward camera) and right (+X).
-    const offX = Math.min(w * 0.12, 48);
-    const offY = Math.min(h * 0.12, 52);
-
-    // (1) ground lift — faint warm halo, `lighten` so it only ever raises the ground a touch.
-    ctx.save();
-    ctx.globalCompositeOperation = "lighten";
-    const lr = rx * 1.4;
-    const lift = ctx.createRadialGradient(cx, footY, 1, cx, footY, lr);
-    lift.addColorStop(0, `rgba(70,60,46,${0.13 * scale})`);
-    lift.addColorStop(1, "rgba(70,60,46,0)");
-    ctx.translate(cx, footY); ctx.scale(1, 0.22); ctx.translate(-cx, -footY);
-    ctx.fillStyle = lift;
-    ctx.beginPath(); ctx.arc(cx, footY, lr, 0, Math.PI * 2); ctx.fill();
-    ctx.restore();
-
-    // (2) cast body — cool blue-black, offset down+right, foreshortened, soft falloff. Skipped for
-    // objects that carry the real directional cast shadow (buildings/props).
+    const lift = this.softBlob(70, 60, 46);
+    const dark = this.softBlob(7, 6, 15);
+    // (1) ground lift — faint warm halo so a dark shadow has contrast to bite into.
+    this.blitBlob(lift, cx, footY, rx * 1.4, rx * 1.4 * 0.22, 0.13 * scale, "lighten");
+    // (2) cast body — cool blue-black, offset down+right, foreshortened. Skipped for objects that
+    // carry the real directional cast shadow (buildings/props).
     if (!seamOnly) {
-      ctx.save();
-      ctx.globalCompositeOperation = "multiply";
-      const bcx = cx + offX, bcy = footY + offY, brx = rx * 1.25;
-      const body = ctx.createRadialGradient(bcx, bcy, 1, bcx, bcy, brx);
-      body.addColorStop(0, `rgba(7,6,15,${0.54 * scale})`);
-      body.addColorStop(0.7, `rgba(7,6,15,${0.26 * scale})`);
-      body.addColorStop(1, "rgba(7,6,15,0)");
-      ctx.translate(bcx, bcy); ctx.scale(1, 0.4); ctx.translate(-bcx, -bcy);
-      ctx.fillStyle = body;
-      ctx.beginPath(); ctx.arc(bcx, bcy, brx, 0, Math.PI * 2); ctx.fill();
-      ctx.restore();
+      const offX = Math.min(w * 0.12, 48), offY = Math.min(h * 0.12, 52), brx = rx * 1.25;
+      this.blitBlob(dark, cx + offX, footY + offY, brx, brx * 0.4, 0.54 * scale, "multiply");
     }
-
     // (3) contact seam — crisp cool-black glue at the true foot line.
-    ctx.save();
-    ctx.globalCompositeOperation = "multiply";
-    const seam = ctx.createRadialGradient(cx, footY, 1, cx, footY, rx);
-    seam.addColorStop(0, `rgba(7,6,15,${0.74 * scale})`);
-    seam.addColorStop(0.55, `rgba(7,6,15,${0.38 * scale})`);
-    seam.addColorStop(1, "rgba(7,6,15,0)");
-    ctx.translate(cx, footY); ctx.scale(1, 0.15); ctx.translate(-cx, -footY);
-    ctx.fillStyle = seam;
-    ctx.beginPath(); ctx.arc(cx, footY, rx, 0, Math.PI * 2); ctx.fill();
-    ctx.restore();
+    this.blitBlob(dark, cx, footY, rx, rx * 0.15, 0.74 * scale, "multiply");
   }
 
   // Composite a facade image at its character-height scale, feet-anchored to the
@@ -3013,22 +3049,17 @@ export class HollywoodRenderer {
       ctx.fill();
     }
 
-    // (2) smoke puffs — kicked up at the feet, TRAILING BACK along the ground (so they read behind
-    // the body instead of being hidden by the torso), rising only a little as they expand + fade.
+    // (2) smoke puffs — kicked up at the feet, TRAILING BACK along the ground, rising a little as
+    // they expand + fade. Blit a cached soft blob (tinted rr,gg,bb) instead of allocating a radial
+    // gradient per puff per moving character per frame.
+    const smoke = this.softBlob(rr, gg, bb);
     for (let k = 0; k < 5; k++) {
       const p = (t / 560 + phase + k / 5) % 1;
       const px = x + back * (w * 0.3 + p * 46);
       const py = footY - 2 - p * 12;
       const rad = 5 + p * 16;
       const a = (1 - p) * (0.42 + 0.14 * night);
-      const g = ctx.createRadialGradient(px, py, 0, px, py, rad);
-      g.addColorStop(0, `rgba(${rr},${gg},${bb},${a})`);
-      g.addColorStop(0.55, `rgba(${rr},${gg},${bb},${a * 0.5})`);
-      g.addColorStop(1, `rgba(${rr},${gg},${bb},0)`);
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(px, py, rad, 0, Math.PI * 2);
-      ctx.fill();
+      this.blitBlob(smoke, px, py, rad, rad, a, "source-over");
     }
 
     // (3) contact crescent — the grounded dark "boat" fanning out under the feet
@@ -3087,7 +3118,7 @@ export class HollywoodRenderer {
       ctx.scale(-1, 1);
       ctx.translate(-cx, 0);
     }
-    const N = 7; // copies across the swing arc
+    const N = 4; // copies across the swing arc (was 7 — 4 reads the same at draw size, ~half the cost)
     for (let k = 0; k < N; k++) {
       const f = k / (N - 1); // 0..1
       const shx = (f * 2 - 1) * shxMax; // -shxMax .. +shxMax (left foot-sweep .. right)
@@ -3141,15 +3172,14 @@ export class HollywoodRenderer {
     const pulse = 0.75 + 0.25 * Math.sin(t / 400 + s.x * 0.05);
     const y = s.y + bob;
 
+    // Soul-tinted aura glow — a cached blob (keyed by the aura colour) blitted instead of a fresh
+    // radial gradient per soul per frame.
     const aura = auraColor(s.soul);
     const auraR = 34;
-    const grad = ctx.createRadialGradient(s.x, y, 2, s.x, y, auraR);
-    grad.addColorStop(0, hexAlpha(aura, 0.55 * pulse));
-    grad.addColorStop(1, hexAlpha(aura, 0));
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(s.x, y, auraR, 0, Math.PI * 2);
-    ctx.fill();
+    const ar = parseInt(aura.slice(1, 3), 16) || 0;
+    const ag = parseInt(aura.slice(3, 5), 16) || 0;
+    const ab = parseInt(aura.slice(5, 7), 16) || 0;
+    this.blitBlob(this.softBlob(ar, ag, ab), s.x, y, auraR, auraR, 0.55 * pulse, "source-over");
 
     // "you are here" ring — anchored to the ground so it stays put while she bounces
     if (s.soul.id === this.controlledId) {
@@ -3208,9 +3238,9 @@ export class HollywoodRenderer {
       // moving. Drawn before the FX and the body.
       this.drawCastShadow(spriteKey, sprite, s.x, feetY, w, frameH, 0.85);
       this.drawContactShadow(s.x, feetY, w * 0.5, frameH, 1, true);
-      // Smoky Gaia-style walk FX behind the body, the pendulum leg-blur at the feet, then the
-      // crisp body on top. Every moving character gets both (see drawLegBlur).
-      if (s.moving) {
+      // Smoky Gaia-style walk FX behind the body, the pendulum leg-blur at the feet, then the crisp
+      // body on top. Gated to a readable zoom (FX_ZOOM) — invisible but costly when zoomed way out.
+      if (s.moving && this.cam.zoom >= FX_ZOOM) {
         this.drawWalkFX(s.x, feetY, w, s.dir, t, (s.x * 0.0131) % 1);
         this.drawLegBlur(sprite, b, s.x, feetY, w, flip, t, s.x * 0.05);
       }
