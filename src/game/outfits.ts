@@ -21,8 +21,17 @@ export const OUTFITS: Record<string, Outfit[]> = {
     { id: "gingham", label: "Gingham", stem: "lori__gingham-going-out" },
     { id: "shark", label: "Shark Shorts", stem: "lori__shark-shorts" },
   ],
-  // Sorriso (soul id "nathaniel"). Brasil jersey is his default look. New costumes incoming.
-  nathaniel: [{ id: "brasil", label: "Brasil", stem: "nathaniel" }],
+  // Sorriso (soul id "nathaniel"). Brasil jersey is his default look; the rest are streetwear
+  // fits (fronts only for now — no `_back` art yet, so the renderer shows the front when he walks
+  // away, which is the documented fallback until back art lands).
+  nathaniel: [
+    { id: "brasil", label: "Brasil", stem: "nathaniel" },
+    { id: "dodgers-tee", label: "Dodgers Tee", stem: "nathaniel_dodgers-tee" },
+    { id: "tank", label: "White Tank", stem: "nathaniel_tank" },
+    { id: "la-jersey", label: "LA Jersey", stem: "nathaniel_la-jersey" },
+    { id: "palm-tee", label: "Palm Tee", stem: "nathaniel_palm-tee" },
+    { id: "camp", label: "Camp Shirt", stem: "nathaniel_camp" },
+  ],
   // Vee Knox. "Rock Forever" street-glam look is her default.
   vee_knox: [
     { id: "rock", label: "Rock", stem: "vee_knox" },
