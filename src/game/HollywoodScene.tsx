@@ -6,6 +6,7 @@ import { InventoryGrid } from "../components/InventoryGrid";
 import { ROSTER } from "../soul/roster";
 import { equippedStem } from "./inventory";
 import { castReading, applyReading, type ReadingOutcome } from "../soul/buzios";
+import { formatMoney } from "../soul/derive";
 
 // A short chip label: the quoted nickname if the soul has one, else the first name.
 function chipLabel(name: string): string {
@@ -147,6 +148,11 @@ export function HollywoodScene({ engine, controlledId, onControlledChange }: Pro
           🎒 Inventory
         </button>
       )}
+
+      {(() => {
+        const wallet = controlledId ? engine.souls.find((s) => s.id === controlledId)?.money : undefined;
+        return wallet !== undefined ? <div className="wallet-chip">💵 {formatMoney(wallet)}</div> : null;
+      })()}
 
       {roomId === "aguas-back" && controlledId !== null && (
         <button

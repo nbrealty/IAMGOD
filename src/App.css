@@ -267,6 +267,23 @@
   cursor: pointer;
   font-weight: 600;
 }
+
+/* Controlled character's wallet, just under the Inventory button. */
+.wallet-chip {
+  position: absolute;
+  top: 78px;
+  left: 10px;
+  z-index: 5;
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  background: rgba(18, 24, 14, 0.86);
+  border: 1px solid #4e8a3a;
+  color: #d8f0c4;
+  font-weight: 800;
+  pointer-events: none;
+}
+.chip.money { background: rgba(30, 46, 22, 0.9); color: #d8f0c4; }
 .leave-room-btn {
   position: absolute;
   top: 44px;

@@ -97,6 +97,9 @@ export interface Soul {
   axe?: number;
   // Chakra-seated divine powers the (amnesiac-god) player has reawakened via readings (Power ids).
   powers?: string[];
+  // Liquid money the soul carries (USD, the LA setting's currency). Org-runners (a club/label/etc.)
+  // carry a lot; ordinary souls carry modest, varied amounts. Spent on things like Yara's fee.
+  money?: number;
   // Chakra OPENNESS as a continuous 0–100 value; the blocked/imbalanced/open enum
   // is derived from it (see derive.ts → chakraState). Continuous state lets the
   // interference rules nudge chakras smoothly.

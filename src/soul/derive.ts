@@ -94,3 +94,11 @@ export function deriveEmotion(soul: Soul, prev: Needs): EmotionState {
 export function clamp(v: number, lo = 0, hi = 100): number {
   return Math.max(lo, Math.min(hi, v));
 }
+
+// Compact USD display: "$540", "$1,600", "$14K", "$2.4M".
+export function formatMoney(n: number): string {
+  const v = Math.max(0, Math.round(n));
+  if (v >= 1e6) return `$${(v / 1e6).toFixed(v >= 1e7 ? 0 : 1)}M`;
+  if (v >= 1e4) return `$${Math.round(v / 1e3)}K`;
+  return `$${v.toLocaleString("en-US")}`;
+}

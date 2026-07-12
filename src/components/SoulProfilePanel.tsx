@@ -1,7 +1,7 @@
 import { useEffect, useReducer } from "react";
 import type { SoulEngine } from "../soul/engine";
 import { NEED_KEYS, CHAKRA_ORDER, type Soul } from "../soul/types";
-import { maslowLevel, emotionLabel, chakraState } from "../soul/derive";
+import { maslowLevel, emotionLabel, chakraState, formatMoney } from "../soul/derive";
 import { deriveAppearance } from "../soul/appearance";
 import { InventoryGrid } from "./InventoryGrid";
 import { equippedStem } from "../game/inventory";
@@ -76,6 +76,7 @@ export function SoulProfilePanel({ engine, soulId, equipped, onEquip, onClose }:
           <span className="chip">Maslow {maslow.level}</span>
           <span className="chip">{emotionLabel(soul.emotion)}</span>
           <span className="chip subtle">{app.activityLabel}</span>
+          {soul.money !== undefined && <span className="chip money">💵 {formatMoney(soul.money)}</span>}
         </div>
         <p className="maslow-label">{maslow.label}</p>
 

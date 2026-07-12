@@ -813,13 +813,34 @@ const HIGHLAND_POSTS: Record<string, { x: number; y: number }> = {
 // delete its id from this set — nothing else needs changing.
 const HIDDEN_SOULS = new Set(["roxy_valente", "maya"]);
 
+// Liquid money (USD) each soul carries. Org-runners (a club / label / crew) are LOADED; ordinary
+// souls carry modest, varied amounts keyed to their situation. Spent on things like Yara's fee.
+const MONEY: Record<string, number> = {
+  // org-runners — a lot (they run organizations)
+  nathaniel: 320_000, // Sorriso
+  lua: 450_000, // Eclipse nightclub owner
+  bibi: 780_000, // Boss Energy fashion CEO
+  gerald: 2_400_000, // studio mogul / producer
+  // well-off
+  vee_knox: 14_000, sasha: 9_000, vivian: 7_500, roxy_valente: 3_000,
+  // working / getting by
+  lori: 1_600, nia: 1_200, kiki: 900, maya: 1_000, jordyn: 2_100, dalia: 1_400, elizabeth: 2_200,
+  frank: 2_600, trish: 1_400, hank: 1_100, marcus: 900, mateo: 700, bailey: 600, priya: 500,
+  hector: 800, javi: 650, ruben: 900,
+  // broke
+  danny: 180, cody: 240,
+};
+const DEFAULT_MONEY = 1_000;
+
 export const ROSTER: Soul[] = RAW.filter((s) => !HIDDEN_SOULS.has(s.id)).map((s) => {
+  const money = MONEY[s.id] ?? DEFAULT_MONEY;
   const post = HIGHLAND_POSTS[s.id];
   if (post) {
-    return { ...s, xMin: post.x, xMax: post.x, patrolY: post.y };
+    return { ...s, money, xMin: post.x, xMax: post.x, patrolY: post.y };
   }
   return {
     ...s,
+    money,
     xMin: Math.round(s.xMin * XSCALE),
     xMax: Math.round(s.xMax * XSCALE),
     patrolY: s.row === "north" ? NORTH_FRONTAGE_Y : SOUTH_FRONTAGE_Y,
