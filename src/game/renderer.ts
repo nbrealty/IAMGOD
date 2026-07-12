@@ -492,6 +492,8 @@ export class HollywoodRenderer {
   // becomes known). Re-run layoutFrontage only when this is set, not every frame. Starts true so the
   // first frame lays out with nominal aspects; each building sprite's onload re-flags it.
   private layoutDirty = true;
+  private prefetchedAreas = new Set<string>(); // AREAS whose plates we've already kicked off loading
+  private enterables: Building[] | null = null; // cached flat list of enterable storefronts
   // Cached non-transparent vertical bounds per character sprite ({ t, b } as fractions of natural
   // height), so we normalize every actor to one body height. Measured once, lazily, on first draw.
   private boundsCache = new Map<string, { t: number; b: number }>();
@@ -681,6 +683,19 @@ export class HollywoodRenderer {
           if (this.trans) break;
         }
       }
+    }
+    // Prefetch nearby shop / court interiors as the player approaches (moving OR idle), so the enter
+    // crossfade never stalls on a multi-MB plate decode. Each area is fetched at most once.
+    if (!this.trans) {
+      if (!this.enterables) {
+        this.enterables = [];
+        for (const f of ALL_FRONTAGES) for (const b of f.buildings) if (b.enter) this.enterables.push(b);
+      }
+      for (const b of this.enterables) {
+        const bcx = (b.x ?? 0) + (b.width ?? 0) / 2;
+        if (Math.abs(pc.x - bcx) < 1100 && Math.abs(pc.y - NORTH_BASELINE) < 1200) this.prefetchArea(b.enter!);
+      }
+      if (Math.abs(pc.x - OVERTURE.cx) < 1200) this.prefetchArea("overture-court");
     }
     this.followCam(pc.x, pc.y);
   }
@@ -2461,6 +2476,7 @@ export class HollywoodRenderer {
     const cached = this.sprites.get(key);
     if (cached !== undefined) return cached;
     const img = new Image();
+    img.decoding = "async"; // decode off the critical path — avoids a first-draw hitch mid-frame
     img.onerror = () => this.sprites.set(key, null);
     img.src = `/vehicles/${type}.png`;
     this.sprites.set(key, img);
@@ -2472,6 +2488,7 @@ export class HollywoodRenderer {
     const cached = this.sprites.get(key);
     if (cached !== undefined) return cached;
     const img = new Image();
+    img.decoding = "async"; // decode off the critical path — avoids a first-draw hitch mid-frame
     img.onerror = () => this.sprites.set(key, null);
     img.src = `/props/${name}.png`;
     this.sprites.set(key, img);
@@ -2567,6 +2584,7 @@ export class HollywoodRenderer {
     const cached = this.sprites.get(key);
     if (cached !== undefined) return cached;
     const img = new Image();
+    img.decoding = "async"; // decode off the critical path — avoids a first-draw hitch mid-frame
     img.onerror = () => this.sprites.set(key, null);
     img.src = `/npc/ped_${String(index).padStart(3, "0")}.png`;
     this.sprites.set(key, img);
@@ -2645,6 +2663,7 @@ export class HollywoodRenderer {
     const cached = this.sprites.get(id);
     if (cached !== undefined) return cached;
     const img = new Image();
+    img.decoding = "async"; // decode off the critical path — avoids a first-draw hitch mid-frame
     img.onerror = () => this.sprites.set(id, null);
     img.src = `/spirits/${id}.png`;
     this.sprites.set(id, img);
@@ -2659,7 +2678,7 @@ export class HollywoodRenderer {
     const cached = this.sprites.get(key);
     if (cached !== undefined) return cached;
     const img = new Image();
-    img.decoding = "async";
+    img.decoding = "async"; // decode off the critical path — avoids a first-draw hitch mid-frame
     img.onerror = () => this.sprites.set(key, null);
     img.onload = () => { this.layoutDirty = true; }; // true aspect known → re-flow the row once
     img.src = `/buildings/${stem}.png`;
@@ -2674,6 +2693,7 @@ export class HollywoodRenderer {
     const cached = this.sprites.get(key);
     if (cached !== undefined) return cached;
     const img = new Image();
+    img.decoding = "async"; // decode off the critical path — avoids a first-draw hitch mid-frame
     img.onerror = () => this.sprites.set(key, null);
     img.src = `/overture/${stem}.png`;
     this.sprites.set(key, img);
@@ -2683,6 +2703,22 @@ export class HollywoodRenderer {
   // A room's backdrop plate from its own asset folder: /${R.dir ?? 'overture'}/<stem>.<png|jpg>.
   // Opaque interior plates ride as .jpg (far smaller); the Overture court stays .png (needs its
   // transparent sky). Cached under an "a:" prefix keyed by the full path so folders don't collide.
+  // Kick off loading + async-decoding of an interior AREA's plates BEFORE the player enters, so the
+  // enter crossfade never stalls on a multi-MB decode. Idempotent (guarded by prefetchedAreas).
+  // Pulls the backdrop, the open-curtain plate, the counter/foreground overlay, any head-on sky
+  // plates, the occupant sprites, and (recursively) the room the curtain leads to.
+  private prefetchArea(id: string): void {
+    if (this.prefetchedAreas.has(id)) return;
+    this.prefetchedAreas.add(id);
+    const R = AREAS[id];
+    if (!R) return;
+    this.getAreaPlate(R, R.backdrop);
+    if (R.foreground) this.getAreaPlate(R, R.foreground, false);
+    if (R.curtain) { this.getAreaPlate(R, R.curtain.openBackdrop); this.prefetchArea(R.curtain.toArea); }
+    if (R.sky) { this.getOverture(R.sky.skyline); this.getOverture(R.sky.windows); }
+    for (const o of R.occupants ?? []) this.getSprite(o.stem);
+  }
+
   private getAreaPlate(R: AreaView, stem: string, jpg = R.jpg): HTMLImageElement | null {
     const dir = R.dir ?? "overture";
     const ext = jpg ? "jpg" : "png";
@@ -2691,6 +2727,7 @@ export class HollywoodRenderer {
     const cached = this.sprites.get(key);
     if (cached !== undefined) return cached;
     const img = new Image();
+    img.decoding = "async"; // decode off the critical path — avoids a first-draw hitch mid-frame
     img.onerror = () => this.sprites.set(key, null);
     img.src = path;
     this.sprites.set(key, img);
@@ -2702,6 +2739,7 @@ export class HollywoodRenderer {
     const cached = this.tiles.get(name);
     if (cached !== undefined) return cached;
     const img = new Image();
+    img.decoding = "async"; // decode off the critical path — avoids a first-draw hitch mid-frame
     img.onerror = () => this.tiles.set(name, null);
     img.src = `/tiles/${name}`;
     this.tiles.set(name, img);
