@@ -31,7 +31,7 @@ import {
 } from "./sceneData";
 import type { Soul } from "../soul/types";
 import { auraColor } from "../soul/appearance";
-import { SoulEngine, activityIsStationary } from "../soul/engine";
+import { SoulEngine } from "../soul/engine";
 import { type Camera, clampCamera, minZoomFor, screenToWorld, zoomAbout } from "./camera";
 
 interface NpcRuntime {
@@ -530,10 +530,14 @@ export class HollywoodRenderer {
       const moveScale = Math.min(this.engine.speed, 3);
       for (const s of this.npcs) {
         if (s.soul.id === this.controlledId) continue; // driven by input below
-        const stationary = activityIsStationary(s.soul.activity);
-        s.moving = !stationary; // planted while doing a stationary activity
-        const spd = s.soul.baseSpeed * (stationary ? 0.2 : 1) * moveScale;
-        s.x += s.dir * spd * dt;
+        // Autonomous souls stroll their xMin→xMax patrol at a natural walking pace so the street
+        // reads as alive, and `moving` is derived from the ACTUAL per-frame displacement so the
+        // walk FX (pendulum leg-blur + smoke) fires exactly when a soul translates.
+        // (The old code drifted "stationary"-activity souls at 0.2× while forcing moving=false, so
+        // they GLIDED along the sidewalk with NO FX — the reported "not firing on auto walk" bug.
+        // The blur swing is time-based, so a real walking pace is needed or a slow drift moonwalks.)
+        const dx = s.dir * s.soul.baseSpeed * moveScale * dt;
+        s.x += dx;
         if (s.x > s.soul.xMax) {
           s.x = s.soul.xMax;
           s.dir = -1;
@@ -542,6 +546,7 @@ export class HollywoodRenderer {
           s.x = s.soul.xMin;
           s.dir = 1;
         }
+        s.moving = Math.abs(dx) > 0; // walk FX fires exactly when the soul actually walks
       }
 
       // ambient crowd — walk the sidewalks, turn around at the world edges

@@ -128,13 +128,18 @@ feet-anchored to one ground-Y, which is the sort key.
    for a character whether the player is driving them or they're wandering
    autonomously as an unselected NPC — the controlled soul and every other soul
    run the *same* `if (s.moving) { drawWalkFX(); drawLegBlur(); }` in `drawNPC`.
-   An autonomous soul's `moving` is `!activityIsStationary(activity)` (it walks
-   its `xMin`→`xMax` patrol; planted while doing a stationary activity). So the
-   rule for a NEW playable/NPC character is: **do nothing** — dropping its sprite
-   in and adding the soul is enough; it blurs when walking, selected or not.
-   Never add a per-character or "only if controlled" gate to the walk FX. When
-   you add a character, verify (observe mode, force a non-stationary activity)
-   that the leg-blur + smoke show while they walk unselected.
+   **`moving` MUST track real per-frame displacement, not the activity flag.**
+   Autonomous souls stroll their `xMin`→`xMax` patrol at `baseSpeed`, and the
+   update loop sets `s.moving = Math.abs(dx) > 0`. (The original code drifted
+   "stationary"-activity souls at 0.2× while hard-setting `moving = false`, so
+   they GLIDED with no FX — the "not firing on auto walk" bug. The leg-blur swing
+   is time-based, so a soul must translate at a real walking pace or a slow drift
+   moonwalks — do not reintroduce a sub-walking-pace drift.) So the rule for a
+   NEW playable/NPC character is: **do nothing** — dropping its sprite in and
+   adding the soul is enough; it strolls and blurs, selected or not. Never gate
+   the walk FX on selection, and never derive `moving` from anything but actual
+   movement. When you add a character, verify in observe mode that the leg-blur +
+   smoke show while they walk unselected.
 
 7. **Overture is a WALK-IN court — PARALLEL / axonometric, NEVER a fake vanishing point.**
    `OVERTURE` (sceneData.ts) pins a monumental gate on block-2 north (Overture is
