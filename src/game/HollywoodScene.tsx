@@ -5,6 +5,7 @@ import { SoulProfilePanel } from "../components/SoulProfilePanel";
 import { InventoryGrid } from "../components/InventoryGrid";
 import { ROSTER } from "../soul/roster";
 import { equippedStem } from "./inventory";
+import { castReading, applyReading, type ReadingOutcome } from "../soul/buzios";
 
 // A short chip label: the quoted nickname if the soul has one, else the first name.
 function chipLabel(name: string): string {
@@ -50,7 +51,9 @@ export function HollywoodScene({ engine, controlledId, onControlledChange }: Pro
   const rendererRef = useRef<HollywoodRenderer | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [invOpen, setInvOpen] = useState(false); // inventory sheet for the controlled character
-  const [inRoom, setInRoom] = useState(false); // true while inside an enterable interior (shows Leave)
+  const [roomId, setRoomId] = useState<string | null>(null); // current interior room id (null = outside)
+  const [reading, setReading] = useState<ReadingOutcome | null>(null); // active búzios reading panel
+  const castCount = useRef(0); // varies the reading seed per cast
   // Equipped outfit stem per soul (any soul absent here wears its default look). Remembered across
   // character switches; applied live to the renderer. Drives both inventory grids.
   const [equipped, setEquipped] = useState<Record<string, string>>({});
@@ -69,7 +72,7 @@ export function HollywoodScene({ engine, controlledId, onControlledChange }: Pro
       if (id) setSelectedId(id); // tapped a person → open their Soul Profile
       else renderer.tapToWalk(cssX, cssY); // tapped the ground → walk the controlled soul there
     });
-    renderer.setRoomHandler((room) => setInRoom(room !== null)); // show the Leave button inside a room
+    renderer.setRoomHandler((room) => { setRoomId(room); if (room === null) setReading(null); }); // track room; close reading on exit
 
     const fit = () => {
       const r = wrap.getBoundingClientRect();
@@ -113,6 +116,15 @@ export function HollywoodScene({ engine, controlledId, onControlledChange }: Pro
       rendererRef.current?.setMove(dir, pressed);
     };
 
+  // Yara casts the búzios for the controlled soul (the amnesiac god), reading their state and
+  // applying the consequence (Axé + chakra-power). Only offered in her back consultation room.
+  const castBuzios = () => {
+    const soul = controlledId ? engine.souls.find((s) => s.id === controlledId) : null;
+    if (!soul) return;
+    const seed = Math.floor(engine.clockMinutes) * 131 + castCount.current++;
+    setReading(applyReading(soul, castReading(soul, seed)));
+  };
+
   return (
     <div className="scene-stage" ref={wrapRef}>
       <canvas ref={canvasRef} className="scene-canvas" />
@@ -136,7 +148,16 @@ export function HollywoodScene({ engine, controlledId, onControlledChange }: Pro
         </button>
       )}
 
-      {inRoom && (
+      {roomId === "aguas-back" && controlledId !== null && (
+        <button
+          className="buzios-btn"
+          onPointerUp={(e) => { e.preventDefault(); castBuzios(); }}
+        >
+          🐚 Consult the búzios
+        </button>
+      )}
+
+      {roomId !== null && (
         <button
           className="leave-room-btn"
           // Use pointer events (like the D-pad) rather than onClick — some mobile PWA webviews drop
@@ -221,6 +242,33 @@ export function HollywoodScene({ engine, controlledId, onControlledChange }: Pro
             <button className="panel-close" onClick={() => setInvOpen(false)}>
               Close
             </button>
+          </div>
+        </div>
+      )}
+
+      {reading && (
+        <div className="panel-overlay" onClick={(e) => e.target === e.currentTarget && setReading(null)}>
+          <div className="panel-card buzios-card">
+            <h2>Águas Douradas <span className="dim">· o jogo de búzios</span></h2>
+            <p className="buzios-yara">Yara scatters the shells and lets Exu open the road.</p>
+            <p className="buzios-cast">{reading.reading.openCount} of the sixteen fell open.</p>
+            <div className={`buzios-odu ${reading.reading.ire ? "ire" : "osogbo"}`}>
+              <div className="buzios-odu-name">
+                Odù {reading.reading.odu.n} · {reading.reading.odu.name}
+                <span className="buzios-orixa"> — {reading.reading.odu.orixa}</span>
+              </div>
+              <div className="buzios-tag">{reading.reading.ire ? "IRE · blessing" : "OSOGBO · obstacle"}</div>
+            </div>
+            <p className="buzios-present">“{reading.reading.present}”</p>
+            <p className="buzios-future">“{reading.reading.future}”</p>
+            <div className="buzios-effect">
+              <div>Axé +{reading.reading.axeGain} — spiritual strength rises{reading.tieredUp ? `, and you cross into initiation ${reading.newInitiation}.` : "."}</div>
+              <div>The {reading.reading.chakra} stirs awake.</div>
+              {reading.unlockedPower && (
+                <div className="buzios-power">◆ Power awakened — <b>{reading.unlockedPower.name}</b>: {reading.unlockedPower.blurb}</div>
+              )}
+            </div>
+            <button className="panel-close" onClick={() => setReading(null)}>Close</button>
           </div>
         </div>
       )}

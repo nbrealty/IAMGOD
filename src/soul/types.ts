@@ -91,7 +91,12 @@ export interface Soul {
 
   // spirit
   soulAge: SoulAge;
-  initiationLevel: number; // 0–7
+  initiationLevel: number; // 0–7 — also the AXÉ tier: spiritual strength that glows the aura + Crown
+  // Progress (0–100) toward the next initiation tier, raised by Yara's búzios readings. Optional:
+  // absent souls just start at 0. See src/soul/buzios.ts.
+  axe?: number;
+  // Chakra-seated divine powers the (amnesiac-god) player has reawakened via readings (Power ids).
+  powers?: string[];
   // Chakra OPENNESS as a continuous 0–100 value; the blocked/imbalanced/open enum
   // is derived from it (see derive.ts → chakraState). Continuous state lets the
   // interference rules nudge chakras smoothly.

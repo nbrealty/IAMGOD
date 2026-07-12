@@ -287,6 +287,46 @@
   transform: scale(0.95);
   background: rgba(60, 42, 18, 0.98);
 }
+
+/* Búzios consult button — offered in Yara's back consultation room, below the Leave button. */
+.buzios-btn {
+  position: absolute;
+  top: 96px;
+  right: 10px;
+  z-index: 12;
+  font-size: 15px;
+  padding: 11px 18px;
+  border-radius: 22px;
+  background: rgba(24, 12, 30, 0.94);
+  border: 2px solid #d8a63a;
+  color: #ffe6ad;
+  cursor: pointer;
+  font-weight: 800;
+  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.5);
+  touch-action: manipulation;
+}
+.buzios-btn:active { transform: scale(0.95); background: rgba(52, 26, 60, 0.98); }
+
+/* Búzios reading panel. */
+.buzios-card { max-width: 460px; text-align: left; }
+.buzios-yara { color: #c9b48c; font-style: italic; margin: 2px 0 6px; }
+.buzios-cast { color: #e8d6a8; font-size: 13px; opacity: 0.8; margin: 0 0 10px; }
+.buzios-odu {
+  border-radius: 12px; padding: 10px 12px; margin: 6px 0 10px;
+  border: 1px solid rgba(216, 166, 58, 0.5);
+}
+.buzios-odu.ire { background: linear-gradient(180deg, rgba(60, 44, 12, 0.6), rgba(30, 22, 8, 0.6)); }
+.buzios-odu.osogbo { background: linear-gradient(180deg, rgba(52, 22, 40, 0.6), rgba(24, 14, 22, 0.6)); }
+.buzios-odu-name { font-weight: 800; color: #ffe6ad; font-size: 17px; }
+.buzios-orixa { color: #d8b877; font-weight: 600; }
+.buzios-tag { font-size: 11px; letter-spacing: 1px; margin-top: 3px; color: #d8a63a; font-weight: 700; }
+.buzios-present, .buzios-future { margin: 8px 0; line-height: 1.4; color: #ece2cc; }
+.buzios-future { color: #ffe6ad; font-weight: 600; }
+.buzios-effect {
+  margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(216, 166, 58, 0.28);
+  font-size: 13px; color: #cbe0c0; display: flex; flex-direction: column; gap: 4px;
+}
+.buzios-power { color: #7fe0d0; font-weight: 600; }
 .build-stamp {
   opacity: 0.5;
   font-size: 10px;
