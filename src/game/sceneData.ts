@@ -318,7 +318,8 @@ function buildResFace(i: number): Frontage {
   const target = x1 - x0;
   const [sp, ch, asp] = HOUSE_FILL;
   const w = ch * 84 * asp;
-  const gap = 150; // wide yards between houses → a scattered residential street, not a wall
+  const gap = 340; // wide yards between houses → a scattered residential street, not a wall (was 150,
+  // which read as nearly touching once the sprites' transparent padding + tint bands overlapped)
   const out: Building[] = [];
   let used = -gap;
   while (used < target - 300) {

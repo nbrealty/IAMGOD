@@ -377,6 +377,32 @@ function goldenAt(minutes: number): number {
   return Math.max(bump(330, 400, 500), bump(1050, 1140, 1230));
 }
 
+// Time-of-day SUN → the cast-shadow transform for a ground-standing object. Models the sun arcing
+// from the east horizon at sunrise, overhead at solar noon, to the west horizon at sunset:
+//  - direction: the shadow points OPPOSITE the sun horizontally (morning sun east → shadow west),
+//    sweeping across the ground through the day (skewX, ± as the sun crosses the sky);
+//  - length: grows as the sun lowers (shadow ≈ height / tan(altitude)) — short at noon, long at
+//    golden hour (lenY = forward flatten per unit of object height);
+//  - strength: a touch softer when long, and fades to 0 through dusk into night (moonlight is
+//    negligible; after dark the signage/lamp lights do the work instead).
+// The shadow COLOR is a cool blue-black (baked into the silhouette) — sunlit faces read warm while
+// shadows read cool (skylight, not sun), which is what makes a scene look lit by a real sun.
+function sunShadowAt(minutes: number): { alpha: number; skewX: number; lenY: number } {
+  const m = ((minutes % 1440) + 1440) % 1440;
+  const SUNRISE = 360, SUNSET = 1140; // 06:00 → 19:00
+  const day = 1 - nightAt(minutes); // fade the cast shadow out through dusk/dawn into night
+  if (day <= 0.02 || m <= SUNRISE || m >= SUNSET) return { alpha: 0, skewX: 0, lenY: 0 };
+  const frac = (m - SUNRISE) / (SUNSET - SUNRISE); // 0 at sunrise → 1 at sunset
+  const altitude = Math.sin(Math.PI * frac); // 0 at the horizon, 1 at solar noon
+  const horiz = Math.cos(Math.PI * frac); // +1 east (morning) → 0 noon → -1 west (evening)
+  const low = 1 - altitude; // 0 overhead, 1 at the horizon
+  return {
+    skewX: -horiz * (0.12 + low * 0.9), // ± up to ~1.0 near golden hour; ~0 at noon (straight down)
+    lenY: 0.12 + low * 0.42, // forward flatten per unit height: short at noon, long at dusk/dawn
+    alpha: (0.44 - low * 0.14) * day, // slightly softer when long; fades into night
+  };
+}
+
 // Procedural SKY gradient for HEAD-ON areas (the court room, future rooftops): zenith (top) →
 // horizon (bottom), keyed to minute-of-day. Zero assets — reflects time automatically. The city's
 // top-down view never draws this (it has no sky). Mirrors ambientAt's keyframe lerp.
@@ -452,6 +478,9 @@ export class HollywoodRenderer {
   private sprites = new Map<string, HTMLImageElement | null>();
   private tiles = new Map<string, HTMLImageElement | null>();
   private patterns = new Map<string, CanvasPattern>();
+  // Baked cool-dark silhouettes (alpha-shaped, edge-softened) per sprite src, for the directional
+  // time-of-day cast shadow. Built once on first use.
+  private silCache = new Map<string, HTMLCanvasElement>();
   // Cached non-transparent vertical bounds per character sprite ({ t, b } as fractions of natural
   // height), so we normalize every actor to one body height. Measured once, lazily, on first draw.
   private boundsCache = new Map<string, { t: number; b: number }>();
@@ -2432,8 +2461,10 @@ export class HollywoodRenderer {
     if (!img || !img.complete || img.naturalWidth === 0) return;
     const h = PROP_H[name] ?? 40;
     const w = h * (img.naturalWidth / img.naturalHeight);
-    // Grounding shadow stack — tighter/lighter than a building's (props have a small footprint).
-    this.drawContactShadow(x, footY, w * 0.7, h, 0.7);
+    // Grounding: directional time-of-day cast shadow (silhouette-shaped) + a tight seam-only foot
+    // contact (props have a small footprint, and now carry the real cast shadow).
+    this.drawCastShadow(img.src, img, x, footY, w, h);
+    this.drawContactShadow(x, footY, w * 0.7, h, 0.7, true);
     this.ctx.drawImage(img, x - w / 2, footY - h, w, h);
   }
 
@@ -2685,6 +2716,55 @@ export class HollywoodRenderer {
     ctx.fillRect(cx0, cy0, cx1 - cx0, cy1 - cy0);
   }
 
+  // Baked cool-dark, edge-softened silhouette of a sprite (alpha-shaped), for the directional cast
+  // shadow. Built once per sprite src and cached — the soft edge is baked in so the runtime shadow
+  // needs no per-frame blur filter.
+  private spriteSilhouette(key: string, img: HTMLImageElement): HTMLCanvasElement | null {
+    const hit = this.silCache.get(key);
+    if (hit) return hit;
+    const w = img.naturalWidth, h = img.naturalHeight;
+    if (!w || !h) return null;
+    const solid = document.createElement("canvas");
+    solid.width = w; solid.height = h;
+    const sc = solid.getContext("2d");
+    if (!sc) return null;
+    sc.drawImage(img, 0, 0);
+    sc.globalCompositeOperation = "source-in"; // keep the sprite's alpha, recolor to a cool shadow tone
+    sc.fillStyle = "rgb(14,16,30)";
+    sc.fillRect(0, 0, w, h);
+    // Bake a soft edge once (so no per-frame blur is needed at draw time).
+    const soft = document.createElement("canvas");
+    soft.width = w; soft.height = h;
+    const fx = soft.getContext("2d");
+    if (!fx) return solid;
+    fx.filter = "blur(2px)";
+    fx.drawImage(solid, 0, 0);
+    this.silCache.set(key, soft);
+    return soft;
+  }
+
+  // Time-of-day DIRECTIONAL cast shadow: the sprite's own silhouette, flattened FORWARD onto the
+  // ground (down-screen) and skewed away from the sun, composited `multiply`. Drawn inside the
+  // actor's own draw (before its sprite) so it sorts with the actor and lands on the ground it
+  // stands on — nearer actors draw over it. Silhouette-shaped, so it never bleeds a rectangle onto
+  // the ground/neighbours the way the old box-edge AO/skirt overlays did.
+  private drawCastShadow(key: string, img: HTMLImageElement, cx: number, footY: number, w: number, H: number): void {
+    const sun = sunShadowAt(this.engine.clockMinutes);
+    if (sun.alpha <= 0) return;
+    const sil = this.spriteSilhouette(key, img);
+    if (!sil) return;
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.globalCompositeOperation = "multiply";
+    ctx.globalAlpha = sun.alpha;
+    ctx.translate(cx, footY);
+    // Upright sprite (foot at y=0, top at y=-H) → ground: transform(a,b,c,d,e,f) gives
+    // x' = x - skewX·y (skew grows with height) and y' = -lenY·y (flatten forward, down-screen).
+    ctx.transform(1, 0, -sun.skewX, -sun.lenY, 0, 0);
+    ctx.drawImage(sil, -w / 2, -H, w, H);
+    ctx.restore();
+  }
+
   // Three-part grounding stack under any upright actor, drawn within the sorted pass (before the
   // actor's sprite) so it sits on exactly the ground it stands on. Research-calibrated to READ in
   // a dark, moody scene where a thin near-black multiply is invisible:
@@ -2694,7 +2774,10 @@ export class HollywoodRenderer {
   //       light (upper-left), spilling forward onto the visible sidewalk;
   //   (3) a crisp dark contact SEAM at the true foot line (the glue that kills the float).
   // `w`/`h` = the actor's on-screen footprint width / height; `scale` fades it with depth.
-  private drawContactShadow(cx: number, footY: number, w: number, h: number, scale = 1): void {
+  // `seamOnly` drops the fake directional cast BODY (part 2) — pass it for objects that now have the
+  // REAL time-of-day cast shadow (buildings, props), so the two directional cues don't fight; the
+  // lift + tight foot seam still glue the base to the ground. Characters keep the full stack.
+  private drawContactShadow(cx: number, footY: number, w: number, h: number, scale = 1, seamOnly = false): void {
     const ctx = this.ctx;
     const rx = Math.max(10, w * 0.5);
     // one light everywhere: upper-left → shadow falls down (+Y, toward camera) and right (+X).
@@ -2713,18 +2796,21 @@ export class HollywoodRenderer {
     ctx.beginPath(); ctx.arc(cx, footY, lr, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
 
-    // (2) cast body — cool blue-black, offset down+right, foreshortened, soft falloff.
-    ctx.save();
-    ctx.globalCompositeOperation = "multiply";
-    const bcx = cx + offX, bcy = footY + offY, brx = rx * 1.25;
-    const body = ctx.createRadialGradient(bcx, bcy, 1, bcx, bcy, brx);
-    body.addColorStop(0, `rgba(7,6,15,${0.54 * scale})`);
-    body.addColorStop(0.7, `rgba(7,6,15,${0.26 * scale})`);
-    body.addColorStop(1, "rgba(7,6,15,0)");
-    ctx.translate(bcx, bcy); ctx.scale(1, 0.4); ctx.translate(-bcx, -bcy);
-    ctx.fillStyle = body;
-    ctx.beginPath(); ctx.arc(bcx, bcy, brx, 0, Math.PI * 2); ctx.fill();
-    ctx.restore();
+    // (2) cast body — cool blue-black, offset down+right, foreshortened, soft falloff. Skipped for
+    // objects that carry the real directional cast shadow (buildings/props).
+    if (!seamOnly) {
+      ctx.save();
+      ctx.globalCompositeOperation = "multiply";
+      const bcx = cx + offX, bcy = footY + offY, brx = rx * 1.25;
+      const body = ctx.createRadialGradient(bcx, bcy, 1, bcx, bcy, brx);
+      body.addColorStop(0, `rgba(7,6,15,${0.54 * scale})`);
+      body.addColorStop(0.7, `rgba(7,6,15,${0.26 * scale})`);
+      body.addColorStop(1, "rgba(7,6,15,0)");
+      ctx.translate(bcx, bcy); ctx.scale(1, 0.4); ctx.translate(-bcx, -bcy);
+      ctx.fillStyle = body;
+      ctx.beginPath(); ctx.arc(bcx, bcy, brx, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
 
     // (3) contact seam — crisp cool-black glue at the true foot line.
     ctx.save();
@@ -2752,55 +2838,21 @@ export class HollywoodRenderer {
     const baseY = b.baseY ?? (side === "north" ? NORTH_BASELINE : SOUTH_BASELINE);
     const growUp = b.growUp ?? true;
     const top = growUp ? baseY - H : baseY;
-    // Grounding: the three-part shadow stack, drawn before the sprite so it reads as ground the
-    // wall stands on. Fade with depth — far (north) row a touch lighter so it recedes.
+    // Grounding: the directional time-of-day CAST shadow (the sprite's own silhouette flattened
+    // onto the ground, swinging + lengthening with the sun) + a light SEAM-only contact shadow at
+    // the foot. Both are silhouette/ellipse-shaped, never box rectangles, so nothing bleeds onto
+    // the ground or the neighbour — this replaces the old base-skirt / inter-building-AO / far-row
+    // veil rectangles that printed the vertical "black streaks" through the sprites' transparent
+    // padding. Far (north) row a touch lighter so it recedes.
     const depthScale = side === "north" ? 0.85 : 1;
-    this.drawContactShadow(cx, baseY, w, H, depthScale);
+    const skey = img.src;
+    this.drawCastShadow(skey, img, cx, baseY, w, H);
+    this.drawContactShadow(cx, baseY, w, H, depthScale, true);
     const prev = ctx.imageSmoothingEnabled;
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(img, cx - w / 2, top, w, H);
     ctx.imageSmoothingEnabled = prev;
-    // Base skirt: darken the wall's foot so it sinks into the ground seam rather than sitting
-    // on a clean shelf edge.
-    const skirtH = Math.min(16, H * 0.14);
-    ctx.save();
-    ctx.globalCompositeOperation = "multiply";
-    const sg = ctx.createLinearGradient(0, baseY - skirtH, 0, baseY);
-    sg.addColorStop(0, "rgba(16,12,8,0)");
-    sg.addColorStop(1, "rgba(16,12,8,0.32)");
-    ctx.fillStyle = sg;
-    ctx.fillRect(cx - w / 2, baseY - skirtH, w, skirtH);
-    ctx.restore();
-    // Inter-building AO: darken the facade's vertical side edges so two adjacent buildings form a
-    // shaded seam/valley between them — grounds the streetwall as one solid mass, not floating
-    // cards. (On isolated landmarks it just reads as gentle form shading on the sides.)
-    const edgeW = Math.max(6, w * 0.08);
-    ctx.save();
-    ctx.globalCompositeOperation = "multiply";
-    const lAO = ctx.createLinearGradient(cx - w / 2, 0, cx - w / 2 + edgeW, 0);
-    lAO.addColorStop(0, "rgba(9,9,18,0.46)");
-    lAO.addColorStop(1, "rgba(9,9,18,0)");
-    ctx.fillStyle = lAO;
-    ctx.fillRect(cx - w / 2, top, edgeW, H);
-    const rAO = ctx.createLinearGradient(cx + w / 2, 0, cx + w / 2 - edgeW, 0);
-    rAO.addColorStop(0, "rgba(9,9,18,0.46)");
-    rAO.addColorStop(1, "rgba(9,9,18,0)");
-    ctx.fillStyle = rAO;
-    ctx.fillRect(cx + w / 2 - edgeW, top, edgeW, H);
-    ctx.restore();
-    // Far-row atmospheric veil: wash the distant (north) streetwall toward a cool haze via a
-    // light multiply, so the far row loses a little contrast and recedes from the near (south)
-    // row. Multiply keeps it correct day and night (scales with the pixel it's over). Near row
-    // untouched.
-    if (side === "north" && growUp) {
-      ctx.save();
-      ctx.globalCompositeOperation = "multiply";
-      ctx.globalAlpha = 0.16;
-      ctx.fillStyle = "rgb(150,162,185)";
-      ctx.fillRect(cx - w / 2, top, w, H);
-      ctx.restore();
-    }
   }
 
   // ── Overture walk-in court (open piazza, PARALLEL/axonometric — no vanishing point) ──────

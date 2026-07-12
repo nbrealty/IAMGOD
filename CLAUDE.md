@@ -75,10 +75,21 @@ feet-anchored to one ground-Y, which is the sort key.
    `multiply` contact shadow at its foot-Y **inside its own draw, just before the
    sprite** (`drawContactShadow` in `renderer.ts`) so the shadow sorts with the
    actor and lands on the ground it stands on — never as a separate pass.
-   Buildings also get a base-skirt gradient (wall foot sinks into the pavement)
-   and the far/north row gets a light `multiply` haze veil so it recedes. A
-   final **screen-space** grade + vignette (`drawPostGrade`, reset to the
-   identity transform first) unifies every asset under one exposure.
+   Buildings + props ALSO draw a **directional time-of-day CAST shadow**
+   (`drawCastShadow`): the sprite's OWN silhouette (baked cool-dark + soft-edged,
+   `spriteSilhouette`), flattened forward onto the ground and skewed away from a
+   single global sun (`sunShadowAt(clockMinutes)`). It **swings + lengthens with
+   the clock** — short & straight at solar noon, long & leaning one way in the
+   morning, long & leaning the other at golden hour, and **gone at night** (signage
+   light takes over). Because they carry the real cast shadow, buildings/props use
+   the **seam-only** contact shadow (`drawContactShadow(..., seamOnly=true)`) so the
+   two directional cues don't fight; characters keep the full contact stack.
+   **NEVER re-add axis-aligned box overlays** (the old base-skirt / inter-building
+   AO / far-row haze `fillRect`s) — they printed onto the ground/neighbour through
+   the sprites' transparent padding as vertical "black streaks." All grounding must
+   be **silhouette- or ellipse-shaped**, never a rectangle keyed to the sprite's
+   bounding box. A final **screen-space** grade + vignette (`drawPostGrade`, reset
+   to the identity transform first) unifies every asset under one exposure.
 
 3. **Every character has a front and a back.** Show the back sprite only when
    the character is moving up/away from the camera; otherwise show the front
