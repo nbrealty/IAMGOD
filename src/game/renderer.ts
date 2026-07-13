@@ -187,7 +187,10 @@ const AREAS: Record<string, AreaView> = {
     halfTop: 360, halfBot: 640,
     cx: 768, entryX: 980, entryY: 860, // arrive just inside the curtain doorway (right), facing in
     scaleBack: 0.82, charScale: 5.5, // people sized to the chairs/table (~2× chair-back height)
-    occupants: [{ stem: "yara_seated", x: 620, y: 640, scale: 1.0 }], // Yara seated at her reading table
+    // Yara seated in the LEFT chair (her sprite carries its own chair, aligned over the plate's
+    // left chair; she faces right toward the table). Foot-Y anchored so her feet land on the floor
+    // in front of the chair — not on the tabletop — and scaled to read as an adult across the shells.
+    occupants: [{ stem: "yara_seated", x: 425, y: 758, scale: 0.85 }],
     exitTo: "aguas-front", // back through the beaded curtain → the front botanica
     // The doorway is the beaded curtain on the RIGHT, NOT the south edge — so exit at the curtain x
     // (walk right into it) and disable the walk-down exit, which would drop you out at a wall.
