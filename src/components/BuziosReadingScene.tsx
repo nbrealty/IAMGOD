@@ -3,21 +3,25 @@ import type { Soul } from "../soul/types";
 import { castReading, type Reading } from "../soul/buzios";
 
 // First-person búzios reading: drop into the POV table plate, TAP to cast, and 16 cowrie shells
-// fly from Yara's hands and scatter onto the cloth — landing to match the odù (predetermined by
-// castReading, then tweened; no physics engine, per the research). When they settle, onCast fires
+// fly from Yara's hands and scatter onto the woven sieve — landing to match the odù (predetermined
+// by castReading, then tweened; no physics engine, per the research). When they settle, onCast fires
 // with the Reading so the parent can apply it + show the reading panel over the settled shells.
 const N = 16;
-// Peneira / cast zone in normalized plate coords (the woven sieve sits centre, a touch low).
-const HAND_Y = 0.34; // shells launch from around her hands (upper-centre)
-const ZONE = { cx: 0.5, cy: 0.6, rx: 0.19, ry: 0.12 }; // scatter ellipse on the cloth
+// Anchors are in PLATE-SPACE — fractions of the POV plate's OWN pixels — and mapped through the same
+// cover-fit transform used to draw the plate. That keeps the launch + landing locked to Yara's hands
+// and the sieve no matter the screen aspect; canvas-space fractions drift as the cover-crop shifts.
+const HAND = { cx: 0.485, cy: 0.47, rx: 0.09, ry: 0.02 }; // shells launch from around her resting hands
+const SIEVE = { cx: 0.485, cy: 0.665, rx: 0.115, ry: 0.115 }; // the woven tray — scatter target (inside the rim)
+const SHELL_H = 0.05; // shell draw height as a fraction of the drawn plate height
+const HOP = 0.045; // arc height of the little toss (plate-height fraction)
 
 interface Shell {
   face: "open" | "closed";
-  sx: number; sy: number; // start (norm)
-  ex: number; ey: number; // end (norm)
+  sx: number; sy: number; // start (plate frac)
+  ex: number; ey: number; // end (plate frac)
   rot: number; // final rotation
   delay: number; // ms before it launches
-  hop: number; // bounce height factor
+  hop: number; // per-shell arc factor (× HOP)
 }
 
 function easeOut(t: number): number { return 1 - Math.pow(1 - t, 3); }
@@ -57,17 +61,20 @@ export function BuziosReadingScene({
         const ctx = cv.getContext("2d")!;
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.clearRect(0, 0, W, H);
+        // Cover-fit the plate and remember the transform so plate-space anchors map to the same pixels.
         const pov = imgs.current.pov;
+        let pw = W, ph = H, ox = 0, oy = 0;
         if (pov && pov.complete && pov.naturalWidth) {
-          // cover-fit
           const s = Math.max(W / pov.naturalWidth, H / pov.naturalHeight);
-          const dw = pov.naturalWidth * s, dh = pov.naturalHeight * s;
-          ctx.drawImage(pov, (W - dw) / 2, (H - dh) / 2, dw, dh);
+          pw = pov.naturalWidth * s; ph = pov.naturalHeight * s;
+          ox = (W - pw) / 2; oy = (H - ph) / 2;
+          ctx.drawImage(pov, ox, oy, pw, ph);
         } else {
           ctx.fillStyle = "#241812"; ctx.fillRect(0, 0, W, H);
         }
-        // shells
-        const shH = H * 0.055; // shell draw height
+        const toX = (fx: number) => ox + fx * pw; // plate-fraction → canvas px
+        const toY = (fy: number) => oy + fy * ph;
+        const shH = SHELL_H * ph; // shells scale with the plate, so they always sit right on the tray
         const now = performance.now();
         for (const sh of shells.current) {
           const img = sh.face === "open" ? imgs.current.open : imgs.current.closed;
@@ -76,8 +83,9 @@ export function BuziosReadingScene({
           if (phase === "throwing") t = Math.max(0, Math.min(1, (now - throwStart.current - sh.delay) / 520));
           else if (phase === "done") t = 1;
           const e = easeOut(t);
-          const x = (sh.sx + (sh.ex - sh.sx) * e) * W;
-          const y = (sh.sy + (sh.ey - sh.sy) * e) * H - Math.sin(Math.PI * t) * sh.hop * H; // little arc
+          const fx = sh.sx + (sh.ex - sh.sx) * e;
+          const fy = sh.sy + (sh.ey - sh.sy) * e - Math.sin(Math.PI * t) * sh.hop * HOP; // little arc
+          const x = toX(fx), y = toY(fy);
           const w = shH * (img.naturalWidth / img.naturalHeight);
           ctx.save();
           ctx.translate(x, y);
@@ -119,12 +127,12 @@ export function BuziosReadingScene({
     const rng = () => { a = (a * 1664525 + 1013904223) >>> 0; return a / 4294967296; };
     for (let i = faces.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [faces[i], faces[j]] = [faces[j], faces[i]]; }
     shells.current = faces.map((face, i) => {
-      const ang = rng() * Math.PI * 2, rad = Math.sqrt(rng());
+      const ang = rng() * Math.PI * 2, rad = Math.sqrt(rng()); // sqrt → even area spread across the tray
       return {
         face,
-        sx: 0.5 + (rng() - 0.5) * 0.06, sy: HAND_Y + (rng() - 0.5) * 0.03,
-        ex: ZONE.cx + Math.cos(ang) * ZONE.rx * rad, ey: ZONE.cy + Math.sin(ang) * ZONE.ry * rad,
-        rot: (rng() - 0.5) * 2.2, delay: i * 22, hop: 0.05 + rng() * 0.05,
+        sx: HAND.cx + (rng() - 0.5) * 2 * HAND.rx, sy: HAND.cy + (rng() - 0.5) * 2 * HAND.ry,
+        ex: SIEVE.cx + Math.cos(ang) * SIEVE.rx * rad, ey: SIEVE.cy + Math.sin(ang) * SIEVE.ry * rad,
+        rot: (rng() - 0.5) * 2.2, delay: i * 22, hop: 0.6 + rng() * 0.8,
       };
     });
     throwStart.current = performance.now();
