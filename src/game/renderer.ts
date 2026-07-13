@@ -186,11 +186,11 @@ const AREAS: Record<string, AreaView> = {
     floorTop: 560, floorBot: 980, // the open floor in front of the reading table
     halfTop: 360, halfBot: 640,
     cx: 768, entryX: 980, entryY: 860, // arrive just inside the curtain doorway (right), facing in
-    scaleBack: 0.82, charScale: 5.5, // people sized to the chairs/table (~2× chair-back height)
-    // Yara seated in the LEFT chair (her sprite carries its own chair, aligned over the plate's
-    // left chair; she faces right toward the table). Foot-Y anchored so her feet land on the floor
-    // in front of the chair — not on the tabletop — and scaled to read as an adult across the shells.
-    occupants: [{ stem: "yara_seated", x: 425, y: 758, scale: 0.85 }],
+    // People sized to match the BAKED seated Yara + the chairs — an adult standing at the empty
+    // right chair reads at Yara's scale (head above the chair back), not child-sized.
+    scaleBack: 0.82, charScale: 8.0,
+    // Yara is BAKED INTO this plate, seated at the reading table (she "goes to the back" for a
+    // reading — see readingActive). No sprite occupant here; the player sits in the empty RIGHT chair.
     exitTo: "aguas-front", // back through the beaded curtain → the front botanica
     // The doorway is the beaded curtain on the RIGHT, NOT the south edge — so exit at the curtain x
     // (walk right into it) and disable the walk-down exit, which would drop you out at a wall.
@@ -479,6 +479,11 @@ export class HollywoodRenderer {
   private trans: { to: string | null; t: number; swapped: boolean } | null = null;
   private roomReturn: { x: number; y: number } | null = null;
   private camReturn: { x: number; y: number; zoom: number } | null = null;
+  // "Yara is in the back giving a reading." Set when the player steps into the back consultation
+  // room (aguas-back, where she's baked into the plate), cleared when they leave the botanica for
+  // the street. While true, her front-counter sprite is hidden so she isn't in two places at once
+  // — she "got up and went to the back," and only returns to the counter after you leave + re-enter.
+  private yaraAway = false;
   // Active outfit per soul: soulId → sprite stem (see outfits.ts). Absent → wears its default
   // (stem = soul id). Swapping an entry changes which sprite (front + `_back`) drawNPC loads.
   private outfits = new Map<string, string>();
@@ -805,6 +810,7 @@ export class HollywoodRenderer {
       }
       // (room → room keeps the same roomReturn/camReturn so a later exit still lands outside.)
       if (pc && R) { pc.x = R.entryX; pc.y = R.entryY; }
+      if (to === "aguas-back") this.yaraAway = true; // she's gone to the back to read
       this.room = to;
       this.facingUp = true; // arrive facing into the scene
       // frame the room at cover-zoom (plate fills the viewport; can't see past its edges), centred
@@ -817,6 +823,7 @@ export class HollywoodRenderer {
       }
     } else {
       // room → overworld.
+      if (from === "aguas-front") this.yaraAway = false; // left the botanica → she's back at the counter next visit
       this.room = null;
       if (pc) {
         if (from === "overture-court") {
@@ -911,6 +918,7 @@ export class HollywoodRenderer {
     this.room = null;
     this.trans = null;
     this.moveTarget = null;
+    this.yaraAway = false; // fresh soul → Yara's back at her counter
     this.controlledId = id;
     this.held.clear();
     this.facingLeft = false;
@@ -1173,9 +1181,12 @@ export class HollywoodRenderer {
     };
     const drawOccupant = (oc: NonNullable<AreaView["occupants"]>[number]) =>
       this.drawRoomOccupant(oc.stem, oc.x, oc.y, (oc.scale ?? 1) * depthScaleAt(oc.y), oc.faceLeft ?? false);
+    // While Yara is "in the back" giving a reading, her front-counter sprite is hidden (she's baked
+    // into the back-room plate instead — she can't be in both places).
+    const occupants = (R.occupants ?? []).filter((oc) => !(this.yaraAway && oc.stem === "yara"));
     if (R.foreground) {
       // Counter-style room: occupants (keeper) BEHIND the foreground plate, player in FRONT of it.
-      for (const oc of R.occupants ?? []) drawOccupant(oc);
+      for (const oc of occupants) drawOccupant(oc);
       const fg = this.getAreaPlate(R, R.foreground, false); // overlay is a PNG (needs alpha)
       if (fg && fg.complete && fg.naturalWidth > 0) ctx.drawImage(fg, 0, pad, R.w, plateH);
       drawPlayer();
@@ -1183,7 +1194,7 @@ export class HollywoodRenderer {
       // Open room: player + occupants foot-Y sorted so you pass in front of / behind them.
       const acts: { y: number; draw: () => void }[] = [];
       if (pc) acts.push({ y: pc.y, draw: drawPlayer });
-      for (const oc of R.occupants ?? []) acts.push({ y: oc.y, draw: () => drawOccupant(oc) });
+      for (const oc of occupants) acts.push({ y: oc.y, draw: () => drawOccupant(oc) });
       acts.sort((a, b) => a.y - b.y);
       for (const a of acts) a.draw();
     }

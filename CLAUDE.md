@@ -231,6 +231,21 @@ feet-anchored to one ground-Y, which is the sort key.
    their legs and the waist-on-counter proportion reads for free; the player stands in front. Size a
    new room by measuring its door/chair/counter in the plate and setting `charScale` so the rule holds.
 
+   **7d. A seated/posed host is BAKED INTO the plate, never a sprite — and a sprite can't go behind
+   baked furniture.** The room's furniture (table, counter, altar) lives in the backdrop plate, which
+   draws first; every character composites ON TOP via the foot-Y sort, so a sprite can never render
+   *behind* a painted table (its legs can't tuck under). For a static host who sits AT a table (Yara
+   at her búzios reading table, `aguas-back`), paint her into the plate — the art sizes her to the
+   furniture and hides her legs under the table for free. Then calibrate the *player's* `charScale`
+   so the incoming avatar reads at the baked host's scale (an adult standing at the empty chair: head
+   above the chair back, head ≈ the baked host's head), NOT child-sized. **Anti-double-presence:** a
+   host baked into a back room must be HIDDEN wherever else she appears while she's "there" — Yara's
+   front-counter `occupant` is filtered out while `yaraAway` is set (she "goes to the back" for a
+   reading on entering `aguas-back`, and only returns to the counter after you leave the botanica for
+   the street). The alternative to baking (keep her a sprite) is a `foreground` table-skirt overlay
+   like the counter — fiddlier to cut cleanly from a draped round table, so prefer baking for a
+   static host.
+
 ## Asset pipeline
 
 - Raw magenta/white-keyed source art lives in `art-src/` (NOT shipped).
