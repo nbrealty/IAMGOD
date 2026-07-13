@@ -5,8 +5,9 @@ import { SoulProfilePanel } from "../components/SoulProfilePanel";
 import { InventoryGrid } from "../components/InventoryGrid";
 import { ROSTER } from "../soul/roster";
 import { equippedStem } from "./inventory";
-import { castReading, applyReading, type ReadingOutcome } from "../soul/buzios";
+import { applyReading, type ReadingOutcome, type Reading } from "../soul/buzios";
 import { formatMoney } from "../soul/derive";
+import { BuziosReadingScene } from "../components/BuziosReadingScene";
 
 // A short chip label: the quoted nickname if the soul has one, else the first name.
 function chipLabel(name: string): string {
@@ -53,7 +54,9 @@ export function HollywoodScene({ engine, controlledId, onControlledChange }: Pro
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [invOpen, setInvOpen] = useState(false); // inventory sheet for the controlled character
   const [roomId, setRoomId] = useState<string | null>(null); // current interior room id (null = outside)
-  const [reading, setReading] = useState<ReadingOutcome | null>(null); // active búzios reading panel
+  const [reading, setReading] = useState<ReadingOutcome | null>(null); // resolved reading panel
+  const [povOpen, setPovOpen] = useState(false); // first-person búzios reading scene
+  const [povSeed, setPovSeed] = useState(0);
   const castCount = useRef(0); // varies the reading seed per cast
   // Equipped outfit stem per soul (any soul absent here wears its default look). Remembered across
   // character switches; applied live to the renderer. Drives both inventory grids.
@@ -117,13 +120,18 @@ export function HollywoodScene({ engine, controlledId, onControlledChange }: Pro
       rendererRef.current?.setMove(dir, pressed);
     };
 
-  // Yara casts the búzios for the controlled soul (the amnesiac god), reading their state and
-  // applying the consequence (Axé + chakra-power). Only offered in her back consultation room.
-  const castBuzios = () => {
+  // Open the first-person búzios scene (tap-to-cast happens in there). Only in Yara's back room.
+  const openReading = () => {
+    if (!controlledId) return;
+    setPovSeed(Math.floor(engine.clockMinutes) * 131 + castCount.current++);
+    setPovOpen(true);
+  };
+  // The scene hands back the cast Reading once the shells settle; apply it to the soul + show the
+  // reading panel over the settled shells. (castReading ran in the scene to drive the throw; this
+  // applies the consequence — Axé + chakra-power — exactly once.)
+  const onCast = (r: Reading) => {
     const soul = controlledId ? engine.souls.find((s) => s.id === controlledId) : null;
-    if (!soul) return;
-    const seed = Math.floor(engine.clockMinutes) * 131 + castCount.current++;
-    setReading(applyReading(soul, castReading(soul, seed)));
+    if (soul) setReading(applyReading(soul, r));
   };
 
   return (
@@ -154,13 +162,22 @@ export function HollywoodScene({ engine, controlledId, onControlledChange }: Pro
         return wallet !== undefined ? <div className="wallet-chip">💵 {formatMoney(wallet)}</div> : null;
       })()}
 
-      {roomId === "aguas-back" && controlledId !== null && (
+      {roomId === "aguas-back" && controlledId !== null && !povOpen && (
         <button
           className="buzios-btn"
-          onPointerUp={(e) => { e.preventDefault(); castBuzios(); }}
+          onPointerUp={(e) => { e.preventDefault(); openReading(); }}
         >
           🐚 Consult the búzios
         </button>
+      )}
+
+      {povOpen && controlledId !== null && (
+        <BuziosReadingScene
+          soul={engine.souls.find((s) => s.id === controlledId)!}
+          seed={povSeed}
+          onCast={onCast}
+          onExit={() => { setPovOpen(false); setReading(null); }}
+        />
       )}
 
       {roomId !== null && (
@@ -274,7 +291,7 @@ export function HollywoodScene({ engine, controlledId, onControlledChange }: Pro
                 <div className="buzios-power">◆ Power awakened — <b>{reading.unlockedPower.name}</b>: {reading.unlockedPower.blurb}</div>
               )}
             </div>
-            <button className="panel-close" onClick={() => setReading(null)}>Close</button>
+            <button className="panel-close" onClick={() => { setReading(null); setPovOpen(false); }}>Close</button>
           </div>
         </div>
       )}

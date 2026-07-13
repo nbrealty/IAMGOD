@@ -187,6 +187,7 @@ const AREAS: Record<string, AreaView> = {
     halfTop: 360, halfBot: 640,
     cx: 768, entryX: 980, entryY: 860, // arrive just inside the curtain doorway (right), facing in
     scaleBack: 0.82, charScale: 5.5, // people sized to the chairs/table (~2× chair-back height)
+    occupants: [{ stem: "yara_seated", x: 620, y: 640, scale: 1.0 }], // Yara seated at her reading table
     exitTo: "aguas-front", // back through the beaded curtain → the front botanica
     // The doorway is the beaded curtain on the RIGHT, NOT the south edge — so exit at the curtain x
     // (walk right into it) and disable the walk-down exit, which would drop you out at a wall.

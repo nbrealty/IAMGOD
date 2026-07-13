@@ -344,6 +344,22 @@
   font-size: 13px; color: #cbe0c0; display: flex; flex-direction: column; gap: 4px;
 }
 .buzios-power { color: #7fe0d0; font-weight: 600; }
+
+/* First-person búzios reading scene (full-bleed; sits above the world/buttons, below the panel). */
+.buzios-scene { position: absolute; inset: 0; z-index: 15; background: #000; touch-action: manipulation; cursor: pointer; }
+.buzios-scene-canvas { width: 100%; height: 100%; display: block; }
+.buzios-prompt {
+  position: absolute; left: 0; right: 0; bottom: 13%; text-align: center;
+  color: #ffe6ad; font-size: 18px; font-weight: 800; letter-spacing: 0.4px;
+  text-shadow: 0 2px 10px #000, 0 0 20px rgba(0,0,0,0.7); pointer-events: none;
+  animation: buzios-pulse 1.5s ease-in-out infinite;
+}
+@keyframes buzios-pulse { 0%,100% { opacity: 0.55; } 50% { opacity: 1; } }
+.buzios-exit {
+  position: absolute; top: 12px; left: 12px; z-index: 16; font-size: 15px;
+  padding: 10px 16px; border-radius: 20px; background: rgba(24, 12, 30, 0.9);
+  border: 2px solid #d8a63a; color: #ffe6ad; font-weight: 800; touch-action: manipulation;
+}
 .build-stamp {
   opacity: 0.5;
   font-size: 10px;
