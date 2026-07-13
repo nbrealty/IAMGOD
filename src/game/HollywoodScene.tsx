@@ -8,6 +8,10 @@ import { equippedStem } from "./inventory";
 import { applyReading, type ReadingOutcome, type Reading } from "../soul/buzios";
 import { formatMoney } from "../soul/derive";
 import { BuziosReadingScene } from "../components/BuziosReadingScene";
+import { YaraFrontDesk } from "../components/YaraFrontDesk";
+
+// What Yara charges for a búzios reading (deducted from the controlled soul's wallet on accept).
+const READING_PRICE = 75;
 
 // A short chip label: the quoted nickname if the soul has one, else the first name.
 function chipLabel(name: string): string {
@@ -58,6 +62,9 @@ export function HollywoodScene({ engine, controlledId, onControlledChange }: Pro
   const [povOpen, setPovOpen] = useState(false); // first-person búzios reading scene
   const [povSeed, setPovSeed] = useState(0);
   const castCount = useRef(0); // varies the reading seed per cast
+  const [deskOpen, setDeskOpen] = useState(false); // front-desk conversation with Yara
+  const [readingActive, setReadingActive] = useState(false); // a reading is paid for (mirrors renderer)
+  const [casted, setCasted] = useState(false); // the shells have been cast this paid visit (one per payment)
   // Equipped outfit stem per soul (any soul absent here wears its default look). Remembered across
   // character switches; applied live to the renderer. Drives both inventory grids.
   const [equipped, setEquipped] = useState<Record<string, string>>({});
@@ -76,7 +83,8 @@ export function HollywoodScene({ engine, controlledId, onControlledChange }: Pro
       if (id) setSelectedId(id); // tapped a person → open their Soul Profile
       else renderer.tapToWalk(cssX, cssY); // tapped the ground → walk the controlled soul there
     });
-    renderer.setRoomHandler((room) => { setRoomId(room); if (room === null) setReading(null); }); // track room; close reading on exit
+    renderer.setRoomHandler((room) => { setRoomId(room); if (room === null) { setReading(null); setDeskOpen(false); } }); // track room; close panels on exit
+    renderer.setReadingHandler((active) => { setReadingActive(active); if (!active) setCasted(false); }); // front-desk vs. "Sit" button state
 
     const fit = () => {
       const r = wrap.getBoundingClientRect();
@@ -120,11 +128,20 @@ export function HollywoodScene({ engine, controlledId, onControlledChange }: Pro
       rendererRef.current?.setMove(dir, pressed);
     };
 
-  // Open the first-person búzios scene (tap-to-cast happens in there). Only in Yara's back room.
+  // Open the first-person búzios scene (tap-to-cast happens in there) — the "Sit" prompt in the back.
   const openReading = () => {
     if (!controlledId) return;
     setPovSeed(Math.floor(engine.clockMinutes) * 131 + castCount.current++);
     setPovOpen(true);
+  };
+  // Front desk: accept + pay for the reading. Deduct the fee, then tell the renderer to send Yara to
+  // the back (hides her counter sprite, plays the walk beat, loads the baked back-room plate).
+  const acceptReading = () => {
+    const soul = controlledId ? engine.souls.find((s) => s.id === controlledId) : null;
+    if (!soul || (soul.money ?? 0) < READING_PRICE) return;
+    soul.money = (soul.money ?? 0) - READING_PRICE;
+    setDeskOpen(false);
+    rendererRef.current?.beginReading();
   };
   // The scene hands back the cast Reading once the shells settle; apply it to the soul + show the
   // reading panel over the settled shells. (castReading ran in the scene to drive the throw; this
@@ -132,6 +149,7 @@ export function HollywoodScene({ engine, controlledId, onControlledChange }: Pro
   const onCast = (r: Reading) => {
     const soul = controlledId ? engine.souls.find((s) => s.id === controlledId) : null;
     if (soul) setReading(applyReading(soul, r));
+    setCasted(true); // consumed this paid reading
   };
 
   return (
@@ -162,13 +180,38 @@ export function HollywoodScene({ engine, controlledId, onControlledChange }: Pro
         return wallet !== undefined ? <div className="wallet-chip">💵 {formatMoney(wallet)}</div> : null;
       })()}
 
-      {roomId === "aguas-back" && controlledId !== null && !povOpen && (
+      {/* Front desk: talk to Yara / request a reading (hidden once a reading is under way) */}
+      {roomId === "aguas-front" && controlledId !== null && !readingActive && !deskOpen && (
+        <button
+          className="buzios-btn"
+          onPointerUp={(e) => { e.preventDefault(); setDeskOpen(true); }}
+        >
+          🔮 Speak with Yara
+        </button>
+      )}
+
+      {/* After paying, she heads to the back — nudge the player to follow */}
+      {roomId === "aguas-front" && readingActive && (
+        <div className="follow-hint">Yara's waiting in the back — follow her through the curtain →</div>
+      )}
+
+      {/* In the back room, once the reading is paid for: sit down to cast (one cast per payment) */}
+      {roomId === "aguas-back" && controlledId !== null && readingActive && !casted && !povOpen && (
         <button
           className="buzios-btn"
           onPointerUp={(e) => { e.preventDefault(); openReading(); }}
         >
-          🐚 Consult the búzios
+          🪑 Sit for your reading
         </button>
+      )}
+
+      {deskOpen && controlledId !== null && (
+        <YaraFrontDesk
+          soul={engine.souls.find((s) => s.id === controlledId)!}
+          price={READING_PRICE}
+          onAccept={acceptReading}
+          onClose={() => setDeskOpen(false)}
+        />
       )}
 
       {povOpen && controlledId !== null && (

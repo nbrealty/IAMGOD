@@ -345,6 +345,30 @@
 }
 .buzios-power { color: #7fe0d0; font-weight: 600; }
 
+/* Front-desk conversation with Yara. */
+.yara-desk { max-width: 440px; text-align: left; }
+.yara-line { color: #ece2cc; line-height: 1.5; margin: 8px 0 14px; font-size: 15px; }
+.yara-wallet { color: #c9b48c; font-size: 12px; margin: -6px 0 12px; opacity: 0.85; }
+.yara-choices { display: flex; flex-direction: column; gap: 8px; }
+.yara-choices button {
+  text-align: left; padding: 12px 16px; border-radius: 12px; cursor: pointer;
+  font-size: 15px; font-weight: 700; color: #ece2cc;
+  background: rgba(40, 24, 20, 0.7); border: 1px solid rgba(216, 166, 58, 0.35);
+  touch-action: manipulation;
+}
+.yara-choices button:active { transform: scale(0.98); }
+.yara-choices button.primary { background: rgba(24, 12, 30, 0.94); border-color: #d8a63a; color: #ffe6ad; }
+.yara-choices button.ghost { background: transparent; border-color: rgba(216, 166, 58, 0.2); color: #b7a988; font-weight: 600; }
+.yara-choices button.disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* "Follow Yara to the back" nudge after paying. */
+.follow-hint {
+  position: absolute; top: 96px; right: 10px; z-index: 12; max-width: 260px;
+  padding: 11px 16px; border-radius: 16px; font-size: 14px; font-weight: 700;
+  background: rgba(24, 12, 30, 0.9); border: 1px solid rgba(216, 166, 58, 0.5); color: #ffe6ad;
+  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.5); text-align: right;
+}
+
 /* First-person búzios reading scene (full-bleed; sits above the world/buttons, below the panel). */
 .buzios-scene { position: absolute; inset: 0; z-index: 15; background: #000; touch-action: manipulation; cursor: pointer; }
 .buzios-scene-canvas { width: 100%; height: 100%; display: block; }

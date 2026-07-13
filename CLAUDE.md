@@ -238,13 +238,22 @@ feet-anchored to one ground-Y, which is the sort key.
    at her búzios reading table, `aguas-back`), paint her into the plate — the art sizes her to the
    furniture and hides her legs under the table for free. Then calibrate the *player's* `charScale`
    so the incoming avatar reads at the baked host's scale (an adult standing at the empty chair: head
-   above the chair back, head ≈ the baked host's head), NOT child-sized. **Anti-double-presence:** a
-   host baked into a back room must be HIDDEN wherever else she appears while she's "there" — Yara's
-   front-counter `occupant` is filtered out while `yaraAway` is set (she "goes to the back" for a
-   reading on entering `aguas-back`, and only returns to the counter after you leave the botanica for
-   the street). The alternative to baking (keep her a sprite) is a `foreground` table-skirt overlay
-   like the counter — fiddlier to cut cleanly from a draped round table, so prefer baking for a
-   static host.
+   above the chair back, head ≈ the baked host's head), NOT child-sized. The alternative to baking
+   (keep her a sprite) is a `foreground` table-skirt overlay like the counter — fiddlier to cut
+   cleanly from a draped round table, so prefer baking for a static host.
+
+   **7e. The reading is a paid front-desk transaction, and the baked host only appears once it's
+   paid for.** `aguas-back` has TWO plates: `backdrop` = the EMPTY room (open chairs), and
+   `readingBackdrop` = the SAME room with Yara baked in. The state is `readingActive` (set by
+   `beginReading()` when the player accepts + pays at the front desk — the `YaraFrontDesk` panel,
+   opened by the "🔮 Speak with Yara" button in `aguas-front`; cleared when they leave the botanica
+   for the street, and on character-switch). `renderArea` picks `readingBackdrop` when `readingActive`,
+   else the empty plate — so **wandering into the back without paying shows an empty room**, and the
+   host materialises only for a paid reading. `readingActive` also hides her front-counter `occupant`
+   (anti-double-presence — she "went to the back"), and on accept plays a one-time "walk to the back"
+   beat (`yaraWalkT`: her counter sprite slides toward the beaded curtain and fades through it). React
+   mirrors `readingActive` via `setReadingHandler` to swap the "Speak with Yara" / "Sit for your
+   reading" buttons; the "Sit" button (gated `!casted`, one cast per payment) opens the POV cast.
 
 ## Asset pipeline
 

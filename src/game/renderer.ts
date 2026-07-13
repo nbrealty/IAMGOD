@@ -108,6 +108,7 @@ interface AreaView {
   id: string;
   view: ViewMode; // 'headon' = elevated plate that may show sky; 'topdown' = city (no sky)
   backdrop: string; // interior plate key (loaded from /${dir ?? 'overture'}/<backdrop>.<png|jpg>)
+  readingBackdrop?: string; // alt plate used only while a reading is active (host baked in); else `backdrop`
   dir?: string; // asset subfolder under public/ (default 'overture'); e.g. 'aguas' for the botanica
   jpg?: boolean; // load the plate as .jpg instead of .png (opaque interior plates compress far smaller)
   exitTo?: string | null; // where the walk-out exit goes: null/undefined = overworld, or a room id
@@ -180,7 +181,8 @@ const AREAS: Record<string, AreaView> = {
   "aguas-back": {
     id: "aguas-back",
     view: "topdown",
-    backdrop: "aguas-back",
+    backdrop: "aguas-back", // EMPTY back room (two open chairs) — shown when no reading was paid for
+    readingBackdrop: "aguas-back-reading", // Yara BAKED at the table — shown only when a reading is active
     dir: "aguas", jpg: true,
     w: 1536, h: 1024,
     floorTop: 560, floorBot: 980, // the open floor in front of the reading table
@@ -198,6 +200,7 @@ const AREAS: Record<string, AreaView> = {
   },
 };
 const ROOM_FADE = 0.42; // seconds for a full fade-through-black scene swap
+const YARA_WALK_DUR = 1.7; // seconds for Yara's "walk to the back" beat after a reading is accepted
 const COURT_ENTER_Y = OVERTURE.courtBackY + 200; // walk north of this line in the court → load room
 
 // Vehicle sprites (public/vehicles/<type>.png), drawn feet(wheels)-anchored to a road lane.
@@ -479,11 +482,16 @@ export class HollywoodRenderer {
   private trans: { to: string | null; t: number; swapped: boolean } | null = null;
   private roomReturn: { x: number; y: number } | null = null;
   private camReturn: { x: number; y: number; zoom: number } | null = null;
-  // "Yara is in the back giving a reading." Set when the player steps into the back consultation
-  // room (aguas-back, where she's baked into the plate), cleared when they leave the botanica for
-  // the street. While true, her front-counter sprite is hidden so she isn't in two places at once
-  // — she "got up and went to the back," and only returns to the counter after you leave + re-enter.
-  private yaraAway = false;
+  // "A reading has been paid for." Set when the player ACCEPTS + pays at the front desk (beginReading),
+  // cleared when they leave the botanica for the street. While true: the front-counter Yara sprite is
+  // hidden (she "went to the back"), and the back room loads the plate she's BAKED into
+  // (`readingBackdrop`). Without a paid reading the back room stays empty. onReadingChange lets React
+  // mirror it (front-desk button vs. "Sit for the reading" button).
+  private readingActive = false;
+  private onReadingChange?: (active: boolean) => void;
+  // Yara's "walk to the back" beat, played once right after accepting: her counter sprite walks
+  // toward the beaded curtain and fades through it. Seconds elapsed, or null when not animating.
+  private yaraWalkT: number | null = null;
   // Active outfit per soul: soulId → sprite stem (see outfits.ts). Absent → wears its default
   // (stem = soul id). Swapping an entry changes which sprite (front + `_back`) drawNPC loads.
   private outfits = new Map<string, string>();
@@ -625,6 +633,12 @@ export class HollywoodRenderer {
           this.trans.swapped = true;
         }
         if (this.trans.t >= 1) this.trans = null;
+      }
+
+      // advance Yara's one-time "walk to the back" beat; when it finishes she's simply hidden (in back)
+      if (this.yaraWalkT !== null) {
+        this.yaraWalkT += dt;
+        if (this.yaraWalkT >= YARA_WALK_DUR) this.yaraWalkT = null;
       }
 
       // player-controlled character: WASD / arrows / on-screen D-pad. Real-time speed
@@ -810,7 +824,6 @@ export class HollywoodRenderer {
       }
       // (room → room keeps the same roomReturn/camReturn so a later exit still lands outside.)
       if (pc && R) { pc.x = R.entryX; pc.y = R.entryY; }
-      if (to === "aguas-back") this.yaraAway = true; // she's gone to the back to read
       this.room = to;
       this.facingUp = true; // arrive facing into the scene
       // frame the room at cover-zoom (plate fills the viewport; can't see past its edges), centred
@@ -823,7 +836,7 @@ export class HollywoodRenderer {
       }
     } else {
       // room → overworld.
-      if (from === "aguas-front") this.yaraAway = false; // left the botanica → she's back at the counter next visit
+      if (from === "aguas-front") this.setReading(false); // left the botanica → reading over, she's back at the counter
       this.room = null;
       if (pc) {
         if (from === "overture-court") {
@@ -918,7 +931,8 @@ export class HollywoodRenderer {
     this.room = null;
     this.trans = null;
     this.moveTarget = null;
-    this.yaraAway = false; // fresh soul → Yara's back at her counter
+    this.setReading(false); // fresh soul → no active reading; Yara's back at her counter
+    this.yaraWalkT = null;
     this.controlledId = id;
     this.held.clear();
     this.facingLeft = false;
@@ -949,6 +963,27 @@ export class HollywoodRenderer {
   // React registers here so it can show a "Leave" button whenever a room is active (null = overworld).
   setRoomHandler(fn: (room: string | null) => void) {
     this.onRoomChange = fn;
+  }
+
+  // React registers here to mirror the reading state (front-desk "Speak with Yara" vs. back-room
+  // "Sit for the reading" button visibility).
+  setReadingHandler(fn: (active: boolean) => void) {
+    this.onReadingChange = fn;
+  }
+  isReadingActive(): boolean {
+    return this.readingActive;
+  }
+  private setReading(active: boolean): void {
+    if (this.readingActive === active) return;
+    this.readingActive = active;
+    this.onReadingChange?.(active);
+  }
+  // Called by React once the player accepts + pays for a reading at the front desk: marks the reading
+  // active (so the back room loads the baked-in plate and the front counter empties) and kicks off
+  // Yara's one-time "walk to the back" beat.
+  beginReading(): void {
+    this.setReading(true);
+    this.yaraWalkT = 0;
   }
 
   // Public: leave the current room via its exit (the on-screen Leave button). The one guaranteed
@@ -1136,6 +1171,7 @@ export class HollywoodRenderer {
     // Curtain doorway: once the player nears it, show the open-curtain art (the room's other
     // furniture is identical between plates, so this reads purely as the beaded curtain opening).
     let backdropKey = R.backdrop;
+    if (R.readingBackdrop && this.readingActive) backdropKey = R.readingBackdrop; // host baked in for the reading
     if (R.curtain && pc && pc.x >= R.curtain.openX) backdropKey = R.curtain.openBackdrop;
     const img = this.getAreaPlate(R, backdropKey);
     if (img && img.complete && img.naturalWidth > 0) {
@@ -1181,12 +1217,24 @@ export class HollywoodRenderer {
     };
     const drawOccupant = (oc: NonNullable<AreaView["occupants"]>[number]) =>
       this.drawRoomOccupant(oc.stem, oc.x, oc.y, (oc.scale ?? 1) * depthScaleAt(oc.y), oc.faceLeft ?? false);
-    // While Yara is "in the back" giving a reading, her front-counter sprite is hidden (she's baked
-    // into the back-room plate instead — she can't be in both places).
-    const occupants = (R.occupants ?? []).filter((oc) => !(this.yaraAway && oc.stem === "yara"));
+    // The "walk to the back" beat: Yara's counter sprite slides from behind the counter toward the
+    // beaded curtain (right) with a walking bob, fading through it over the last third.
+    const drawYaraToBack = () => {
+      const p = Math.max(0, Math.min(1, (this.yaraWalkT ?? 0) / YARA_WALK_DUR));
+      const ease = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2; // easeInOut
+      const x = 660 + (1240 - 660) * ease; // counter → curtain
+      const bob = Math.sin((this.yaraWalkT ?? 0) * 11) * 4; // walking bob (legs hidden by counter)
+      const alpha = p < 0.66 ? 1 : Math.max(0, 1 - (p - 0.66) / 0.34); // fade through the curtain
+      this.drawRoomOccupant("yara", x, 912 + bob, depthScaleAt(912), false, alpha);
+    };
+    // Once a reading is paid for, Yara's front-counter sprite is hidden (she's baked into the back-room
+    // plate instead — she can't be in both places). The one-time "walk to the back" beat draws her
+    // separately (below), still behind the counter, sliding toward the curtain and fading.
+    const occupants = (R.occupants ?? []).filter((oc) => !(this.readingActive && oc.stem === "yara"));
     if (R.foreground) {
       // Counter-style room: occupants (keeper) BEHIND the foreground plate, player in FRONT of it.
       for (const oc of occupants) drawOccupant(oc);
+      if (R.id === "aguas-front" && this.yaraWalkT !== null) drawYaraToBack(); // walk-to-back beat, behind counter
       const fg = this.getAreaPlate(R, R.foreground, false); // overlay is a PNG (needs alpha)
       if (fg && fg.complete && fg.naturalWidth > 0) ctx.drawImage(fg, 0, pad, R.w, plateH);
       drawPlayer();
@@ -3198,7 +3246,7 @@ export class HollywoodRenderer {
   // A static room occupant (e.g. Yara at her counter): a plain foot-Y billboard drawn at the shared
   // uniform body height with a soft contact shadow so it grounds on the painted floor. No AI, no walk
   // FX — it just stands. Front sprite only (mirrored if faceLeft); reuses spriteBounds for scale.
-  private drawRoomOccupant(stem: string, x: number, y: number, scale: number, faceLeft: boolean): void {
+  private drawRoomOccupant(stem: string, x: number, y: number, scale: number, faceLeft: boolean, alpha = 1): void {
     const ctx = this.ctx;
     const sprite = this.getSprite(stem);
     if (!sprite || !sprite.complete || !sprite.naturalWidth) return;
@@ -3207,9 +3255,10 @@ export class HollywoodRenderer {
     const w = frameH * (sprite.naturalWidth / sprite.naturalHeight);
     const feetY = y + FEET_DROP;
     const top = feetY - b.b * frameH;
-    // soft contact shadow so she doesn't float on the floor
+    // soft contact shadow so she doesn't float on the floor (fades with the sprite)
     ctx.save();
     ctx.globalCompositeOperation = "multiply";
+    ctx.globalAlpha = alpha;
     const rx = w * 0.3, ry = rx * 0.32;
     const g = ctx.createRadialGradient(x, feetY, 1, x, feetY, rx);
     g.addColorStop(0, "rgba(10,8,6,0.5)");
@@ -3220,6 +3269,7 @@ export class HollywoodRenderer {
     const prev = ctx.imageSmoothingEnabled;
     ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
     ctx.save();
+    ctx.globalAlpha = alpha;
     if (faceLeft) { ctx.translate(x, 0); ctx.scale(-1, 1); ctx.translate(-x, 0); }
     ctx.drawImage(sprite, x - w / 2, top, w, frameH);
     ctx.restore();
