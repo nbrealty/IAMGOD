@@ -124,8 +124,24 @@
 .creator-screen .bg { z-index: 1; }
 /* desktop stage is a keyed PNG with transparent margins → contain it over the dark bg, don't crop */
 .creator-screen.desktop .bg { background-size: contain; background-position: center; }
-.creator-stage { position: absolute; z-index: 3; inset: 0; display: flex; align-items: flex-end; justify-content: center; pointer-events: none; }
-.creator-body-placeholder { width: 26vh; height: 62vh; margin-bottom: 12vh; }
+.creator-stage { position: absolute; z-index: 3; inset: 0; display: flex; align-items: flex-end; justify-content: center; pointer-events: none; overflow: hidden; }
+.creator-screen.desktop .creator-stage { right: min(420px, 40vw); } /* clear the side panel */
+.creator-body { height: 74vh; margin-bottom: 6vh; transform-origin: bottom center; transition: transform 0.18s ease; }
+.creator-body img { height: 100%; width: auto; display: block; filter: drop-shadow(0 18px 26px rgba(0,0,0,0.55)); animation: feFloat 6s ease-in-out infinite; }
+.creator-preload { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+
+.creator-view-tools { position: absolute; z-index: 5; left: 14px; top: calc(3vh + env(safe-area-inset-top)); display: flex; flex-direction: column; gap: 10px; }
+.creator-screen.mobile .creator-view-tools { flex-direction: row; }
+.seg { display: inline-flex; background: rgba(8,5,14,0.8); border: 1px solid rgba(216,166,58,0.4); border-radius: 12px; overflow: hidden; }
+.seg button { background: transparent; border: none; color: #cbb98f; padding: 9px 14px; font-family: system-ui, sans-serif; font-size: 0.9em; cursor: pointer; min-height: 40px; min-width: 44px; }
+.seg button.on { background: rgba(30,40,70,0.9); color: #fff; }
+.seg button:focus-visible { outline: 2px solid #4ea3ff; outline-offset: -2px; }
+
+.creator-tools { display: flex; gap: 10px; }
+.creator-tool { flex: 1; background: rgba(20,14,28,0.8); border: 1px solid rgba(216,166,58,0.35); border-radius: 12px; padding: 10px; color: #e8d6a8; cursor: pointer; font-family: system-ui, sans-serif; font-size: 0.88em; min-height: 42px; }
+.creator-tool:hover { border-color: rgba(216,166,58,0.7); }
+.creator-tool:focus-visible { outline: 2px solid #4ea3ff; }
+.creator-chip:disabled { opacity: 0.35; cursor: not-allowed; }
 .creator-panel {
   position: absolute; z-index: 6; right: 0; top: 0; bottom: 0; width: min(420px, 92vw);
   background: linear-gradient(180deg, rgba(8,5,14,0.9), rgba(8,5,14,0.96));
@@ -173,17 +189,21 @@
   .title-menu { width: min(420px, 86vw); }
   .mode-cards { flex-direction: column; align-items: center; overflow-y: auto; }
   .mode-card { width: 100%; max-width: 380px; flex: 0 0 auto; }
-  .creator-panel { left: 0; right: 0; top: auto; width: auto; border-left: none; border-top: 2px solid rgba(216,166,58,0.4); border-radius: 20px 20px 0 0; max-height: 62vh; }
-  .creator-stage { bottom: 40vh; }
+  .creator-panel { left: 0; right: 0; top: auto; width: auto; border-left: none; border-top: 2px solid rgba(216,166,58,0.4); border-radius: 20px 20px 0 0; max-height: 50vh; gap: 12px; }
+  /* keep the WHOLE body above the bottom sheet: shorter figure, stage bounded to the top region */
+  .creator-stage { top: 0; bottom: 49vh; align-items: flex-end; }
+  .creator-body { height: 46vh; margin-bottom: 1.5vh; }
 }
 
 /* ---------- REDUCED MOTION ---------- */
 .frontend.reduced .layer,
 .frontend.reduced .title-logo,
 .frontend.reduced .title-menu > *,
-.frontend.reduced .title-screen::after { animation: none !important; }
+.frontend.reduced .title-screen::before,
+.frontend.reduced .title-screen::after,
+.frontend.reduced .creator-body img { animation: none !important; }
 @media (prefers-reduced-motion: reduce) {
-  .layer, .title-logo, .title-menu > *, .title-screen::after { animation: none !important; }
+  .layer, .title-logo, .title-menu > *, .title-screen::before, .title-screen::after, .creator-body img { animation: none !important; }
 }
 
 /* ---------- KEYFRAMES ---------- */
@@ -197,3 +217,4 @@
 @keyframes feLogoGlow { 0%, 100% { filter: drop-shadow(0 6px 22px rgba(0,0,0,0.6)); } 50% { filter: drop-shadow(0 6px 26px rgba(216,166,58,0.5)); } }
 @keyframes feBtnIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes feFadeFromBlack { from { opacity: 1; } to { opacity: 0; } }
+@keyframes feFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1.4%); } }
