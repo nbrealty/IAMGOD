@@ -3,6 +3,8 @@ import { Hud } from "./components/Hud";
 import { HollywoodScene, PLAYABLE_CHARACTERS } from "./game/HollywoodScene";
 import { SoulEngine } from "./soul/engine";
 import { ROSTER } from "./soul/roster";
+import { FrontEnd } from "./frontend/FrontEnd";
+import type { CharacterDraft, Mode } from "./frontend/draft";
 import "./App.css";
 
 export default function App() {
@@ -25,6 +27,16 @@ export default function App() {
   const controlledName = controlledId
     ? PLAYABLE_CHARACTERS.find((c) => c.id === controlledId)?.label ?? null
     : null;
+
+  // Front-end shell (title → mode → creator) runs until the player enters the world. Sandbox = God
+  // Mode (observe, controlledId=null); Story enters driving Lori as a stand-in until created bodies
+  // become playable sprites (a later phase). The draft is saved regardless.
+  const [inGame, setInGame] = useState(false);
+  const enterGame = (mode: Mode | null, _draft: CharacterDraft | null) => {
+    setControlledId(mode === "sandbox" ? null : "lori");
+    setInGame(true);
+  };
+  if (!inGame) return <FrontEnd onEnterGame={enterGame} />;
 
   return (
     <div className="app">
