@@ -59,7 +59,9 @@ export function FrontEnd({ onEnterGame }: { onEnterGame: (mode: Mode | null, dra
           mode={draft.mode}
           onSelect={setMode}
           onBack={() => go("title")}
-          onContinue={() => draft.mode && go("creator")}
+          // Sandbox = God Mode → straight into the regular game (no incarnation to create).
+          // Story → create a character first.
+          onContinue={() => { if (!draft.mode) return; go(draft.mode === "sandbox" ? "game" : "creator"); }}
         />
       )}
       {screen === "creator" && (

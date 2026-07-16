@@ -52,7 +52,9 @@ export function ModeSelectScreen({
         </div>
         <div className="mode-actions">
           <GoldButton variant="ghost" onClick={onBack}>← Back</GoldButton>
-          <GoldButton variant="cta" onClick={onContinue} disabled={!mode}>Continue</GoldButton>
+          <GoldButton variant="cta" onClick={onContinue} disabled={!mode}>
+            {mode === "sandbox" ? "Enter as God" : mode === "story" ? "Create Character" : "Continue"}
+          </GoldButton>
         </div>
       </div>
     </div>
