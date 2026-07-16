@@ -190,9 +190,10 @@
   .mode-cards { flex-direction: column; align-items: center; overflow-y: auto; }
   .mode-card { width: 100%; max-width: 380px; flex: 0 0 auto; }
   .creator-panel { left: 0; right: 0; top: auto; width: auto; border-left: none; border-top: 2px solid rgba(216,166,58,0.4); border-radius: 20px 20px 0 0; max-height: 50vh; gap: 12px; }
-  /* keep the WHOLE body above the bottom sheet: shorter figure, stage bounded to the top region */
-  .creator-stage { top: 0; bottom: 49vh; align-items: flex-end; }
-  .creator-body { height: 46vh; margin-bottom: 1.5vh; }
+  /* keep the WHOLE body above the bottom sheet AND clear of the top view controls: the stage starts
+     below the controls, the figure is shorter, so the head is never cut */
+  .creator-stage { top: calc(7vh + env(safe-area-inset-top)); bottom: 49vh; align-items: flex-end; }
+  .creator-body { height: 41vh; margin-bottom: 1vh; }
 }
 
 /* ---------- REDUCED MOTION ---------- */

@@ -19,9 +19,11 @@ export const SKINS: { id: Skin; label: string }[] = [
 ];
 
 const BASE = "/assets/characters/base";
-// Every build×skin with BOTH a keyed front and back on disk. curvy·medium's front was never
-// generated (only a back exists), so that one combo is unavailable — never fabricated.
-const UNAVAILABLE = new Set<string>(["curvy_medium"]);
+// Every build×skin now has both a keyed front and back. curvy·medium's front was missing from the
+// source set (only a back was sent), so its front is derived: the curvy·light body recolored to the
+// exact medium tone sampled from the real curvy·medium back (same build, authentic tone) — swap in a
+// hand-authored front later if desired. All combos available.
+const UNAVAILABLE = new Set<string>([]);
 
 export interface BaseOption {
   build: Build; skin: Skin; label: string;
