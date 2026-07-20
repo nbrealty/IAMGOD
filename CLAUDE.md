@@ -679,3 +679,364 @@ god's palace"): **The Keepers of Return** (living descendants/elders/protectors/
 
 > **This material is narrative context only. No implementation, scripting, asset generation, database
 > work, or production changes should begin until Nelson explicitly requests the next task.**
+
+---
+
+# Supernatural entity bible — STORY CONTEXT ONLY (do NOT implement)
+
+> Supplements the novela framework (N1–N11 above) and the CaC origin update. Same tags:
+> **[CANON]** / **[DIR]** / **[PROV]** / **[RESEARCH]**. Where this expands an N-section it says so;
+> it does not overwrite it. **No code, systems, missions, dialogue, assets, DB, world-clock
+> programming, religious adaptation, or cultural visual design** until Nelson asks.
+
+## E1. Top-down framework + entity classes
+- **[CANON] Design the supernatural world top-down**, then insert human stories into the active board:
+  which entities exist · their class · what each wants · territories/systems they influence · plans
+  already advancing · how they relate · which human institutions are conduits · how God's return
+  disrupts the balance. The board keeps advancing even while the player is in unrelated human drama.
+- **[CANON] Five levels:** (1) **Cosmic / trans-state** — God, Lucifer, loyal angels, fallen angels;
+  (2) **Territorial sovereigns** — one dominant malicious entity embedded in each state/region's
+  systems (confirmed: **Molache**, LA/California); NOT automatically demons (old gods, predatory or
+  collective spirits, monsters, former protectors, territorial intelligences, system-empowered
+  beings); (3) **Cultural / ancestral powers** — entities rooted in living traditions (Indigenous
+  SoCal, Candomblé & Afro-Brazilian, Haitian Vodou, Hoodoo, broader Afro-diasporic) — kept culturally
+  distinct; (4) **Local / collective urban entities** — produced by the modern city (confirmed: **The
+  Audience**; possible: fame, traffic, freeways, development, surveillance, celebrity, loneliness,
+  housing insecurity, digital attention, institutional abandonment — mostly unnamed); (5) **Human
+  conduits / institutions** — studios, agencies, churches, botanicas, clubs, hospitals, police,
+  universities, developers, political offices, influencer houses, wealthy families, criminal orgs,
+  charities, media, spiritual communities. Entities should be **visible through human systems**, not
+  solitary monsters in a room.
+- **[CANON] "Demon" is specific: only angels who fell with Lucifer.** NOT-demons-merely-for-being-
+  hostile: Molache, territorial sovereigns, old gods, Indigenous sacred beings, orixás, Exus,
+  Pombagiras, Vodou lwa, ancestral spirits, urban collectives, human ghosts, monsters, corrupted
+  guardians. Characters may **misclassify** in dialogue; the underlying lore keeps the distinctions.
+
+## E2. God & the player-character (expands N5/N6)
+- **[CANON]** In CaC the player IS God reincarnated into a human body — limited/inaccessible divine
+  memory, human emotions/vulnerability/relationships, gradually awakening powers, no automatic grasp
+  of the supernatural world, **no guaranteed moral wisdom**. God experiences life from inside a human
+  POV. Default origin = **The Second Heartbeat** (see N6); the second heartbeat = beacon "I am awake."
+- **[DIR] God's power works by arranging circumstances, not overriding wills** — a missed elevator,
+  delayed car, misplaced phone, changed seat, unexpected witness, public accident, blackout,
+  coincidental meeting, a truth reaching the wrong audience at the right moment. Humans keep
+  responsibility for their choices.
+- **[PROV — future system, do not build]** A **soul skill-tree**: leveling parts of the soul unlocks
+  cooler / more controlling / destructive powers for harder bosses. Noted as a planned system only.
+- **[DIR] Spiritual objective (Sandbox/God Mode):** observe people and *offer* movement toward
+  enlightened / Christ-like consciousness by arranging opportunities, challenges, encounters,
+  consequences, moments of truth, invitations — **never forced conversion or mind control**; humans
+  can refuse.
+- **[CANON] God's central dramatic problem:** enormous power spent on small human motives (jealousy,
+  romance, revenge, pride, loyalty, humiliation, fear of loss) — "the gift is enormous, the aim is
+  tiny." God is a **main** character → understood by accumulation/choices, not one supporting-style
+  twist; but other entities may challenge God over divine absence, abandoned obligations, creation
+  without continued responsibility, whether free will was deliberate, whether humanity was worth
+  defending, whether reincarnation is restoration/escape/surrender.
+
+## E3. Lucifer (expands N2/N10)
+- **[CANON] Classification:** cosmic trans-state being; God's central philosophical opponent; the
+  **first angel to develop true independent sentience**; origin point of the angelic rebellion; the
+  most sophisticated tester/manipulator. NOT a territorial sovereign, generic red devil, Molache's
+  superior, simple evil, cause of every crime/coincidence, or a disposable final boss.
+- **[CANON/DIR] Origin of angelic free will:** pre-Lucifer angels had intelligence/personality/
+  function/awareness but were closer to extensions of divine purpose. Lucifer first realized "I exist
+  apart from what I was created to do," then **spread self-awareness** to other angels — liberation to
+  him, infection/rupture/rebellion/loss-of-unity to God. **[RESEARCH/PROV — do NOT resolve]** the open
+  cosmic question: *was free will always God's plan, or did it emerge unexpectedly through Lucifer?*
+- **[CANON] The argument:** Lucifer claims humans are corruptible/selfish/hypocritical/unworthy of
+  freedom/unable to hold principles under pressure; God challenged him to prove it. So his war on
+  humanity is also a **test aimed at God**. He does NOT want God dead (a dead God can't concede) — he
+  wants God, after living as a human, to admit **"You were right about them"** or **"You were right
+  about me."** His deepest goal is **vindication from his Father**.
+- **[DIR] Tester, not forcer:** he creates pressure, offers exceptions, introduces conflicting duties,
+  gives incomplete truths, grants what's requested, lets people author their own justification, and
+  watches which principle collapses first. **Hypocrisy:** he claims to reveal authentic human nature
+  while manipulating the experiment's conditions. Accusation (strong, not locked): "You don't test
+  people to discover who they are. You test them until they become what you predicted."
+- **[DIR] Psychology:** beautiful, brilliant, charming, courteous, funny, warm-when-he-chooses,
+  patient, damaged-adversarial affection toward God, capable of genuine attachment and of protecting
+  outcasts, sometimes the most honest person in the room. **His warmth is real** (distinguishes him
+  from Molache) *and* the manipulation is real.
+- **[PROV] Machiavelli:** fictional lore — Lucifer shaped conditions/pressure/opportunity around
+  Machiavelli's life so he'd independently arrive at ideas Lucifer already held (did NOT dictate *The
+  Prince*). Fictional, not a historical claim.
+- **[DIR] Bargain rules:** can't create genuine love; can't force acceptance; must provide what was
+  *requested* (not necessarily intended); a price must exist and can't be fully hidden (may be vague);
+  price symbolically connects to the gift; every bargain has an exit; the exit requires surrendering
+  the original desire that motivated it.
+- **[DIR] Movement:** no fixed territory — he moves through invitations, bargains, rebellion,
+  desperation, resentment, broken promises, the wish for an exception, the moment someone believes
+  normal morality shouldn't apply to them. "Kingdoms require borders. I prefer doors."
+- **[DIR] Story-Mode arc:** appears early as a **helpful guide** (explains locations/systems,
+  introduces people, solves an immediate problem, creates a small social obligation) — first help
+  never binds without consent; it builds gratitude/trust/obligation/curiosity/familiarity. Later he
+  offers a real bargain when the player desperately needs something. End of the intro quest reveals
+  his identity: "He helped me" → "He was studying me while helping me" (both true).
+- **[DIR] As reveal mechanism (per N2):** may hand someone the key to another character's hidden room
+  and ensure the right audience is watching — never manufactures the room. Players should sometimes
+  suspect him when he's uninvolved.
+- **[DIR] Recurring "state" progression** (state = US-state / territorial expansion; LA = State One):
+  1 LA — the Stranger/Tutor (identity concealed) · 2 the Helpful Acquaintance (player knows, may still
+  use him) · 3 the Named Devil (formal bargains, explicit tests) · 4 the Necessary Partner (a crisis
+  forces cooperation) · 5 the Personal Price (his bargain touches restoration/memory/love — something
+  uniquely God's) · later: friend/adversary/confidant/companion, increasingly intimate and hard to
+  classify. ~1–2 appearances per state (3–4 when a story supports it).
+- **[DIR] Adaptive:** learns the player's favorite companions, morality, failed interventions, guilt,
+  secrets, romances, powers, patterns of mercy/revenge, what they refuse to sacrifice, what they claim
+  not to want. Offers should genuinely tempt — accepting can grant real benefits/unique content/saved
+  characters/otherwise-impossible outcomes; refusing can cost permanent loss/missed chances/death/
+  failed reconciliation. **Never reduce him to an "always refuse" morality button.**
+- **[DIR] Relations:** God — sees the incarnation as the continuation/possible conclusion of the
+  father-son argument. Molache asks "how can I use God?", Lucifer asks "will my Father still believe
+  they were worth defending?" (Molache builds systems/wants leverage; Lucifer creates tests/wants an
+  answer). Territorial sovereigns — not subordinate; assists/undermines/exposes/ignores as suits his
+  argument. Fallen angels — former followers/allies/ideological descendants/disappointments; not all
+  still loyal to him.
+- **[DIR] Visual — concealed guide:** slim beautiful young man, tan skin, soft/somewhat-feminine
+  presentation, wavy blond undercut, blue eyes with subtle gold, warm smile; white+rainbow shirt with
+  flowing spectral patterns, black tapered pants, pink shoes, morning-star pendant (sun/compass),
+  psychedelic spiral glasses on forehead, gold coin, one open hand (tutorial/invitation pose); magenta/
+  transparent key; **no horns/wings/flames/red skin/demonic imagery.** **Revealed:** same person, just
+  stops minimizing — more symmetrical/controlled/impossibly beautiful/calmly dominant, smaller knowing
+  smile, luminous blue-white-gold eyes, controlled radiant hair, glasses off/in hand, white-gold fabric
+  refracting rainbow, tailored black trousers, refined rose/pale-gold shoes, clearer morning-star, the
+  coin more significant; **no permanent feathered wings** (wing shapes only via shadow/geometry/light/
+  negative space), restrained prismatic rim light, no hellscape clichés. Thesis: *"the friendly guide
+  was never fake; his presence was simply turned down."*
+- **[DIR] World clock — The First Favor:** 1 identify God · 2 establish trust · 3 offer unsolicited
+  help · 4 create emotional/social debt · 5 wait for an impossible need · 6 present the voluntary bargain.
+
+## E4. Angels & the Broken Choir
+- **[DIR] Original condition:** intelligence/identity/personality/purpose/function; pre-Lucifer they
+  didn't experience freedom as humans/post-rebellion angels do. Lucifer's sentience event destabilized
+  the whole angelic order.
+- **[DIR] Loyal angels:** didn't fall, or returned to obedience after tasting choice. Loyalty from
+  love/faith/fear/duty/habit/rejection-of-his-methods/belief-that-freedom-without-purpose-destroys/
+  terror-of-their-own-independence. Not one uniform personality.
+- **[CANON] The Broken Choir** = working name for the network of loyal-or-"loyal" angels searching for
+  God; not perfectly unified. Internal splits: protect vs control the incarnation; restore God's memory
+  now vs keep human experience uninterrupted; read the incarnation as weakness; fear a second
+  rebellion; think Lucifer's original question is still unresolved; resent being abandoned. **[DIR]**
+  They may attempt **protective custody** of God — protection that can turn authoritarian.
+- **[PROV] Possible leader hidden room:** the publicly "perfectly loyal" leader was among the first
+  angels Lucifer awakened / nearly joined / helped spread awareness / returned to obedience and hid it
+  / became rigid out of fear of their own freedom. Accusation: "You didn't resist him. You taught him
+  how to spread it."
+- **[DIR] World clock — Broken Choir:** 1 detect signs · 2 surveillance · 3 investigate false
+  incarnations · 4 identify the player · 5 attempt protective custody · 6 internal rebellion resumes.
+
+## E5. Fallen angels / demons
+- **[CANON]** Demons = angels who fell with Lucifer; they keep their original created **functions**,
+  distorted by rebellion/obsession/resentment/self-definition: protection→control, knowledge→obsession,
+  loyalty→fanaticism, beauty→vanity, justice→punishment, mercy→enabling, order→tyranny,
+  freedom→appetite, courage→domination.
+- **[DIR] Individuality (not interchangeable mobs):** each has original function · reason for awakening
+  · reason for falling · relationship with Lucifer · relationship with God · present ideology · regret
+  or not · human attachments · specific distortion. Some still love Lucifer / hate him / think he
+  betrayed the rebellion / want reconciliation with God / prefer independence from both / regret the
+  fall but refuse submission / blame humans / protect humans for un-Heavenly reasons. **No generic
+  horned combat mobs.**
+
+## E6. Territorial sovereigns & Molache (expands N10)
+- **[CANON] Core rule:** every state/major expansion has a dominant malicious territorial entity
+  reflecting that place's history/institutions/mythology/economy/public-fantasies/social-wounds/
+  exploitation, visible through institutions, neighborhoods, rituals, human bargains, politics,
+  business, family dynasties, local fears, urban legends, environment. Most ask **"how do I survive
+  God?"** — Molache is unusual: **"how can I use God?"**
+- **[CANON] Molache:** LA's dominant malicious sovereign; a **sacrifice sovereign**; institutional
+  manipulator; main LA antagonist; **separate from Lucifer; not an angel or demon.** Preferred spelling
+  **Molache.**
+- **[RESEARCH/CANON caution] Historical:** fictionalized from Moloch/Molech. Ancient Moloch is NOT
+  securely documented as an owl god; "Molech" may be deity/title/category/rite by interpretation; the
+  Moloch→Bohemian-Grove-owl link is modern conspiracy, not fact. May use an owl avatar/mask **as
+  fiction**, never claimed as verified history. **Never accuse real celebrities** — fictional
+  composites only.
+- **[CANON] Domain:** sacrifice, ambition, exchange, institutional exploitation, replacement victims,
+  delegated suffering, "success requires someone else to pay," transfer of consequence from powerful to
+  vulnerable. Central belief: **"nothing has value until something else is surrendered."** Believes
+  humanity summoned/strengthened him through systems of aspiration/exchange/sacrifice.
+- **[DIR] Personality:** cold, regal, patient, contractual, possessive, contemptuous, conniving,
+  manipulative, hyper-intelligent, strategic, rarely impulsive. Rarely lies outright — prefers partial
+  truths, false choices, defined terms, institutional pressure, and victims who believe the decision
+  was entirely their own.
+- **[DIR] Modern sacrifice systems (adults primarily; ancient child-sacrifice imagery only restrained/
+  indirect/non-graphic/environmental):** breakthrough contracts w/ moral compromise; stand-ins who
+  absorb consequences; red-carpet/attention tithes; fame bargains consuming memory/maturity/
+  relationships; manufactured breakdowns → profitable comebacks; victims-become-gatekeepers who recruit
+  the next; awards as ownership rituals; blacklist curses (social invisibility); persona doubles
+  replacing identity; audiences sacrificing time/self-worth/attention; redevelopment sacrificing
+  communities; legal settlements sacrificing truth for institutional stability.
+- **[DIR] Plan — Covenant Renewal:** renew territorial ownership via a chain of seemingly unrelated
+  public events (studio merger, private awards ceremony, community-displacing redevelopment, celebrity
+  comeback, political campaign, sealed criminal case, charity gala, an adult replacement victim) — each
+  looks independent; together they form a territorial covenant.
+- **[DIR] Reaction to the Second Heartbeat:** senses an ancient divine claim entering his territory —
+  threat + legitimacy + weapon + opportunity. Wants to locate/hide/selectively-protect God, control the
+  pace of awakening, influence which powers emerge, make God dependent, use God against rivals, bind God
+  into the covenant, possibly make God a successor / living altar / divine legitimizer. Wants God
+  powerful, cynical, isolated, dependent, convinced compromise is necessary, yet still able to feel
+  fundamentally good. "Everyone else sees judgment approaching. I see leverage."
+- **[CANON] Weakness:** a **genuine gift freely given** — no debt, audience, exchange, expectation,
+  transferred suffering, or future claim — is NOT his domain. His power needs sacrifice to be
+  transactional/coercive/institutionally-delegated.
+- **[DIR] `Sacrificial Logic` (player tendency, not yet a designed system):** rises when the player
+  repeatedly chooses shortcuts, replacement victims, lesser-evil math, cost-transferring bargains,
+  power bought through others' suffering — more power but increasingly sees people as resources/
+  variables/liabilities/acceptable losses.
+- **[PROV] Hidden-room possibilities (unlocked, see N10):** once *was* the sacrifice / once refused to
+  sacrifice what he loved / his philosophy began with a sacrifice that produced nothing / was appointed
+  to *prevent* sacrifice / someone survived an offering he believed complete / turned one personal wound
+  into universal law. "You keep asking people to pay a price you were too frightened to pay yourself."
+- **[DIR] World clock — Covenant Renewal:** 1 recruit replacement victims · 2 consolidate institutions ·
+  3 silence witnesses · 4 coordinate public events · 5 renew territorial ownership · 6 bind God in.
+
+## E7. Cultural & ancestral powers (expands N8)
+- **[CANON] Representation:** no generic "Native Spirits"/"African Spirits"/"Ancestral Faction." Never
+  merge Tongva-Gabrieleño-Kizh / Acjachemen / Fernandeño-Tataviam / Chumash / Candomblé / Umbanda /
+  Quimbanda / Haitian-Vodou / Hoodoo / generic-occultism. Shared symbols ≠ interchangeable traditions.
+- **[CANON] Cultural reveal rule (per N8):** invented beings (Molache, The Audience) allow invented
+  hidden histories; **living-tradition beings do NOT** — no secret "true mythology," no "communities
+  forgot," no restricted ceremonies, no confidential sacred locations, no burial-loot-dungeons, no
+  sacred-object buffs, no colonial-missionary-as-truth, no villainizing-for-drama. Conflict comes from
+  present-day choices, differing human interpretations, custodian disagreement, documented account
+  differences, tension among mercy/law/land/authority/memory/obligation, human misuse, and the entity's
+  fictional response to God's return.
+- **Indigenous SoCal, Puvungna, Wiyot, Chinigchinich, Ouiamot, Coyote, Hutash, Alchupo'osh** — full
+  treatment is in **N8/N9** (peoples, living-sacred-place rules, absent-primordial Wiyot, law-embodied
+  Chinigchinich, unstable Ouiamot, non-evil Coyote, Chumash candidates). This bible adds:
+  - **[DIR] Fernandeño Tataviam:** public research gives no simple named pantheon — focus on ancestors,
+    village sovereignty, lineage, landscape memory, burial/afterworld relationships, autonomous
+    communities linked by marriage/trade/language/belief. Don't invent named gods to fill a roster.
+    Possible question to God: "Are you returning to restore relationship, or merely to replace one
+    authority with another?" [PROV]
+  - **[RESEARCH] Hutash:** Earth/creation/Limuw/homeland/migration/reciprocity/transformation/dolphin
+    relatives — not generic "Mother Nature." Possible challenge: creation establishes continuing
+    responsibility toward the created; may question divine absence/responsibility.
+  - **[RESEARCH] Alchupo'osh:** Sky Snake / Milky Way / lightning / fire / celestial power / dangerous-
+    transformative gifts / relationship with Hutash. Modern tension: fire became industry/electricity/
+    weapons/consumption/wildfire/expansion. Research before characterization.
+  - **[RESEARCH] Dolphin relatives** (Chumash Rainbow Bridge): ancestral relatives / crossing guardians
+    / rescuers of the fallen / witnesses between island and mainland / collective oceanic presence — NOT
+    generic animal helpers or "talking quest merchants."
+- **[PROV] Land Awakening world clock** (broad, culturally-specific — not one Native faction): 1 dreams/
+  animal behavior change · 2 sacred locations unstable · 3 a development project repeatedly fails · 4
+  manifestations increase · 5 communities divide over interpretation · 6 the land rejects part of the
+  modern city.
+
+## E8. Águas Douradas / Afro-diasporic network (research-gated)
+- **[CANON] Yara is human** — practitioner/seer/community figure, **not** an orixá or entity. **Águas
+  Douradas** = the botanica/spiritual-community nucleus around her; broader network may include
+  Candomblé-linked practice, Afro-Brazilian ancestral traditions, clients, consultations, community
+  protection, competing interpretations, corruption/schism, and connections to Exus/Pombagiras/other
+  spirits **by properly researched lineage**. Orixás, Exus, Pombagiras, ancestors, Vodou lwa are **not
+  interchangeable** — research specific lineages before assigning relationships.
+- **[DIR/RESEARCH] Oxumaré** (existing evolved visual concept, not a theological definition):
+  androgynous (structural, not accidental), skin shifting warm-gold↔deep-green, hair in two streams
+  (gold/green), serene, gold-green spiral garment, rainbow iridescence, scale markings, living serpent,
+  subtle rainbow arc, ground split water/earth — cycles/continuity/transformation/movement/ending-into-
+  beginning. Needs Candomblé-specific research + cultural review.
+- **[DIR/RESEARCH] Exu Caveira** — **NOT the Judeo-Christian Devil, NOT Lucifer, NOT automatically a
+  demon**; lineage/representation need research. Two gameplay/visual **states** (not doctrine): *evolved*
+  — subtle skull paint, calm eyes, black suit, purple-lined cape, top hat, cane, fresh white rose,
+  cemetery soil, white candles, cachaça, large controlled shadow (authority/death-awareness/calm
+  command); *chaotic* — deteriorated clothing, full skull paint, hungry/unstable eyes, dead rose,
+  gripped cane, disturbed soil, black candles, cracked glass, mismatched shadow (imbalance/distortion/
+  hunger/lost relationship).
+- **[DIR/RESEARCH] Pombagira Cigana** — current un-evolved/corrupted concept (corrupted colors,
+  hypnotic eyes, cold crystal ball, loosely-held dagger, wilted petals, patterned shells, unsettling
+  presence). **NOT** a generic succubus / not automatically evil / not interchangeable with an orixá;
+  sexuality, autonomy, crossroads, desire, power, social judgment must not flatten into a demon-woman
+  stereotype. Supernatural-state concept, not locked characterization.
+- **[PROV] Spiritual-community Schism world clock** (may hit Águas Douradas): 1 conflicting readings ·
+  2 corruption accusations · 3 sacred objects vanish · 4 a leader bargains with Molache/another power ·
+  5 public fracture · 6 a protective entity turns chaotic. The corruption must come from human ambition/
+  misuse/manipulation/broken-obligations/politics/fear/bargains/lost-relationship — **never** imply the
+  religion itself is inherently dangerous.
+- **[RESEARCH] Vodou vs Hoodoo — never merge.** Haitian Vodou: own theology, lwa, ritual systems,
+  Haitian lineage. Hoodoo: African-American spiritual/magical tradition, distinct spirits/structure,
+  tied to African-American history/survival/resistance/healing/protection. Umbrella working title
+  **"Crossroads and Ancestral Network"** is provisional, not one religion's official name.
+- **[PROV/RESEARCH] Baron Samedi** — discussed as archetypal reference only, **no locked role**. A
+  **Vodou lwa, not a generic death god**; a manifestation ≠ the whole being; don't detach from Haitian
+  Vodou; don't reduce to top-hat/skull-paint/jokes/alcohol. Possible traits: psychopomp, dark humor,
+  indirect intervention, exposing hidden motives, truth through discomfort, death-familiarity. Not
+  currently an active LA character; research + consultation required.
+
+## E9. The Audience & other urban entities (expands N10)
+- **[CANON] The Audience** = collective LA urban entity from attention systems (fame, scandal, public
+  humiliation, outrage, celebrity obsession, parasocial attachment, voyeurism, virality, the desire to
+  be witnessed, the fear of being forgotten) — a **collective intelligence from repeated attention
+  patterns**, not one ghost/god. **Behavior:** feeds on exposure, amplifies scandals, turns private
+  suffering into spectacle, causes shared dreams / broadcast anomalies, targets people, makes the city
+  behave as though watching, exposes truths without understanding justice, turns confession into
+  entertainment, confuses visibility with recognition.
+- **[PROV] Hidden origin (per N10):** born not from celebrity worship but from people desperate to be
+  seen — forgotten workers, erased performers, unnamed victims, ignored communities, people treated as
+  numbers, suffering with no witness. "You were born because nobody saw us. Now you make sure nobody
+  sees anyone." (Reclassifies it from fame-parasite to a wounded collective reproducing its own
+  erasure.)
+- **[DIR] Reaction to the Second Heartbeat:** dream overlap, repeated images, unexplained viral clips,
+  electronic interference, sourceless attention spikes, a brief citywide sensation — may not know what
+  it sensed.
+- **[DIR] World clock — The Audience:** 1 viral anomalies · 2 public obsession · 3 shared broadcast
+  hallucinations · 4 independent targeting · 5 citywide spectacle · 6 attempt to expose God publicly.
+- **[DIR] Other urban entities** (freeways, traffic, development, surveillance, housing displacement,
+  celebrity reinvention, artificial beauty, nightlife, digital loneliness, police helicopters, wildfire
+  smoke, endless construction, the mythology of success) — **no roster locked.** Don't invent one until
+  each has: a specific human system, a historical origin, a social consequence, a reason to care about
+  God, a relationship to Molache, a distinct visual+narrative identity.
+
+## E10. Entity reactions to the Second Heartbeat (expands N6)
+Same event, different readings — the beacon does NOT hand every entity the child's identity/hospital/
+family/full meaning; different beings perceive different amounts. Lucifer: recognizes the incarnation,
+the ancient argument entering a new stage. Molache: a divine claim entering his territory → leverage.
+Broken Choir: detects the sought presence, divides over what to do. **Fallen angels:** opportunity /
+threat / possible pardon / renewed rebellion / returning judgment / proof God is now vulnerable.
+Indigenous & ancestral powers: a returning presence / new claim / obligation / disruption / question,
+per each tradition. Águas Douradas & spiritual communities: contradictory dreams/readings/omens. The
+Audience: a citywide attention anomaly. Lesser entities: hide / migrate / turn aggressive / seek
+protection / prepare offerings / spread rumors / attach to humans / mistake God for another entity.
+
+## E11. Entity reclassification rule (per N1, entity form)
+- **[CANON]** Supporting entities & villains suit identity-targeted reveals: 1 establish domain · 2 show
+  humans/spirits depending on it · 3 establish public supernatural identity · 4 plant a sealed
+  contradiction · 5 introduce a domain-challenger · 6 a one-sentence hit to the center · 7 reveal the
+  pressure truth via response · 8 spread consequences through institutions/relationships/territory/
+  factions. Example lines: protector "You knew where I was."; lawgiver "You broke the first law.";
+  healer "You are the one who made me sick."; memory entity "You asked them to forget me."; loyal angel
+  "You followed Lucifer first."; sacrifice sovereign "You were the offering."; tester "You never wanted
+  proof. You wanted permission." The reveal says **"true but incomplete,"** never "everything was fake."
+
+## E12. Entity canon status
+- **[CANON]:** God reincarnated as the CaC protagonist; Second Heartbeat = default origin; second
+  heartbeat = beacon; Lucifer = trans-state cosmic tester & God's central opponent, first angel with
+  true sentience; fallen angels = specifically those who fell with him; not all hostile spirits are
+  demons; every state gets a dominant malicious territorial entity; Molache = LA sovereign of sacrifice/
+  delegated-suffering/institutional-exploitation/replacement-victims, sees God's return as opportunity;
+  the Broken Choir = the working angelic search network; the Audience = LA collective from attention;
+  Indigenous/Candomblé/Vodou/Hoodoo kept distinct; Puvungna is a living sacred place; culturally-rooted
+  entities aren't invented pantheon members; supporting entities/villains may get identity-targeted
+  reveals; Lucifer may facilitate but isn't behind every secret; Yara is human; Oxumaré/Exu Caveira/
+  Pombagira Cigana have visual concepts needing cultural research.
+- **[DIR]:** Lucifer begins as a helpful guide whose friendliness is genuinely real *and* manipulative;
+  Molache's Covenant Renewal links several public LA events and he may secretly protect/cultivate God;
+  the Broken Choir may attempt protective custody; Lucifer↔God grows intimate & complicated; Wiyot as
+  absent/fragmented primordial presence; Chinigchinich as law/obligation embodied; the Audience may grow
+  from collective invisibility; entity powers/motives expressed through human institutions; advanced
+  divine power may require surrender/responsibility/restraint.
+- **[PROV]:** exact Molache origin; exact Lucifer bargain rules; exact Broken Choir hierarchy & leader;
+  the Audience's original human source; future state-sovereign names; full fallen-angel & urban-entity
+  rosters; whether Baron Samedi appears directly; exact Wiyot/Chinigchinich/Ouiamot/Coyote/Hutash/
+  Alchupo'osh characterizations; Puvungna group names; the "Crossroads and Ancestral Network" name;
+  exact Águas-Douradas↔Candomblé/Umbanda/Quimbanda/Exus/Pombagiras relationships; all hidden-room lines;
+  the soul skill-tree system.
+- **[RESEARCH]:** Indigenous public/restricted teachings; community-preferred names/spellings; Tongva-
+  Gabrieleño-Kizh & Acjachemen distinctions; Fernandeño-Tataviam traditions; Chumash traditions;
+  Candomblé theology & orixá representation; Umbanda/Quimbanda lineages; Exu Caveira; Pombagira Cigana;
+  Oxumaré; Haitian Vodou; Baron Samedi; Hoodoo; ceremonial clothing/objects/songs/language/ritual/sacred
+  geography.
+
+> **This entity bible is narrative context only. No implementation, mission writing, dialogue scripting,
+> entity/asset generation, DB changes, world-clock programming, religious adaptation, or cultural visual
+> design begins until Nelson explicitly requests the next production or research task.**
