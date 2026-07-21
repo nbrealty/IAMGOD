@@ -1,31 +1,25 @@
-import { useEffect, useState } from "react";
+import { useEffect, useReducer } from "react";
+import type { SoulEngine } from "../soul/engine";
 import { SupabaseBadge } from "./SupabaseBadge";
 
-function formatClock(totalMinutes: number, day: number): string {
-  const h24 = Math.floor(totalMinutes / 60);
-  const m = totalMinutes % 60;
-  const ampm = h24 >= 12 ? "PM" : "AM";
-  let h12 = h24 % 12;
-  if (h12 === 0) h12 = 12;
-  const mStr = m < 10 ? `0${m}` : `${m}`;
-  return `Day ${day} | ${h12}:${mStr} ${ampm}`;
+const SPEEDS = [
+  { value: 0, label: "❚❚" },
+  { value: 1, label: "1×" },
+  { value: 5, label: "5×" },
+  { value: 20, label: "20×" },
+];
+
+interface Props {
+  engine: SoulEngine;
+  speed: number;
+  onSpeed: (s: number) => void;
 }
 
-export function Hud() {
-  const [minutes, setMinutes] = useState(14 * 60 + 34);
-  const [day, setDay] = useState(1);
-
+export function Hud({ engine, speed, onSpeed }: Props) {
+  // Poll the engine clock for display (the engine owns sim time).
+  const [, force] = useReducer((x) => x + 1, 0);
   useEffect(() => {
-    const id = setInterval(() => {
-      setMinutes((m) => {
-        const next = m + 1;
-        if (next >= 24 * 60) {
-          setDay((d) => d + 1);
-          return next - 24 * 60;
-        }
-        return next;
-      });
-    }, 2000);
+    const id = setInterval(force, 500);
     return () => clearInterval(id);
   }, []);
 
@@ -34,7 +28,23 @@ export function Hud() {
       <div className="hud-breadcrumb">
         Hollywood, CA <span className="dim">&gt;</span> Hollywood &amp; Highland
       </div>
-      <div className="hud-clock">{formatClock(minutes, day)}</div>
+
+      <div className="hud-center">
+        <div className="hud-clock">{engine.clockString()}</div>
+        <div className="speed-controls">
+          {SPEEDS.map((s) => (
+            <button
+              key={s.value}
+              className={`speed-btn ${speed === s.value ? "active" : ""}`}
+              onClick={() => onSpeed(s.value)}
+              title={s.value === 0 ? "Pause" : `${s.value}× speed`}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="hud-right">
         <div className="faith">
           <div className="gauge-row">
