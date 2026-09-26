@@ -1,0 +1,46 @@
+# Enforced by code (trader/risk.py). Claude can read this, never change it.
+# Source: reports/Trading strategy playbook.md
+account:
+  long_only: true
+  leverage: 0
+  shorts: false
+  options: false
+per_trade:
+  risk_pct_default: 0.005     # 1R = 0.5% of equity for new/unvalidated sleeves
+  risk_pct_validated: 0.010   # only after >=100 trades with positive expectancy (not automatic yet)
+  risk_pct_hard_cap: 0.020    # no single trade may risk more than this, ever
+  atr_period: 20
+  stop_atr_multiple:
+    B: 3.0                    # RSI(2) disaster stop
+    C: 2.0                    # breakout initial stop
+    D: 3.0                    # crypto trend
+  max_stop_distance_pct:
+    C: 0.08                   # breakout stop never more than 8% below entry
+  never_widen_stop: true
+  no_averaging_down: true
+  time_stop_days:
+    B: 10
+portfolio:
+  vol_target_annual: 0.10     # sleeve A ETFs: weight_i = min(1, 0.10 / realized_vol_60d_i)
+  max_open_risk_heat: 0.06    # sum of (price - stop) * qty across stopped positions / equity
+  max_single_stock_notional: 0.10
+  max_single_etf_notional: 0.30
+  max_single_crypto_notional: 0.10
+  correlated_positions:
+    rho_60d: 0.7
+    max_count: 2
+  min_cash_buffer: 0.05
+breakers:                     # measured from the equity high-water mark
+  drawdown_halve_risk: 0.10
+  drawdown_no_new_entries: 0.15
+  drawdown_halt: 0.20         # exits only until a human runs `trader kill off --reset-peak`
+  daily_loss_R: 2
+  weekly_loss_R: 5
+turnover:
+  max_orders_per_day: 10
+  rebalance_band: 0.20        # sleeve A: skip trades smaller than 20% of the target position
+  min_order_notional: 25
+  cost_model_per_side_bps:
+    etf: 5
+    stock: 10
+    crypto: 25
