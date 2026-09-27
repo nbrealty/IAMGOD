@@ -82,3 +82,62 @@ def total_return(close: pd.Series, days: int) -> float:
     if len(c) <= days:
         return float("nan")
     return float(c.iloc[-1] / c.iloc[-1 - days] - 1.0)
+
+
+def percentile_rank(series: pd.Series, lookback: int, min_periods: int = 1) -> float:
+    """Percentile rank (0 to 1) of the last value among the series' last `lookback` values (REG-4).
+
+    Same convention as pandas `rank(pct=True)`: ties share their average rank, so a new high scores
+    1.0 and a flat series scores about 0.5. NaN and infinite values in the window are ignored, but a
+    missing last value, or fewer than `min_periods` usable values, gives NaN.
+    """
+    if lookback < 1:
+        return float("nan")
+    window = pd.Series(series).iloc[-lookback:].to_numpy(dtype=float, na_value=np.nan)
+    if len(window) == 0 or not np.isfinite(window[-1]):
+        return float("nan")
+    values = window[np.isfinite(window)]
+    if len(values) < max(min_periods, 1):
+        return float("nan")
+    today = window[-1]
+    less = np.count_nonzero(values < today)
+    equal = np.count_nonzero(values == today)
+    return float((less + (equal + 1) / 2) / len(values))
+
+
+def share_above_sma(closes: pd.DataFrame, n: int, min_valid: float = 0.5) -> pd.Series:
+    """Per date, the share of columns whose close is above their own n-day SMA (REG-4 breadth).
+
+    A column counts only on dates where both its close and its SMA exist. Dates where fewer than
+    `min_valid` of the columns count give NaN, so a handful of early listings cannot swing the share.
+    """
+    if closes.shape[1] == 0:
+        return pd.Series(np.nan, index=closes.index, dtype=float)
+    avg = closes.rolling(n, min_periods=n).mean()
+    valid = closes.notna() & avg.notna()
+    above = (closes > avg) & valid
+    n_valid = valid.sum(axis=1)
+    share = above.sum(axis=1) / n_valid.where(n_valid > 0)
+    return share.where(n_valid >= max(1.0, min_valid * closes.shape[1])).astype(float)
+
+
+def return_correlation(a: pd.Series, b: pd.Series, n: int) -> float:
+    """Correlation of the daily returns of two close series over their last `n` common sessions (REG-7).
+
+    NaN when there are fewer than `n` return pairs or either series is flat. A zero or negative close
+    is bad data, so that date is dropped rather than read as a -100% day.
+    """
+    both = pd.concat([_unique_index(a), _unique_index(b)], axis=1, join="inner")
+    both = both.where(both > 0).dropna()
+    rets = both.pct_change().replace([np.inf, -np.inf], np.nan).dropna().iloc[-n:]
+    if n < 2 or len(rets) < n:
+        return float("nan")
+    x, y = rets.iloc[:, 0], rets.iloc[:, 1]
+    if x.std() < 1e-12 or y.std() < 1e-12:
+        return float("nan")
+    return float(x.corr(y))
+
+
+def _unique_index(series: pd.Series) -> pd.Series:
+    """Drop repeated dates (keep the last bar) so series can be aligned side by side."""
+    return series[~series.index.duplicated(keep="last")]

@@ -5,6 +5,9 @@ wants to hold (or exit), plus indicator snapshots that Claude gets to see.
 """
 from __future__ import annotations
 
+from collections import Counter
+from typing import Callable
+
 import numpy as np
 import pandas as pd
 
@@ -20,6 +23,19 @@ def _last(series: pd.Series) -> float:
 
 def _bars_held(df: pd.DataFrame, entry_date: str) -> int:
     return int((df.index > pd.Timestamp(entry_date)).sum())
+
+
+def _has_bars(bars: Bars, sym: str) -> bool:
+    df = bars.get(sym)
+    return df is not None and len(df) > 0
+
+
+def risk_pct(policy: dict, sleeve: str) -> float:
+    """RISK-2: a sleeve's 1R as a fraction of equity (per-sleeve value, never above the hard cap).
+    The same rule as Config.risk_pct and the cap risk.py enforces, for code that holds only the policy."""
+    pt = policy["per_trade"]
+    r = (pt.get("risk_pct_by_sleeve") or {}).get(sleeve, pt["risk_pct_default"])
+    return float(min(r, pt.get("risk_pct_hard_cap", r)))
 
 
 def _band(target: float, current: float, band: float) -> float:
@@ -40,8 +56,21 @@ def faber_in(close: pd.Series, as_of: pd.Timestamp) -> tuple[bool, float, float]
     return bool(monthly.iloc[-1] > sma10), float(monthly.iloc[-1]), sma10
 
 
+def faber_asset(close: pd.Series, as_of: pd.Timestamp, vol_target: float) -> dict:
+    """A-2 and A-3 for one asset: in or out versus the 10-month SMA, and the scale min(1, target / vol60)
+    with vol60 measured up to the last completed month-end."""
+    is_in, last_m, sma10 = faber_in(close, as_of)
+    month_end = ind.completed_month_closes(close, as_of).index
+    vol_close = close[close.index <= month_end[-1]] if len(month_end) else close
+    vol60 = _last(ind.realized_vol(vol_close, 60))
+    scale = min(1.0, vol_target / vol60) if vol60 and not np.isnan(vol60) else 1.0
+    return {"in": is_in, "month_close": last_m, "sma10m": sma10, "vol60": vol60, "scale": scale}
+
+
 def gem_pick(bars: Bars, gem: dict, as_of: pd.Timestamp) -> str:
     def r12(sym: str) -> float:
+        if not _has_bars(bars, sym):
+            return float("nan")
         m = ind.completed_month_closes(bars[sym]["close"], as_of)
         return float(m.iloc[-1] / m.iloc[-13] - 1) if len(m) >= 13 else float("nan")
 
@@ -58,15 +87,18 @@ def sleeve_a(bars: Bars, cfg: dict, capital: float, lots: dict[str, Lot], policy
     band = policy["turnover"]["rebalance_band"]
     faber_capital = capital * (0.5 if cfg.get("gem_blend") else 1.0)
     weights: dict[str, float] = {}
+    reserved = 0.0  # held assets with no bars keep their slice instead of it going to cash
 
     share = 1.0 / len(cfg["assets"])
     for sym in cfg["assets"]:
-        close = bars[sym]["close"]
-        is_in, last_m, sma10 = faber_in(close, as_of)
-        month_end = ind.completed_month_closes(close, as_of).index
-        vol_close = close[close.index <= month_end[-1]] if len(month_end) else close
-        vol60 = _last(ind.realized_vol(vol_close, 60))
-        scale = min(1.0, vol_target / vol60) if vol60 and not np.isnan(vol60) else 1.0
+        if not _has_bars(bars, sym):
+            if sym in lots and lots[sym].qty > 0:
+                reserved += share * faber_capital / capital
+                plan.targets[sym] = Target(sym, "A", lots[sym].qty, None, "hold (no data)")
+            plan.notes.append(f"{sym}: no bars today")
+            continue
+        fa = faber_asset(bars[sym]["close"], as_of, vol_target)
+        is_in, last_m, sma10, vol60, scale = fa["in"], fa["month_close"], fa["sma10m"], fa["vol60"], fa["scale"]
         w = share * scale if is_in else 0.0
         weights[sym] = weights.get(sym, 0.0) + w * faber_capital / capital
         plan.candidates.append({
@@ -78,11 +110,15 @@ def sleeve_a(bars: Bars, cfg: dict, capital: float, lots: dict[str, Lot], policy
         weights[pick] = weights.get(pick, 0.0) + 0.5
         plan.notes.append(f"GEM holds {pick}")
 
-    weights[cfg["cash"]] = max(0.0, 1.0 - sum(weights.values()))
+    weights[cfg["cash"]] = max(0.0, 1.0 - sum(weights.values()) - reserved)
     for sym, w in weights.items():
+        current = lots[sym].qty if sym in lots else 0.0
+        if not _has_bars(bars, sym):
+            if current > 0:
+                plan.targets[sym] = Target(sym, "A", current, None, "hold (no data)")
+            continue
         price = _last(bars[sym]["close"])
         target = w * capital / price
-        current = lots[sym].qty if sym in lots else 0.0
         plan.targets[sym] = Target(sym, "A", _band(target, current, band), None,
                                    f"faber weight {w:.2f} of sleeve")
     for sym in lots:
@@ -99,9 +135,14 @@ def sleeve_b(bars: Bars, cfg: dict, capital: float, lots: dict[str, Lot], policy
     plan = SleevePlan("B", capital)
     k = policy["per_trade"]["stop_atr_multiple"]["B"]
     time_stop = policy["per_trade"]["time_stop_days"]["B"]
-    risk = policy["per_trade"]["risk_pct_default"] * equity * size_mult
+    risk = risk_pct(policy, "B") * equity * size_mult
     entries = []
     for sym in cfg["symbols"]:
+        lot = lots.get(sym)
+        if not _has_bars(bars, sym):
+            if lot:
+                plan.targets[sym] = Target(sym, "B", lot.qty, lot.stop, "hold (no data)")
+            continue
         df = bars[sym]
         close = float(df["close"].iloc[-1])
         sma200 = _last(ind.sma(df["close"], 200))
@@ -111,7 +152,6 @@ def sleeve_b(bars: Bars, cfg: dict, capital: float, lots: dict[str, Lot], policy
         snap = {"symbol": sym, "close": round(close, 2), "sma200": round(sma200, 2), "sma5": round(sma5, 2),
                 "rsi2": round(rsi2, 1), "atr20": round(atr, 2)}
         plan.candidates.append(snap)
-        lot = lots.get(sym)
         if lot:
             why = exit_b(df, lot.stop, lot.entry_date, time_stop)
             plan.targets[sym] = Target(sym, "B", 0.0 if why else lot.qty, lot.stop, why or "hold")
@@ -153,23 +193,75 @@ def trend_template(df: pd.DataFrame, rs_pct: float, rs_min: float) -> tuple[bool
     return all(checks.values()), checks
 
 
+def sector_lookup(sectors) -> Callable[[str], str | None]:
+    """C-9: turn a sector map into `symbol -> group`.
+
+    Accepts the playbook shape `{group: [symbols]}`, a flat `{symbol: group}` map, a function
+    (for example `Config.sector_of`) or None (no groups, so no cap).
+    """
+    if sectors is None:
+        return lambda sym: None
+    if callable(sectors):
+        return sectors
+    flat: dict[str, str] = {}
+    for key, value in dict(sectors).items():
+        if isinstance(value, str):
+            flat[key] = value
+        else:
+            for sym in value:
+                flat.setdefault(sym, key)
+    return flat.get
+
+
+def _open_by_sector(targets: dict[str, Target], group_of: Callable[[str], str | None]) -> Counter:
+    """C-9: open C positions per group (held and staying, or entering today)."""
+    return Counter(g for sym, t in targets.items() if t.qty > 0 and (g := group_of(sym)) is not None)
+
+
+def _pick_entries(entries: list, slots: int, targets: dict[str, Target], group_of, sector_max: int | None,
+                  notes: list[str]) -> list:
+    """Take ranked entries until the slots are full, skipping names whose group is at the C-9 cap."""
+    counts = _open_by_sector(targets, group_of)
+    chosen = []
+    for entry in entries:
+        if len(chosen) >= slots:
+            break
+        sym = entry[1]
+        group = group_of(sym)
+        if sector_max is not None and group is not None and counts[group] >= sector_max:
+            notes.append(f"C-9 sector cap: skipped {sym} ({group} already has {counts[group]} open C position(s))")
+            continue
+        if group is not None:
+            counts[group] += 1
+        chosen.append(entry)
+    return chosen
+
+
 def sleeve_c(bars: Bars, cfg: dict, capital: float, lots: dict[str, Lot], policy: dict,
-             equity: float, size_mult: float) -> SleevePlan:
+             equity: float, size_mult: float, sectors=None, sector_max: int | None = None) -> SleevePlan:
+    """Trend-template breakouts (C-2 to C-6) with the C-9 sector cap.
+
+    `sectors` / `sector_max` default to the playbook `sectors` map and policy
+    `portfolio.sector_max_positions`, so an old call without them still applies the cap.
+    """
     plan = SleevePlan("C", capital)
     k = policy["per_trade"]["stop_atr_multiple"]["C"]
     max_dist = policy["per_trade"]["max_stop_distance_pct"]["C"]
-    risk = policy["per_trade"]["risk_pct_default"] * equity * size_mult
+    risk = risk_pct(policy, "C") * equity * size_mult
     lookback = cfg["pivot_lookback"]
+    group_of = sector_lookup(sectors if sectors is not None else cfg.get("sectors"))
+    if sector_max is None:
+        sector_max = policy.get("portfolio", {}).get("sector_max_positions")
 
     universe = [s for s in cfg["universe"] if s in bars and len(bars[s]) >= 260]
     r12 = pd.Series({s: ind.total_return(bars[s]["close"], 252) for s in universe}).dropna()
     rs_pct = r12.rank(pct=True) * 100
 
     for sym, lot in lots.items():
-        df = bars.get(sym)
-        if df is None:
+        if not _has_bars(bars, sym):
             plan.targets[sym] = Target(sym, "C", lot.qty, lot.stop, "hold (no data)")
             continue
+        df = bars[sym]
         why = exit_c(df, lot.stop)
         plan.targets[sym] = Target(sym, "C", 0.0 if why else lot.qty, lot.stop, why or "hold")
 
@@ -184,7 +276,8 @@ def sleeve_c(bars: Bars, cfg: dict, capital: float, lots: dict[str, Lot], policy
         if ok:
             plan.candidates.append({"symbol": sym, "close": round(close, 2), "pivot": round(pivot, 2),
                                     "volume_ratio": round(vol_ratio, 2), "rs_pct": round(float(rs_pct[sym]), 1),
-                                    "return_12m": round(float(r12[sym]), 3), "breakout_today": breakout})
+                                    "return_12m": round(float(r12[sym]), 3), "breakout_today": breakout,
+                                    "sector": group_of(sym)})
         if ok and breakout and sym not in lots:
             entries.append((float(rs_pct[sym]), sym, close, _last(ind.atr(df, policy["per_trade"]["atr_period"]))))
 
@@ -193,7 +286,9 @@ def sleeve_c(bars: Bars, cfg: dict, capital: float, lots: dict[str, Lot], policy
         if entries:
             plan.notes.append(f"regime gate: {len(entries)} breakout(s) skipped")
         return plan
-    for _, sym, close, atr in sorted(entries, reverse=True)[: max(0, open_slots)]:
+    ranked = sorted(entries, reverse=True)
+    for _, sym, close, atr in _pick_entries(ranked, max(0, open_slots), plan.targets, group_of, sector_max,
+                                            plan.notes):
         stop = max(close - k * atr, close * (1 - max_dist))
         qty = min(risk / (close - stop), capital / cfg["max_positions"] / close)
         plan.targets[sym] = Target(sym, "C", qty, stop, "breakout entry")

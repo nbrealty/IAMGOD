@@ -55,7 +55,8 @@ def test_stop_never_widens(cfg, bars):
     res = RiskEngine(cfg).apply([Target("AAPL", "C", 1, price * 0.5, "hold")], lots, {"AAPL": 1}, bars, 10000,
                                 _breakers(cfg))
     [t] = res.targets
-    assert t.stop == price * 0.93
+    # The proposed 0.5x stop is ignored; the C-7 ratchet may raise the held stop, never lower it.
+    assert t.stop >= price * 0.93
 
 
 def test_etf_notional_cap_and_cash_buffer(cfg, bars):
