@@ -1,7 +1,7 @@
 # The Intelligent Investor (Benjamin Graham, with Jason Zweig commentary): study notes
 
 Source read: `scratchpad/books/the_intelligent_investor.txt`, all ~30,240 lines. That covers the Buffett preface, Zweig's note on Graham, the Introduction, Chapters 1-20, the Postscript, every Zweig commentary, Appendixes 1-7 (including Buffett's "Superinvestors of Graham-and-Doddsville"), the endnotes and the index.
-All summaries are in my own words. Direct quotes are kept to single short sentences, 7 in total.
+All summaries are in my own words. Direct quotes are kept to single short sentences or phrases, fewer than 10 in total.
 "G" means the point is in Graham's own text. "Z" means it comes from Zweig's commentary or footnotes.
 
 ---
