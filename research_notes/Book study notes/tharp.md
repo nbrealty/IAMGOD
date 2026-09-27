@@ -331,4 +331,4 @@ Consequences and recommendations:
 
 ---
 
-*Quotations: six short quotes (all marked), everything else paraphrased. Book figures cited are Tharp's own and unaudited. Streak and sample-size numbers are my calculations. SQN details come from Tharp's later publications, cited from memory and flagged in 3.3.*
+*Quotations: four one-sentence quotes (marked "in his words"/quoted) plus a few quoted two-to-four-word terms of art; everything else paraphrased. The "~5.75%" CAGR for the fixed-amount model is a reading of a garbled figure in the source text. Book figures cited are Tharp's own and unaudited. Streak and sample-size numbers are my calculations. SQN details come from Tharp's later publications, cited from memory and flagged in 3.3.*
