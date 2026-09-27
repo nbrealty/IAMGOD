@@ -15,8 +15,15 @@ also keeps `claude/investment-agents-question-hrkk10` in sync).
 | Current market and professional practice (Sept 2026) | `research_notes/Current market practice/` | Done (mostly snippet-sourced) |
 | **Rulebook: 114 rules with IDs, sources, status** | `reports/Agent rulebook.md` | Done, **approved to build** |
 | **Agent building guide** | `reports/Agent building guide.md` | Done, **approved to build** |
-| Trading system v1 (two books, four sleeves, risk engine, tests) | `trading/` (see `trading/README.md`) | Built, 24 tests pass, never run against real Alpaca |
-| GitHub Actions daily workflow | `.github/workflows/paper-trading.yml` | Built, **stays switched off** (Option B below) |
+| Trading system v1 (two books, four sleeves, risk engine, tests) | `trading/` (see `trading/README.md`) | Superseded by the rulebook build below |
+| **Rulebook build: BUILD NOW rules, ledger, menus, consensus, measurement, shadow rules** | `trading/trader/` | Built; full test suite passes (765 tests) |
+| Session flow (Option B): `prepare`, decision files, `run --session` | `trading/trader/session.py`, `engine.py`, `__main__.py` | Built; prepare and dry runs checked against the real Alpaca data and rules paper account (no orders placed) |
+| **Daily session runbook** | `trading/SESSION_RUNBOOK.md` | Written; every non-order command rehearsed on the simulator |
+| State on the `trading-state` branch | `trading/scripts/state.sh pull\|push` | Built and tested against a local repository; the branch does not exist on GitHub yet (the first push creates it) |
+| Rules-only backtester | `trading/trader/backtest.py` | Built (2017–2026 run done; see the progress note under "What to build") |
+| Frozen test days for the Claude side | `trading/evals/` | In progress |
+| Scheduled weekday routine | (not created) | **Waiting for the owner's OK** after a dry run |
+| GitHub Actions daily workflow | `.github/workflows/paper-trading.yml` | Old API-key path, **stays switched off** (Option B below) |
 | Book PDFs | `docs/*.pdf` | Uploaded by the owner. Do not commit extracted book text. |
 
 ## Decisions the owner has made
@@ -36,6 +43,16 @@ also keeps `claude/investment-agents-question-hrkk10` in sync).
 5. **Crypto sleeve D stays off.** The model default stays `claude-opus-5` (only relevant to the API path).
 
 ## What to build (the owner said: build the BUILD NOW rules)
+
+**Progress (2026-09-27):** items 1–5 and 7 are built. Connectivity works: the rules paper account answers
+(equity $100,000) and daily bars come from the `sip` feed. The Claude book still runs on the
+simulator (no `ALPACA_CLAUDE_*` account yet). Item 6 is ready but not switched on: the steps are in
+`trading/SESSION_RUNBOOK.md`, including a suggested schedule and trigger prompt. What is left:
+(a) the owner's OK for a first real run and the scheduled routine; (b) confirming the first
+`scripts/state.sh push` is allowed to create the `trading-state` branch from a scheduled session;
+(c) the owner's call on the backtest findings (sleeve A's BIL cash leg is often cut by the 30% single-ETF cap;
+sleeve B lost money 2017–2026); (d) finishing `trading/evals/`.
+
 
 Use ultracode: run the build as workflows (understand → implement → adversarial review → tests).
 

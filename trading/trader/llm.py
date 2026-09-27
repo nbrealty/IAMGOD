@@ -104,6 +104,8 @@ _EVIDENCE_BLOCK = """Evidence (CL-2)
 _PREDICTIONS_BLOCK = """Predictions (CL-5)
 - 0 to 3 a day, in "predictions". Required for every deviation and every skip or halve; link each one
   through prediction_id. Code keeps at most 3.
+- A skip's or deviation's prediction must be about that same symbol, or name it in linked_decision
+  (e.g. "action:C:NVDA", "skip:NVDA"); otherwise code drops the item and the rule applies.
 - Fields: id (short and unique today, e.g. "p1"), symbol (on the allowlist), horizon (5, 20 or 60 sessions),
   direction ("above" or "below"), threshold_pct (in percent: 2.0 means +2%), probability (0.05 to 0.95),
   linked_decision (e.g. "action:C:NVDA", "skip:NVDA", "halve:B", "weight:B").

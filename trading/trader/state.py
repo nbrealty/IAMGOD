@@ -57,6 +57,10 @@ class BookState:
     weight_history: list[dict] = field(default_factory=list)
     veto_codes_restricted: bool = False  # CL-9 latch, reset by the owner
     cost_model_bps: dict = field(default_factory=dict)  # EX-5: measured overrides of the policy cost model
+    veto_reset_date: str | None = None  # CL-9: owner reset; vetoes before this date no longer count
+    # Guide rule 6: deviations lost money -> the Claude book follows the rule targets until the owner resets.
+    deviations_restricted: bool = False
+    deviations_reset_date: str | None = None
 
     # --- persistence -----------------------------------------------------------------------
 

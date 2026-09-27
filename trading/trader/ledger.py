@@ -268,7 +268,7 @@ def _buy(state, sleeve, symbol, qty, price, date, signal_close, stop, reason, co
         start = _day(entry_date) or date
         lot = Lot(qty=qty, entry_price=price, entry_date=start, stop=stop, initial_stop=stop,
                   lot_id=_new_lot_id(state, sleeve, symbol, start),
-                  initial_risk_dollars=qty * max(0.0, price - stop) if stop is not None else 0.0,
+                  initial_risk_dollars=qty * _risk_per_share(price, signal_close, stop),
                   bought_qty=qty, costs=cost, fill_date=date, tags=dict(tags or {}))
         held[symbol] = lot
         kind = "open"
@@ -283,7 +283,7 @@ def _buy(state, sleeve, symbol, qty, price, date, signal_close, stop, reason, co
         lot.qty = new_qty
         lot.bought_qty += qty
         if stop_at_add is not None:
-            lot.initial_risk_dollars += qty * max(0.0, price - stop_at_add)
+            lot.initial_risk_dollars += qty * _risk_per_share(price, signal_close, stop_at_add)
         lot.stop = stop_at_add
         lot.costs += cost
         for k, v in (tags or {}).items():
@@ -292,6 +292,19 @@ def _buy(state, sleeve, symbol, qty, price, date, signal_close, stop, reason, co
     _touch_marks(lot, price)
     _sleeve_pnl(state, sleeve)["realized"] -= cost
     _event(lot, date, kind, qty, price, signal_close, cost, 0.0, reason, note)
+
+
+def _risk_per_share(price: float, signal_close, stop: float | None) -> float:
+    """M-3 risk per share of a buy: max(fill - stop, signal_close - stop), never below 0; 0 without a stop.
+
+    The planned risk (at the signal close) is the floor, as in shadow.py's veto lots, so an open that gaps
+    to or through the stop does not leave the trade with no R (dropping it from M-2, M-10, M-11).
+    """
+    if stop is None:
+        return 0.0
+    sc = _num(signal_close)
+    planned = sc - stop if sc is not None and sc > 0 else 0.0
+    return max(0.0, price - stop, planned)
 
 
 def _sell(state, sleeve, symbol, qty, price, date, signal_close, reason, cost, note="") -> None:

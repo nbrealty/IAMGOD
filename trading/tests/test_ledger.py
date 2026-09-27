@@ -95,6 +95,20 @@ def test_sleeve_a_without_stop_has_no_r():
     assert t["R"] is None and t["mae_R"] is None and t["mfe_R"] is None and t["pnl"] == pytest.approx(100.0)
 
 
+def test_gap_through_the_stop_keeps_the_planned_risk():
+    """Orchestrator decision: initial risk = qty x max(fill - stop, signal_close - stop), as shadow veto lots use,
+    so an open that gaps to or through the stop still has an R (M-2, M-10, M-11 count it)."""
+    s = _state()
+    ledger.apply_fill(s, "C", "AMD", 10, 94.0, "2026-09-01", signal_close=100.0, stop=95.0)
+    lot = _lot(s, "C", "AMD")
+    assert lot.initial_risk_dollars == pytest.approx(10 * 5.0)
+    ledger.apply_fill(s, "C", "AMD", 10, 103.0, "2026-09-02", signal_close=101.0, stop=96.0)
+    assert lot.initial_risk_dollars == pytest.approx(50 + 10 * 7.0)  # the fill is higher: fill - stop at the add
+    ledger.apply_fill(s, "C", "AMD", -20, 90.0, "2026-09-03")
+    t = s.closed_trades[0]
+    assert t["R"] == pytest.approx(t["pnl"] / 120.0, abs=1e-3)
+
+
 def test_stop_at_or_above_fill_gives_zero_risk_and_no_r():
     s = _state()
     ledger.apply_fill(s, "C", "AMD", 10, 100.0, "2026-09-01", stop=101.0)

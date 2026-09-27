@@ -1,83 +1,142 @@
-import pandas as pd
+"""Engine unit tests: the old intents (end-to-end rules run, Claude book inside limits, failure holds, dry run,
+scaling to the sleeve weight, crypto sleeve) rewritten for the v2 schema and next-open fills, plus the
+context layout (ctx-2) and the CLI."""
+import copy
+import json
 
+import pandas as pd
+import pytest
+
+from conftest import make_bars
+from trader import decisions, ledger, risk
+from trader import __main__ as cli
 from trader.broker import SimBroker
-from trader.engine import decision_to_targets, run_book
-from trader.llm import Action, ClaudeDecision, ClaudeError, RulesReview, SleeveWeights
+from trader.config import Config
+from trader.engine import decision_to_targets, normalize_weights, rules_sleeve_weights, run_book
+from trader.llm import ClaudeError
+from trader.models import Lot
+from trader.schemas import Action, ClaudeDecision, Prediction, RulesReview, SleeveWeightChoices, WeightChoice
 from trader.state import BookState
 
 
 class FakeAdvisor:
-    def __init__(self, decision=None, fail=False):
-        self.decision, self.fail, self.contexts = decision, fail, []
+    """Returns lists of samples, as both real advisors do."""
+
+    def __init__(self, decisions=None, reviews=None, fail=False):
+        self.decisions, self.reviews, self.fail, self.contexts = decisions or [], reviews, fail, []
+
+    def _meta(self, n, role):
+        return {"mode": "session", "role": role, "model": "fake", "samples_requested": n, "samples_valid": n,
+                "prompt_version": "pv-test", "usd": 0.0}
 
     def review_rules_plan(self, ctx):
         self.contexts.append(ctx)
         if self.fail:
-            raise ClaudeError("boom")
-        return RulesReview(journal_note="rules ok", skip_entries=[], halve_sleeves=[]), {"model": "fake"}
+            raise ClaudeError("boom", meta=self._meta(0, "review"))
+        reviews = self.reviews or [RulesReview(journal_note="rules ok", date=ctx["date"])]
+        return reviews, self._meta(len(reviews), "review")
 
     def decide(self, ctx):
         self.contexts.append(ctx)
         if self.fail:
             raise ClaudeError("boom")
-        return self.decision, {"model": "fake"}
+        ds = [d(ctx) if callable(d) else d for d in self.decisions]
+        return ds, self._meta(len(ds), "decide")
 
 
-def _sim(cfg, state, bars):
-    state.sim = state.sim or {"cash": 10000.0, "positions": {}}
-    prices = {s: float(df["close"].iloc[-1]) for s, df in bars.items()}
-    return SimBroker(state.sim, prices, cfg.policy["turnover"]["cost_model_per_side_bps"], cfg.asset_class)
+def _sim(cfg, state, bars, cash=100_000.0):
+    state.sim = state.sim or {"cash": cash, "positions": {}}
+    return SimBroker(state.sim, risk.last_prices(bars), ledger.cost_model(cfg, state), cfg.asset_class,
+                     bars=bars, cost_in_price=False)
+
+
+def _upto(bars, d):
+    return {s: df[df.index <= d] for s, df in bars.items()}
+
+
+def _held(state):
+    out = {}
+    for lots in state.lots.values():
+        for s, lot in lots.items():
+            out[s] = out.get(s, 0.0) + lot.qty
+    return out
 
 
 def test_rules_book_end_to_end(cfg, bars, tmp_path):
-    as_of = bars["SPY"].index[-1]
+    d1, d2 = bars["SPY"].index[-2], bars["SPY"].index[-1]
     state = BookState.load("rules", tmp_path)
     advisor = FakeAdvisor()
-    e = run_book("rules", cfg, bars, _sim(cfg, state, bars), advisor, as_of, tmp_path, state=state)
+    b1 = _upto(bars, d1)
+    e = run_book("rules", cfg, b1, _sim(cfg, state, b1), advisor, d1, tmp_path, state=state)
     assert e["orders"], e["risk_log"]
     assert advisor.contexts and "rule_signals" in advisor.contexts[0]
     saved = BookState.load("rules", tmp_path)
-    held = {}
-    for lots in saved.lots.values():
-        for s, l in lots.items():
-            held[s] = held.get(s, 0) + l.qty
+    assert saved.lots == {} and len(saved.pending_orders) == len(e["orders"])  # EX-4: nothing until filled
+
+    # Next run: the orders fill at d2's open and the lots match the simulator exactly.
+    e2 = run_book("rules", cfg, bars, _sim(cfg, saved, bars), advisor, d2, tmp_path, state=saved)
+    assert len(e2["settled_fills"]) >= len(e["orders"])
+    saved = BookState.load("rules", tmp_path)
+    held = _held(saved)
     for s, q in saved.sim["positions"].items():
-        if q > 1e-9:
-            assert abs(held.get(s, 0) - q) < 1e-6
+        if q > 1e-9 and not any(p["symbol"] == s for p in saved.pending_orders):
+            assert held.get(s, 0) == pytest.approx(q, abs=1e-6)
+    for f in saved.fills[: len(e["orders"])]:
+        assert f["fill"] == pytest.approx(float(bars[f["symbol"]].loc[d2, "open"]))
     equity = saved.sim["cash"] + sum(q * bars[s]["close"].iloc[-1] for s, q in saved.sim["positions"].items())
     assert saved.sim["cash"] >= 0.04 * equity  # cash buffer respected
     # Same date again is skipped.
-    again = run_book("rules", cfg, bars, _sim(cfg, saved, bars), advisor, as_of, tmp_path, state=saved)
+    again = run_book("rules", cfg, bars, _sim(cfg, saved, bars), advisor, d2, tmp_path, state=saved)
     assert "skipped" in again
 
 
+def _eligible_b(cfg, bars):
+    elig = decisions.eligibility(cfg, bars, {"A": 1, "B": 1, "C": 1, "D": 1})["B"]
+    return sorted(elig)[0]
+
+
 def test_claude_book_follows_decision_within_limits(cfg, bars, tmp_path):
-    decision = ClaudeDecision(
-        market_view="test",
-        sleeve_weights=SleeveWeights(A=0.9, B=0.2, C=0.1, D=0.1),  # A above max, D disabled
-        actions=[
-            Action(symbol="SPY", sleeve="A", target_pct_equity=0.5, stop_price=0, rationale="core"),
-            Action(symbol="AAPL", sleeve="A", target_pct_equity=0.1, stop_price=0, rationale="stock in A"),
-            Action(symbol="MSFT", sleeve="C", target_pct_equity=0.5, stop_price=0, rationale="no stop"),
-            Action(symbol="BTC/USD", sleeve="D", target_pct_equity=0.05, stop_price=0, rationale="crypto"),
-        ],
-        journal_note="note",
-    )
+    """Menus in, numbers out: weights move one step, D stays off, ineligible or unknown actions are dropped,
+    stops respect the rule floor and the per-trade cap."""
+    sym = _eligible_b(cfg, bars)
+
+    def decide(ctx):
+        return ClaudeDecision(
+            date=ctx["date"], market_view="test", journal_note="note",
+            sleeve_weights=SleeveWeightChoices(A=WeightChoice(choice="up"), D=WeightChoice(choice="up")),
+            actions=[
+                Action(symbol="AAPL", sleeve="A", size="pct", target_pct_equity=0.05, reason_code="REGIME_RISK",
+                       evidence=["regime.label"], prediction_id="p1"),
+                Action(symbol="BTC/USD", sleeve="D", size="pct", target_pct_equity=0.05,
+                       reason_code="TREND_STRENGTHENING", evidence=["regime.label"], prediction_id="p1"),
+                Action(symbol=sym, sleeve="B", size="pct", target_pct_equity=0.9, stop="tight",
+                       reason_code="MEAN_REVERSION_SETUP", evidence=[f"rule_signals.B.indicators[{sym}].rsi2"],
+                       prediction_id="p1", rationale="dip"),
+            ],
+            predictions=[Prediction(id="p1", symbol=sym, horizon=5, direction="above", threshold_pct=1.0,
+                                    probability=0.6, linked_decision=f"action:B:{sym}")])
+
     as_of = bars["SPY"].index[-1]
     state = BookState.load("claude", tmp_path)
-    e = run_book("claude", cfg, bars, _sim(cfg, state, bars), FakeAdvisor(decision), as_of, tmp_path, state=state)
-    assert e["sleeve_weights"]["A"] == 0.6  # clipped to the sleeve maximum
+    e = run_book("claude", cfg, bars, _sim(cfg, state, bars), FakeAdvisor([decide]), as_of, tmp_path, state=state)
+    prev = e["rule_weights"]
+    assert e["sleeve_weights"]["A"] == pytest.approx(min(prev["A"] + 0.05, 0.60), abs=1e-9)  # one step, max 0.60
     assert e["sleeve_weights"]["D"] == 0
-    log = "\n".join(e["risk_log"])
-    assert "AAPL" in log and "not allowed in sleeve A" in log
+    problems = " ".join(p for s in e["samples"] for p in s["problems"])
+    assert "action A:AAPL: dropped (sleeve A may only buy its assets and BIL" in problems  # CL-11
+    assert "action D:BTC/USD: dropped" in problems and "weight D: 'up' refused" in problems
+    assert "AAPL" not in {o["symbol"] for o in e["orders"]}
     assert "BTC/USD" not in {o["symbol"] for o in e["orders"]}
-    spy = [o for o in e["orders"] if o["symbol"] == "SPY"][0]
-    assert spy["qty"] * spy["price"] <= 0.30 * 10000 + 1  # ETF cap
-    msft = [o for o in e["orders"] if o["symbol"] == "MSFT"][0]
-    saved = BookState.load("claude", tmp_path)
-    lot = saved.lots["C"]["MSFT"]
-    assert lot.stop is not None and (msft["price"] - lot.stop) * lot.qty <= 50 + 1e-6
-    assert saved.notes[-1]["note"] == "note"
+    order = [o for o in e["orders"] if o["symbol"] == sym]
+    assert order, e["risk_log"]
+    assert order[0]["qty"] * order[0]["price"] <= 0.30 * e["equity"] + 1  # ETF notional cap
+    pending = BookState.load("claude", tmp_path).pending_orders
+    alloc = [a for p in pending if p["symbol"] == sym for a in p["alloc"] if a["sleeve"] == "B"][0]
+    rule = decisions.stop_menu("B", bars[sym], cfg.policy)["rule"]
+    assert alloc["stop"] >= rule - 1e-9  # CL-14: tight is above the rule floor
+    assert (order[0]["price"] - alloc["stop"]) * alloc["delta_qty"] <= 0.005 * e["equity"] + 1e-6  # RISK-2
+    assert e["deviations"] and e["deviations"][0]["symbol"] == sym
+    assert BookState.load("claude", tmp_path).notes[-1]["note"] == "note"
 
 
 def test_claude_failure_holds_positions(cfg, bars, tmp_path):
@@ -91,27 +150,35 @@ def test_claude_failure_holds_positions(cfg, bars, tmp_path):
 def test_dry_run_saves_nothing(cfg, bars, tmp_path):
     as_of = bars["SPY"].index[-1]
     state = BookState.load("rules", tmp_path)
-    e = run_book("rules", cfg, bars, _sim(cfg, state, bars), None, as_of, tmp_path, dry_run=True, state=state)
+    broker = _sim(cfg, state, bars)
+    e = run_book("rules", cfg, bars, broker, None, as_of, tmp_path, dry_run=True, state=state)
     assert e["orders"] and e["fills"] == []
     assert not BookState.path("rules", tmp_path).exists()
+    assert state.sim["positions"] == {} and not state.sim.get("open_orders")
 
 
 def test_decision_scaled_to_sleeve_weight(cfg, bars):
-    d = ClaudeDecision(market_view="", sleeve_weights=SleeveWeights(A=0.5, B=0.15, C=0.1, D=0),
-                       actions=[Action(symbol="QQQ", sleeve="B", target_pct_equity=0.3, stop_price=1.0,
-                                       rationale="x")], journal_note="")
+    sym = _eligible_b(cfg, bars)
+    d = ClaudeDecision(market_view="", journal_note="",
+                       actions=[Action(symbol=sym, sleeve="B", size="pct", target_pct_equity=0.3,
+                                       reason_code="MEAN_REVERSION_SETUP", evidence=["rule_signals.B.x"],
+                                       prediction_id="p1")],
+                       predictions=[Prediction(id="p1", symbol=sym, horizon=5, direction="above",
+                                               threshold_pct=1.0, probability=0.6,
+                                               linked_decision=f"action:B:{sym}")])
     log = []
-    targets, weights = decision_to_targets(cfg, d, {}, bars, 10000, log)
-    [t] = targets
-    assert abs(t.qty * bars["QQQ"]["close"].iloc[-1] - weights["B"] * 10000) < 1e-6
+    ctx = {"rule_signals": {"B": {"x": 1}}}
+    targets, weights = decision_to_targets(cfg, d, {}, bars, 10000, log, ctx=ctx, weights={"B": 0.15},
+                                           permissions={"A": 1, "B": 1, "C": 1, "D": 1})
+    [t] = [t for t in targets if t.symbol == sym]
+    assert t.qty * bars[sym]["close"].iloc[-1] == pytest.approx(weights["B"] * 10000)
+    # Without a context nothing can be checked: the action is dropped and the key follows the rule (nothing).
+    targets, _ = decision_to_targets(cfg, d, {}, bars, 10000, [], weights={"B": 0.15},
+                                     permissions={"A": 1, "B": 1, "C": 1, "D": 1})
+    assert all(t.qty == 0 for t in targets if t.symbol == sym)
 
 
 def test_crypto_sleeve_when_enabled(cfg, tmp_path):
-    import copy
-
-    from conftest import make_bars
-    from trader.config import Config
-
     pb = copy.deepcopy(cfg.playbook)
     pb["sleeves"]["D"]["enabled"] = True
     cfg_d = Config(playbook=pb, policy=cfg.policy)
@@ -119,11 +186,228 @@ def test_crypto_sleeve_when_enabled(cfg, tmp_path):
             for i, s in enumerate(cfg_d.allowlist())}
     as_of = bars["SPY"].index[-1]
     state = BookState.load("rules", tmp_path)
-    state.sim = {"cash": 100000.0, "positions": {}}  # D is capped at 5% (D-2), so use a $100k account
     e = run_book("rules", cfg_d, bars, _sim(cfg_d, state, bars), None, as_of, tmp_path, state=state)
     crypto = [o for o in e["orders"] if "/" in o["symbol"]]
     assert crypto, e["risk_log"]
     for o in crypto:
         assert o["qty"] * o["price"] <= 0.05 * 100000 + 1
-    lot = BookState.load("rules", tmp_path).lots["D"][crypto[0]["symbol"]]
-    assert lot.stop is not None and lot.stop < crypto[0]["price"]
+    pending = BookState.load("rules", tmp_path).pending_orders
+    alloc = [a for p in pending if p["symbol"] == crypto[0]["symbol"] for a in p["alloc"]][0]
+    assert alloc["sleeve"] == "D" and alloc["stop"] is not None and alloc["stop"] < crypto[0]["price"]
+
+
+# --- weights --------------------------------------------------------------------------------------
+
+
+def test_weights_go_through_cap_weights(cfg, bars):
+    w = normalize_weights(cfg, {"A": 0.9, "B": 0.5, "C": 0.5, "D": 0.5})
+    assert w == decisions.cap_weights(cfg, {"A": 0.9, "B": 0.5, "C": 0.5, "D": 0.5})
+    assert w["D"] == 0 and w["C"] + w["D"] <= 0.20 + 1e-12 and sum(w.values()) <= 0.95 + 1e-12
+    r = rules_sleeve_weights(cfg, bars, demoted={"C": "half"})
+    assert r["C"] <= cfg.sleeves["C"]["min"] + 1e-12  # M-11: demoted to its min
+    assert r["B"] <= cfg.sleeve_weight_cap("B") + 1e-12  # RISK-8 probation cap
+
+
+# --- context ctx-2 --------------------------------------------------------------------------------
+
+
+def _ctx(cfg, bars, tmp_path, book):
+    state = BookState.load(book, tmp_path)
+    as_of = bars["SPY"].index[-1]
+    adv = FakeAdvisor(reviews=None, decisions=[lambda c: ClaudeDecision(date=c["date"], market_view="",
+                                                                        journal_note="")])
+    run_book(book, cfg, bars, _sim(cfg, state, bars), adv, as_of, tmp_path, dry_run=True, state=state)
+    return adv.contexts[0]
+
+
+def test_context_layout_claude(cfg, bars, tmp_path):
+    ctx = _ctx(cfg, bars, tmp_path, "claude")
+    json.dumps(ctx, allow_nan=False)  # JSON-safe, no NaN
+    for key in ("context_schema", "prompt_version", "date", "book", "broker", "simulated", "account", "regime",
+                "sleeve_bounds", "weights", "positions", "rule_signals", "menus", "allowlist", "reason_codes",
+                "limits", "data_problems", "data_feed", "performance", "scorecard", "recent_notes"):
+        assert key in ctx, key
+    assert ctx["context_schema"] == "ctx-2" and ctx["broker"] == "sim" and ctx["simulated"] is True
+    for key in ("day_pnl_pct", "week_pnl_pct", "month_pnl_pct", "watch", "monthly_block", "sleeve_risk_mult",
+                "open_risk_heat_pct", "stress", "one_R_dollars"):
+        assert key in ctx["account"], key
+    assert set(ctx["weights"]["menu"]["B"]) == {"keep", "up", "down", "rule", "default"}
+    assert ctx["weights"]["change_allowed"] == {s: True for s in "ABCD"}
+    assert "temperature" in ctx["regime"] and "permissions" in ctx["regime"]
+    assert len(ctx["rule_signals"]["C"]["indicators"]) <= 15
+    some = next(iter(ctx["menus"].values()))
+    assert {"price", "current_pct", "rule_pct", "half_rule_pct", "eligible_increase", "stops"} <= set(some)
+    assert ctx["menus"]["D:BTC/USD"]["eligible_increase"] is False if "D:BTC/USD" in ctx["menus"] else True
+    assert "per_sleeve" in ctx["performance"] and "B" in ctx["performance"]["per_sleeve"]
+    assert "Longest losing streak" in ctx["performance"]["losing_streak_brief"]
+    assert set(ctx["scorecard"]) == {"predictions", "deviations", "vetoes"}
+    assert "planned_increases" not in ctx
+
+
+def test_context_layout_rules(cfg, bars, tmp_path):
+    ctx = _ctx(cfg, bars, tmp_path, "rules")
+    json.dumps(ctx, allow_nan=False)
+    assert "planned_increases" in ctx and "menus" not in ctx and "weights" not in ctx
+    assert all(p["sleeve"] in ("B", "C", "D") for p in ctx["planned_increases"])
+    assert ctx["reason_codes"]["skip"] == list(decisions.SKIP_CODES)
+
+
+def test_restricted_veto_codes_show_in_context(cfg, bars, tmp_path):
+    state = BookState.load("rules", tmp_path)
+    state.veto_codes_restricted = True
+    state.save(tmp_path)
+    ctx = _ctx(cfg, bars, tmp_path, "rules")
+    assert ctx["reason_codes"]["skip"] == ["DATA_SUSPECT", "HALT_OR_ILLIQUID"]
+
+
+def test_positions_failure_sends_no_orders(cfg, bars, tmp_path):
+    state = BookState.load("rules", tmp_path)
+    broker = _sim(cfg, state, bars)
+
+    def boom():
+        raise RuntimeError("positions endpoint down")
+
+    broker.positions = boom
+    e = run_book("rules", cfg, bars, broker, None, bars["SPY"].index[-1], tmp_path, state=state)
+    assert e["orders"] == [] and any("positions unavailable" in line for line in e["risk_log"])
+
+
+def test_lots_reconcile_against_broker_with_state(cfg, bars, tmp_path):
+    """A broker short of what the book expects books a reconcile reduction with P&L (no silent rescale)."""
+    as_of = bars["SPY"].index[-1]
+    state = BookState.load("rules", tmp_path)
+    px = float(bars["IEF"]["close"].iloc[-1])
+    state.lots = {"A": {"IEF": Lot(10.0, px * 0.9, "2026-01-02")}}
+    state.sim = {"cash": 100_000.0, "positions": {"IEF": 5.0}}
+    run_book("rules", cfg, bars, _sim(cfg, state, bars), None, as_of, tmp_path, dry_run=True, state=state)
+    ev = [e for e in state.lots["A"]["IEF"].events if e["reason"] == "reconcile"]
+    assert ev and state.lots["A"]["IEF"].qty == pytest.approx(5.0)
+    assert state.lots["A"]["IEF"].realized_pnl == pytest.approx(5 * (px - px * 0.9))
+
+
+# --- CLI ---------------------------------------------------------------------------------------------
+
+
+def test_sim_books_parsing():
+    assert cli.sim_books(None, ("rules", "claude")) == set()
+    assert cli.sim_books([], ("rules", "claude")) == {"rules", "claude"}
+    assert cli.sim_books(["claude"], ("rules", "claude")) == {"claude"}
+
+
+def test_partial_bar_is_dropped_before_the_close():
+    idx = pd.to_datetime(["2026-09-24", "2026-09-25"])
+    bars = {"SPY": pd.DataFrame({"close": [1.0, 2.0]}, index=idx)}
+    out, note = cli.drop_partial_bar(bars, pd.Timestamp("2026-09-25 11:00", tz="America/New_York"))
+    assert len(out["SPY"]) == 1 and note
+    out, note = cli.drop_partial_bar(bars, pd.Timestamp("2026-09-25 16:30", tz="America/New_York"))
+    assert len(out["SPY"]) == 2 and note is None
+    out, note = cli.drop_partial_bar(bars, pd.Timestamp("2026-09-26 09:00", tz="America/New_York"))
+    assert len(out["SPY"]) == 2 and note is None
+
+
+def test_cli_run_prepare_status_report_with_sim(cfg, bars, tmp_path, monkeypatch, capsys):
+    """The whole CLI on the simulator with synthetic bars (no network, no Alpaca)."""
+    monkeypatch.setattr(cli, "STATE_DIR", tmp_path)
+    d1 = bars["SPY"].index[-2]
+    monkeypatch.setattr(cli, "fetch_bars", lambda c: (_upto(bars, d1), {"feed_used": "test", "notes": []}))
+    assert cli.main(["prepare", "--book", "claude", "--sim"]) == 0
+    assert (tmp_path / "claude" / "pending" / d1.date().isoformat() / "context.json").exists()
+    assert cli.main(["run", "--sim", "--session"]) == 0
+    out = capsys.readouterr().out
+    assert "SIMULATED" in out and "none found" in out
+    monkeypatch.setattr(cli, "fetch_bars", lambda c: (bars, {"feed_used": "test", "notes": []}))
+    assert cli.main(["run", "--sim", "--no-claude"]) == 0
+    assert cli.main(["status"]) == 0
+    assert cli.main(["report"]) == 0
+    assert cli.main(["report", "--json"]) == 0
+    out = capsys.readouterr().out
+    assert "rules" in out and BookState.load("rules", tmp_path).fills
+
+
+def test_cli_owner_commands(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(cli, "STATE_DIR", tmp_path)
+    s = BookState(book="rules", sleeve_blocked={"C": "drawdown"}, veto_codes_restricted=True,
+                  sleeve_pnl={"C": {"realized": -6000.0, "cum": -6000.0, "peak": 0.0}})
+    s.save(tmp_path)
+    assert cli.main(["sleeve-reset", "C", "--book", "rules"]) == 0
+    assert cli.main(["veto-reset", "--book", "rules"]) == 0
+    s = BookState.load("rules", tmp_path)
+    assert s.sleeve_blocked == {} and s.sleeve_pnl["C"]["peak"] == -6000.0
+    assert s.veto_codes_restricted is False and s.veto_reset_date
+    assert cli.main(["promote", "C", "--book", "rules"]) == 1  # refused without the owner flag
+    assert BookState.load("rules", tmp_path).promoted_sleeves == []
+    assert cli.main(["promote", "C", "--book", "rules", "--i-am-the-owner"]) == 0
+    assert BookState.load("rules", tmp_path).promoted_sleeves == ["C"]
+    assert cli.main(["demote", "C", "--book", "rules", "--i-am-the-owner"]) == 0
+    assert BookState.load("rules", tmp_path).promoted_sleeves == []
+    c = BookState(book="claude", deviations_restricted=True)
+    c.save(tmp_path)
+    assert cli.main(["deviation-reset"]) == 0
+    assert BookState.load("claude", tmp_path).deviations_restricted is False
+    assert "NOT passed" in capsys.readouterr().out
+
+
+def test_decision_file_needs_a_single_book(tmp_path, monkeypatch):
+    monkeypatch.setattr(cli, "STATE_DIR", tmp_path)
+    with pytest.raises(SystemExit):
+        cli.main(["run", "--sim", "--decision-file", "x.json"])
+
+
+def test_unexpected_advisor_failure_falls_back_safely(cfg, bars, tmp_path):
+    """Anything but a clean answer: the Claude book holds, the rules book runs unreviewed."""
+
+    class Broken:
+        def decide(self, ctx):
+            raise RuntimeError("network down")
+
+        def review_rules_plan(self, ctx):
+            raise RuntimeError("network down")
+
+    as_of = bars["SPY"].index[-1]
+    s = BookState.load("claude", tmp_path)
+    e = run_book("claude", cfg, bars, _sim(cfg, s, bars), Broken(), as_of, tmp_path, dry_run=True, state=s)
+    assert e["orders"] == [] and "network down" in e["claude_error"]
+    s = BookState.load("rules", tmp_path)
+    plain = run_book("rules", cfg, bars, _sim(cfg, s, bars), None, as_of, tmp_path, dry_run=True, state=s)
+    s = BookState.load("rules", tmp_path)
+    e = run_book("rules", cfg, bars, _sim(cfg, s, bars), Broken(), as_of, tmp_path, dry_run=True, state=s)
+    assert [o["symbol"] for o in e["orders"]] == [o["symbol"] for o in plain["orders"]]
+
+
+def test_new_state_fields_survive_save_and_load(tmp_path):
+    s = BookState(book="claude", veto_reset_date="2026-09-01", deviations_restricted=True,
+                  deviations_reset_date="2026-09-02")
+    s.save(tmp_path)
+    t = BookState.load("claude", tmp_path)
+    assert (t.veto_reset_date, t.deviations_restricted, t.deviations_reset_date) == ("2026-09-01", True,
+                                                                                      "2026-09-02")
+
+
+def test_a_book_never_switches_between_simulator_and_alpaca(cfg, bars, tmp_path, monkeypatch):
+    monkeypatch.setattr(cli, "STATE_DIR", tmp_path)
+    sim_state = BookState(book="claude", sim={"cash": 1.0, "positions": {}})
+    with pytest.raises(SystemExit, match="simulator"):
+        cli.make_broker("claude", cfg, sim_state, bars, simulate=False)
+    live_state = BookState(book="rules", lots={"A": {"SPY": Lot(1.0, 100.0, "2026-09-01")}})
+    with pytest.raises(SystemExit, match="Alpaca"):
+        cli.make_broker("rules", cfg, live_state, bars, simulate=True)
+    fresh = BookState(book="claude")
+    broker = cli.make_broker("claude", cfg, fresh, bars, simulate=True)
+    assert broker.name == "sim" and broker.fill_mode == "next_open" and broker.cost_in_price is False
+    assert fresh.sim["cash"] == cfg.playbook["simulation"]["starting_cash"]
+
+
+def test_guide_rule_6_latch_makes_the_claude_book_follow_the_rules(cfg, bars, tmp_path):
+    sym = _eligible_b(cfg, bars)
+    s = BookState.load("claude", tmp_path)
+    s.deviations_restricted = True
+    decide = lambda c: ClaudeDecision(  # noqa: E731
+        date=c["date"], market_view="", journal_note="",
+        actions=[Action(symbol=sym, sleeve="B", size="pct", target_pct_equity=0.05, reason_code="MEAN_REVERSION_SETUP",
+                        evidence=[f"rule_signals.B.indicators[{sym}].rsi2"], prediction_id="p1")],
+        predictions=[Prediction(id="p1", symbol=sym, horizon=5, direction="above", threshold_pct=1.0,
+                                probability=0.6, linked_decision=f"action:B:{sym}")])
+    e = run_book("claude", cfg, bars, _sim(cfg, s, bars), FakeAdvisor([decide]), bars["SPY"].index[-1], tmp_path,
+                 dry_run=True, state=s)
+    assert sym not in {o["symbol"] for o in e["orders"]} and e["orders"]  # rule targets only
+    assert any("deviations are restricted" in line for line in e["risk_log"])

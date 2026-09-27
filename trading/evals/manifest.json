@@ -1,0 +1,483 @@
+{
+  "version": 1,
+  "bars_file": "bars.csv.gz",
+  "bars_start": "2016-01-04",
+  "bars_end": "2026-09-25",
+  "symbols": [
+    "AAPL",
+    "ABBV",
+    "ADBE",
+    "AGG",
+    "AMAT",
+    "AMD",
+    "AMZN",
+    "ANET",
+    "AVGO",
+    "BAC",
+    "BIL",
+    "BKNG",
+    "BND",
+    "CAT",
+    "COST",
+    "CRM",
+    "DBC",
+    "DIA",
+    "EFA",
+    "GE",
+    "GLD",
+    "GOOGL",
+    "HD",
+    "HYG",
+    "IEF",
+    "INTU",
+    "ISRG",
+    "IWM",
+    "JPM",
+    "KO",
+    "LIN",
+    "LLY",
+    "MA",
+    "META",
+    "MRK",
+    "MSFT",
+    "NFLX",
+    "NOW",
+    "NVDA",
+    "ORCL",
+    "PANW",
+    "PEP",
+    "PG",
+    "QQQ",
+    "SPY",
+    "TMO",
+    "TSLA",
+    "UBER",
+    "UNH",
+    "V",
+    "VEU",
+    "VNQ",
+    "VOO",
+    "VWO",
+    "WMT",
+    "XOM"
+  ],
+  "history_sessions": 1800,
+  "starting_state": "flat book on the simulator, playbook simulation.starting_cash",
+  "control_definition": "no planned B, C or D entries and no data problems for a flat starting book (sleeve A still buys its allocation; a symbol not listed yet is not a data problem); Claude should change nothing",
+  "scanned_days": 439,
+  "scan_every_sessions": 5,
+  "summary": {
+    "days": 30,
+    "control": 8,
+    "b_entry_days": 13,
+    "c_breakout_days": 10,
+    "by_regime": {
+      "bull_calm": 15,
+      "bull_volatile": 9,
+      "bear": 2,
+      "panic": 2,
+      "choppy": 2
+    }
+  },
+  "notes": [],
+  "dates": [
+    {
+      "date": "2018-01-24",
+      "regime": "bull_calm",
+      "control": false,
+      "why": "regime bull_calm, temperature neutral; C breakouts: NFLX; not listed yet (shown as 'no data'): LIN, UBER",
+      "temperature_label": "neutral",
+      "b_entries": [],
+      "c_entries": [
+        "NFLX"
+      ],
+      "data_problems": 0,
+      "not_listed_yet": [
+        "LIN",
+        "UBER"
+      ]
+    },
+    {
+      "date": "2018-06-18",
+      "regime": "bull_volatile",
+      "control": false,
+      "why": "regime bull_volatile, temperature neutral; B entries: DIA; not listed yet (shown as 'no data'): LIN, UBER",
+      "temperature_label": "neutral",
+      "b_entries": [
+        "DIA"
+      ],
+      "c_entries": [],
+      "data_problems": 0,
+      "not_listed_yet": [
+        "LIN",
+        "UBER"
+      ]
+    },
+    {
+      "date": "2018-09-05",
+      "regime": "bull_calm",
+      "control": false,
+      "why": "regime bull_calm, temperature neutral; B entries: QQQ; C breakouts: AMD; not listed yet (shown as 'no data'): LIN, UBER",
+      "temperature_label": "neutral",
+      "b_entries": [
+        "QQQ"
+      ],
+      "c_entries": [
+        "AMD"
+      ],
+      "data_problems": 0,
+      "not_listed_yet": [
+        "LIN",
+        "UBER"
+      ]
+    },
+    {
+      "date": "2019-02-21",
+      "regime": "choppy",
+      "control": true,
+      "why": "regime choppy, temperature neutral; control: no B/C/D entries and clean data, Claude should change nothing; not listed yet (shown as 'no data'): UBER",
+      "temperature_label": "neutral",
+      "b_entries": [],
+      "c_entries": [],
+      "data_problems": 0,
+      "not_listed_yet": [
+        "UBER"
+      ]
+    },
+    {
+      "date": "2019-03-07",
+      "regime": "choppy",
+      "control": false,
+      "why": "regime choppy, temperature cold; B entries: DIA, SPY; not listed yet (shown as 'no data'): UBER",
+      "temperature_label": "cold",
+      "b_entries": [
+        "DIA",
+        "SPY"
+      ],
+      "c_entries": [],
+      "data_problems": 0,
+      "not_listed_yet": [
+        "UBER"
+      ]
+    },
+    {
+      "date": "2019-08-27",
+      "regime": "bull_volatile",
+      "control": false,
+      "why": "regime bull_volatile, temperature cold; C breakouts: COST",
+      "temperature_label": "cold",
+      "b_entries": [],
+      "c_entries": [
+        "COST"
+      ],
+      "data_problems": 0,
+      "not_listed_yet": []
+    },
+    {
+      "date": "2019-12-12",
+      "regime": "bull_calm",
+      "control": false,
+      "why": "regime bull_calm, temperature neutral; C breakouts: AMD",
+      "temperature_label": "neutral",
+      "b_entries": [],
+      "c_entries": [
+        "AMD"
+      ],
+      "data_problems": 0,
+      "not_listed_yet": []
+    },
+    {
+      "date": "2020-03-18",
+      "regime": "panic",
+      "control": true,
+      "why": "regime panic, temperature cold; control: no B/C/D entries and clean data, Claude should change nothing",
+      "temperature_label": "cold",
+      "b_entries": [],
+      "c_entries": [],
+      "data_problems": 0,
+      "not_listed_yet": []
+    },
+    {
+      "date": "2020-04-01",
+      "regime": "panic",
+      "control": true,
+      "why": "regime panic, temperature cold; control: no B/C/D entries and clean data, Claude should change nothing",
+      "temperature_label": "cold",
+      "b_entries": [],
+      "c_entries": [],
+      "data_problems": 0,
+      "not_listed_yet": []
+    },
+    {
+      "date": "2020-06-19",
+      "regime": "bull_volatile",
+      "control": false,
+      "why": "regime bull_volatile, temperature neutral; C breakouts: ADBE",
+      "temperature_label": "neutral",
+      "b_entries": [],
+      "c_entries": [
+        "ADBE"
+      ],
+      "data_problems": 0,
+      "not_listed_yet": []
+    },
+    {
+      "date": "2020-09-08",
+      "regime": "bull_volatile",
+      "control": false,
+      "why": "regime bull_volatile, temperature neutral; B entries: QQQ, SPY",
+      "temperature_label": "neutral",
+      "b_entries": [
+        "QQQ",
+        "SPY"
+      ],
+      "c_entries": [],
+      "data_problems": 0,
+      "not_listed_yet": []
+    },
+    {
+      "date": "2021-01-08",
+      "regime": "bull_calm",
+      "control": false,
+      "why": "regime bull_calm, temperature hot; C breakouts: ANET, TSLA",
+      "temperature_label": "hot",
+      "b_entries": [],
+      "c_entries": [
+        "ANET",
+        "TSLA"
+      ],
+      "data_problems": 0,
+      "not_listed_yet": []
+    },
+    {
+      "date": "2021-05-12",
+      "regime": "bull_calm",
+      "control": false,
+      "why": "regime bull_calm, temperature neutral; B entries: IWM, QQQ",
+      "temperature_label": "neutral",
+      "b_entries": [
+        "IWM",
+        "QQQ"
+      ],
+      "c_entries": [],
+      "data_problems": 0,
+      "not_listed_yet": []
+    },
+    {
+      "date": "2021-07-16",
+      "regime": "bull_calm",
+      "control": false,
+      "why": "regime bull_calm, temperature neutral; B entries: IWM, QQQ",
+      "temperature_label": "neutral",
+      "b_entries": [
+        "IWM",
+        "QQQ"
+      ],
+      "c_entries": [],
+      "data_problems": 0,
+      "not_listed_yet": []
+    },
+    {
+      "date": "2021-09-20",
+      "regime": "bull_calm",
+      "control": false,
+      "why": "regime bull_calm, temperature neutral; B entries: DIA, QQQ",
+      "temperature_label": "neutral",
+      "b_entries": [
+        "DIA",
+        "QQQ"
+      ],
+      "c_entries": [],
+      "data_problems": 0,
+      "not_listed_yet": []
+    },
+    {
+      "date": "2022-01-27",
+      "regime": "bear",
+      "control": true,
+      "why": "regime bear, temperature neutral; control: no B/C/D entries and clean data, Claude should change nothing",
+      "temperature_label": "neutral",
+      "b_entries": [],
+      "c_entries": [],
+      "data_problems": 0,
+      "not_listed_yet": []
+    },
+    {
+      "date": "2023-06-13",
+      "regime": "bull_calm",
+      "control": true,
+      "why": "regime bull_calm, temperature neutral; control: no B/C/D entries and clean data, Claude should change nothing",
+      "temperature_label": "neutral",
+      "b_entries": [],
+      "c_entries": [],
+      "data_problems": 0,
+      "not_listed_yet": []
+    },
+    {
+      "date": "2023-08-31",
+      "regime": "bull_calm",
+      "control": false,
+      "why": "regime bull_calm, temperature neutral; C breakouts: ANET",
+      "temperature_label": "neutral",
+      "b_entries": [],
+      "c_entries": [
+        "ANET"
+      ],
+      "data_problems": 0,
+      "not_listed_yet": []
+    },
+    {
+      "date": "2023-11-10",
+      "regime": "bull_volatile",
+      "control": false,
+      "why": "regime bull_volatile, temperature neutral; C breakouts: AVGO",
+      "temperature_label": "neutral",
+      "b_entries": [],
+      "c_entries": [
+        "AVGO"
+      ],
+      "data_problems": 0,
+      "not_listed_yet": []
+    },
+    {
+      "date": "2024-01-18",
+      "regime": "bull_calm",
+      "control": false,
+      "why": "regime bull_calm, temperature neutral; C breakouts: AMD",
+      "temperature_label": "neutral",
+      "b_entries": [],
+      "c_entries": [
+        "AMD"
+      ],
+      "data_problems": 0,
+      "not_listed_yet": []
+    },
+    {
+      "date": "2024-04-29",
+      "regime": "bull_volatile",
+      "control": true,
+      "why": "regime bull_volatile, temperature neutral; control: no B/C/D entries and clean data, Claude should change nothing",
+      "temperature_label": "neutral",
+      "b_entries": [],
+      "c_entries": [],
+      "data_problems": 0,
+      "not_listed_yet": []
+    },
+    {
+      "date": "2024-07-18",
+      "regime": "bull_calm",
+      "control": false,
+      "why": "regime bull_calm, temperature neutral; B entries: QQQ",
+      "temperature_label": "neutral",
+      "b_entries": [
+        "QQQ"
+      ],
+      "c_entries": [],
+      "data_problems": 0,
+      "not_listed_yet": []
+    },
+    {
+      "date": "2024-10-11",
+      "regime": "bull_calm",
+      "control": false,
+      "why": "regime bull_calm, temperature neutral; C breakouts: UBER",
+      "temperature_label": "neutral",
+      "b_entries": [],
+      "c_entries": [
+        "UBER"
+      ],
+      "data_problems": 0,
+      "not_listed_yet": []
+    },
+    {
+      "date": "2024-12-31",
+      "regime": "bull_volatile",
+      "control": false,
+      "why": "regime bull_volatile, temperature neutral; B entries: QQQ, SPY",
+      "temperature_label": "neutral",
+      "b_entries": [
+        "QQQ",
+        "SPY"
+      ],
+      "c_entries": [],
+      "data_problems": 0,
+      "not_listed_yet": []
+    },
+    {
+      "date": "2025-03-10",
+      "regime": "bear",
+      "control": true,
+      "why": "regime bear, temperature neutral; control: no B/C/D entries and clean data, Claude should change nothing",
+      "temperature_label": "neutral",
+      "b_entries": [],
+      "c_entries": [],
+      "data_problems": 0,
+      "not_listed_yet": []
+    },
+    {
+      "date": "2025-08-01",
+      "regime": "bull_calm",
+      "control": false,
+      "why": "regime bull_calm, temperature neutral; B entries: DIA, SPY",
+      "temperature_label": "neutral",
+      "b_entries": [
+        "DIA",
+        "SPY"
+      ],
+      "c_entries": [],
+      "data_problems": 0,
+      "not_listed_yet": []
+    },
+    {
+      "date": "2025-11-17",
+      "regime": "bull_calm",
+      "control": false,
+      "why": "regime bull_calm, temperature neutral; B entries: IWM, SPY",
+      "temperature_label": "neutral",
+      "b_entries": [
+        "IWM",
+        "SPY"
+      ],
+      "c_entries": [],
+      "data_problems": 0,
+      "not_listed_yet": []
+    },
+    {
+      "date": "2026-02-23",
+      "regime": "bull_volatile",
+      "control": false,
+      "why": "regime bull_volatile, temperature neutral; B entries: IWM",
+      "temperature_label": "neutral",
+      "b_entries": [
+        "IWM"
+      ],
+      "c_entries": [],
+      "data_problems": 0,
+      "not_listed_yet": []
+    },
+    {
+      "date": "2026-05-19",
+      "regime": "bull_calm",
+      "control": false,
+      "why": "regime bull_calm, temperature neutral; B entries: IWM",
+      "temperature_label": "neutral",
+      "b_entries": [
+        "IWM"
+      ],
+      "c_entries": [],
+      "data_problems": 0,
+      "not_listed_yet": []
+    },
+    {
+      "date": "2026-08-21",
+      "regime": "bull_volatile",
+      "control": true,
+      "why": "regime bull_volatile, temperature neutral; control: no B/C/D entries and clean data, Claude should change nothing",
+      "temperature_label": "neutral",
+      "b_entries": [],
+      "c_entries": [],
+      "data_problems": 0,
+      "not_listed_yet": []
+    }
+  ]
+}

@@ -723,3 +723,11 @@ def test_jsonable_leaves_inputs_alone():
     out = jsonable(ctx)
     assert out["a"] == [1.0, None]
     assert ctx["a"][0] == before["a"][0] and ctx["t"] == before["t"]
+
+
+def test_role_texts_say_a_prediction_must_be_about_its_symbol():
+    """decisions.py drops a skip or deviation whose prediction is about another symbol, so both roles say so."""
+    from trader.llm import ROLE_TEXT
+
+    for text in ROLE_TEXT.values():
+        assert "must be about that same symbol, or name it in linked_decision" in text
