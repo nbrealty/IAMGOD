@@ -113,15 +113,8 @@ def sleeve_b(bars: Bars, cfg: dict, capital: float, lots: dict[str, Lot], policy
         plan.candidates.append(snap)
         lot = lots.get(sym)
         if lot:
-            held = _bars_held(df, lot.entry_date)
-            if close > sma5:
-                plan.targets[sym] = Target(sym, "B", 0.0, lot.stop, "RSI2 exit: close above 5-day SMA")
-            elif held >= time_stop:
-                plan.targets[sym] = Target(sym, "B", 0.0, lot.stop, f"RSI2 time stop after {held} days")
-            elif lot.stop is not None and close <= lot.stop:
-                plan.targets[sym] = Target(sym, "B", 0.0, lot.stop, "RSI2 disaster stop")
-            else:
-                plan.targets[sym] = Target(sym, "B", lot.qty, lot.stop, "hold")
+            why = exit_b(df, lot.stop, lot.entry_date, time_stop)
+            plan.targets[sym] = Target(sym, "B", 0.0 if why else lot.qty, lot.stop, why or "hold")
         elif close > sma200 and rsi2 < cfg["rsi_entry"]:
             entries.append((rsi2, sym, close, atr))
 
@@ -177,17 +170,8 @@ def sleeve_c(bars: Bars, cfg: dict, capital: float, lots: dict[str, Lot], policy
         if df is None:
             plan.targets[sym] = Target(sym, "C", lot.qty, lot.stop, "hold (no data)")
             continue
-        close = float(df["close"].iloc[-1])
-        low10 = float(df["low"].iloc[-11:-1].min())
-        sma50 = _last(ind.sma(df["close"], 50))
-        if lot.stop is not None and close <= lot.stop:
-            plan.targets[sym] = Target(sym, "C", 0.0, lot.stop, "breakout stop hit")
-        elif close < low10:
-            plan.targets[sym] = Target(sym, "C", 0.0, lot.stop, "closed below 10-day low")
-        elif close < sma50:
-            plan.targets[sym] = Target(sym, "C", 0.0, lot.stop, "closed below 50-day SMA")
-        else:
-            plan.targets[sym] = Target(sym, "C", lot.qty, lot.stop, "hold")
+        why = exit_c(df, lot.stop)
+        plan.targets[sym] = Target(sym, "C", 0.0 if why else lot.qty, lot.stop, why or "hold")
 
     entries = []
     for sym in universe:
@@ -259,3 +243,71 @@ def sleeve_d(bars: Bars, cfg: dict, capital: float, lots: dict[str, Lot], policy
         plan.targets[sym] = Target(sym, "D", _band(w * capital / close, current, band), stop,
                                    f"donchian score {score:.2f}")
     return plan
+
+
+# --- exits shared by the sleeves, the shadow veto lots (CL-9) and the backtester -----------------
+
+
+def exit_b(df: pd.DataFrame, stop: float | None, entry_date: str, time_stop: int) -> str | None:
+    """B-4: first of close > SMA5, `time_stop` sessions held, close <= stop. None means hold."""
+    close = float(df["close"].iloc[-1])
+    sma5 = _last(ind.sma(df["close"], 5))
+    held = _bars_held(df, entry_date)
+    if close > sma5:
+        return "RSI2 exit: close above 5-day SMA"
+    if held >= time_stop:
+        return f"RSI2 time stop after {held} days"
+    if stop is not None and close <= stop:
+        return "RSI2 disaster stop"
+    return None
+
+
+def exit_c(df: pd.DataFrame, stop: float | None) -> str | None:
+    """C exits: close <= stop, close < lowest low of the prior 10 sessions (C-7), close < SMA50 (C-8)."""
+    close = float(df["close"].iloc[-1])
+    low10 = float(df["low"].iloc[-11:-1].min())
+    sma50 = _last(ind.sma(df["close"], 50))
+    if stop is not None and close <= stop:
+        return "breakout stop hit"
+    if close < low10:
+        return "closed below 10-day low"
+    if close < sma50:
+        return "closed below 50-day SMA"
+    return None
+
+
+def exit_d(df: pd.DataFrame, stop: float | None, lookbacks: list[int]) -> str | None:
+    """D-4: exit on the stop or when the Donchian score is 0."""
+    close = float(df["close"].iloc[-1])
+    if stop is not None and close <= stop:
+        return "crypto stop hit"
+    if donchian_score(df, lookbacks) == 0:
+        return "donchian score 0"
+    return None
+
+
+def exit_signal(sleeve: str, df: pd.DataFrame, stop: float | None, entry_date: str, sleeve_cfg: dict,
+                policy: dict) -> str | None:
+    """The sleeve's own exit rule for one position (A has none: it rebalances monthly)."""
+    if sleeve == "B":
+        return exit_b(df, stop, entry_date, policy["per_trade"]["time_stop_days"]["B"])
+    if sleeve == "C":
+        return exit_c(df, stop)
+    if sleeve == "D":
+        return exit_d(df, stop, sleeve_cfg["lookbacks"])
+    return None
+
+
+def rule_stop(sleeve: str, df: pd.DataFrame, policy: dict) -> float | None:
+    """The rule stop for a new position at today's close: B and D close - 3*ATR20; C max(close - 2*ATR20,
+    0.92*close). Also the floor for Claude's stops (CL-14). None for sleeve A (no stops, A-5)."""
+    if sleeve not in ("B", "C", "D"):
+        return None
+    pt = policy["per_trade"]
+    close = float(df["close"].iloc[-1])
+    a = _last(ind.atr(df, pt["atr_period"]))
+    stop = close - pt["stop_atr_multiple"][sleeve] * a
+    max_dist = pt.get("max_stop_distance_pct", {}).get(sleeve)
+    if max_dist:
+        stop = max(stop, close * (1 - max_dist))
+    return float(stop)

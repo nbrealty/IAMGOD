@@ -42,12 +42,42 @@ class Config:
     def allowlist(self) -> list[str]:
         return _unique(self.etf_symbols() + self.stock_universe() + self.crypto_symbols())
 
+    def data_symbols(self) -> list[str]:
+        """Everything fetched each run: the allowlist plus data-only symbols (never traded)."""
+        extra = list(self.playbook["regime"].get("credit", [])) + list(self.playbook.get("data", {}).get("extra_symbols", []))
+        return _unique(self.allowlist() + extra)
+
     def asset_class(self, symbol: str) -> str:
         if "/" in symbol:
             return "crypto"
-        if symbol in self.etf_symbols():
+        if symbol in self.etf_symbols() or symbol in self.playbook.get("data", {}).get("extra_symbols", []) \
+                or symbol in self.playbook["regime"].get("credit", []):
             return "etf"
         return "stock"
+
+    def sector_of(self, symbol: str) -> str | None:
+        """C-9 sector group of a sleeve C stock, or None."""
+        for group, members in self.sleeves["C"].get("sectors", {}).items():
+            if symbol in members:
+                return group
+        return None
+
+    def is_equity_like(self, symbol: str) -> bool:
+        """RISK-6: equity-like ETFs and every single stock."""
+        return self.asset_class(symbol) == "stock" or symbol in self.policy["portfolio"].get("equity_like_symbols", [])
+
+    def sleeve_weight_cap(self, sleeve: str, promoted: list[str] | tuple = ()) -> float:
+        """RISK-8: a sleeve that has not passed gate M-10 is capped at its default weight (A is exempt)."""
+        s = self.sleeves[sleeve]
+        if sleeve == "A" or sleeve in promoted:
+            return float(s["max"])
+        return float(min(s["max"], s["default"]))
+
+    def risk_pct(self, sleeve: str) -> float:
+        """RISK-2: 1R for one sleeve, never above the hard cap."""
+        pt = self.policy["per_trade"]
+        r = pt.get("risk_pct_by_sleeve", {}).get(sleeve, pt["risk_pct_default"])
+        return float(min(r, pt["risk_pct_hard_cap"]))
 
 
 def _unique(items: list[str]) -> list[str]:

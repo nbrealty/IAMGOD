@@ -9,6 +9,10 @@ per_trade:
   risk_pct_default: 0.005     # 1R = 0.5% of equity for new/unvalidated sleeves
   risk_pct_validated: 0.010   # only after >=100 trades with positive expectancy (not automatic yet)
   risk_pct_hard_cap: 0.020    # no single trade may risk more than this, ever
+  risk_pct_by_sleeve:         # RISK-2: per-sleeve 1R; the owner edits by hand after gate M-10 passes
+    B: 0.005
+    C: 0.005
+    D: 0.005
   atr_period: 20
   stop_atr_multiple:
     B: 3.0                    # RSI(2) disaster stop
@@ -19,7 +23,9 @@ per_trade:
   never_widen_stop: true
   no_averaging_down: true
   time_stop_days:
-    B: 10
+    B: 10                     # B-4(b): enforced in risk.py for both books
+  trail_low_sessions:
+    C: 10                     # C-7: stop = max(stop, lowest low of the prior 10 sessions), both books
 portfolio:
   vol_target_annual: 0.10     # sleeve A ETFs: weight_i = min(1, 0.10 / realized_vol_60d_i)
   max_open_risk_heat: 0.06    # sum of (price - stop) * qty across stopped positions / equity
@@ -30,17 +36,55 @@ portfolio:
     rho_60d: 0.7
     max_count: 2
   min_cash_buffer: 0.05
+  max_equity_like: 0.75       # RISK-6: equity-like ETFs plus all single stocks, share of equity
+  equity_like_symbols: [SPY, VOO, EFA, VEU, VNQ, QQQ, IWM, DIA]
+  max_speculative_weight: 0.20  # RISK-7: sleeve C + sleeve D weights
+  cluster_heat:               # B-5: open risk of the correlated index ETFs in sleeve B
+    B_index:
+      sleeve: B
+      symbols: [SPY, QQQ, IWM, DIA]
+      max: 0.0075
+  sector_max_positions: 2     # C-9: at most 2 open sleeve C positions per sector group (playbook sectors)
 breakers:                     # measured from the equity high-water mark
   drawdown_halve_risk: 0.10
   drawdown_no_new_entries: 0.15
   drawdown_halt: 0.20         # exits only until a human runs `trader kill off --reset-peak`
-  daily_loss_R: 2
-  weekly_loss_R: 5
+  watch_drawdown: 0.05        # RISK-10: flag; the Claude book may not raise B, C or D weights
+  daily_loss_pct: 0.01        # RISK-11: -1% of equity today -> no new entries today (was -2R)
+  weekly_loss_pct: 0.025      # RISK-11: -2.5% this week -> no new entries this week (was -5R)
+  monthly_loss_pct: 0.04      # RISK-12: month-to-date <= -4% of prior month-end equity -> no new B/C/D entries
+  sleeve_dd_halve: 0.03       # RISK-13: sleeve P&L 3% of equity below its peak -> half risk on its entries
+  sleeve_dd_off: 0.05         # RISK-13: 5% -> its new entries stop until the owner reviews
 turnover:
   max_orders_per_day: 10
   rebalance_band: 0.20        # sleeve A: skip trades smaller than 20% of the target position
   min_order_notional: 25
-  cost_model_per_side_bps:
+  cost_model_per_side_bps:     # EX-5: raised automatically if measured slippage is > 2x this over >= 30 fills
     etf: 5
     stock: 10
     crypto: 25
+  slippage_min_fills: 30
+  buy_priority: [A, B, C, D]  # EX-3: when the daily order cap bites, buys are kept in this order
+data_checks:                  # EX-7: block entries in symbols failing these
+  max_stale_days: 5
+  max_daily_move: 0.25
+claude_limits:                # section (e): what Claude may do, enforced in code
+  weight_step: 0.05           # CL-12: max change per sleeve per change
+  weight_change_min_sessions: 5
+  deviation_threshold: 0.20   # CL-13: a deviation is > 20% of the larger target, or a different direction
+  max_predictions_per_day: 3  # CL-5
+  veto_min_scored: 30         # CL-9: after this many scored vetoes with a negative sum, codes are restricted
+  journal_max_sentences: 5
+measurement:
+  promotion:                  # M-10: code only reports; the owner edits risk_pct_by_sleeve by hand
+    min_closed_lots: 100
+    min_sqn: 2.0
+    min_backtest_ratio: 0.5
+    no_halt_sessions: 63
+  demotion:                   # M-11
+    bootstrap_min_n: 30
+    bootstrap_upper_q: 0.90
+    sqn_min_n: 50
+    sqn_floor: -1.0
+  predictions_min_resolved: 50  # M-7
+  going_live_min_sessions: 252  # G-1

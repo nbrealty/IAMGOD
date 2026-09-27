@@ -46,12 +46,13 @@ def breaker_status(cfg: Config, equity: float, peak: float, day_pnl: float, week
     if dd >= b["drawdown_no_new_entries"] and not halted:
         reasons.append(f"drawdown {dd:.1%}: no new entries")
     day_r, week_r = day_pnl / one_r, week_pnl / one_r
-    if day_r <= -b["daily_loss_R"]:
+    day_pct, week_pct = day_pnl / equity, week_pnl / equity
+    if day_pct <= -b["daily_loss_pct"]:
         no_new = True
-        reasons.append(f"daily loss {day_r:.1f}R: no new entries today")
-    if week_r <= -b["weekly_loss_R"]:
+        reasons.append(f"daily loss {day_pct:.2%} of equity: no new entries today")
+    if week_pct <= -b["weekly_loss_pct"]:
         no_new = True
-        reasons.append(f"weekly loss {week_r:.1f}R: no new entries this week")
+        reasons.append(f"weekly loss {week_pct:.2%} of equity: no new entries this week")
     risk_mult = 0.5 if dd >= b["drawdown_halve_risk"] else 1.0
     if risk_mult < 1 and not no_new:
         reasons.append(f"drawdown {dd:.1%}: risk per trade halved")

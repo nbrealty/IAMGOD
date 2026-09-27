@@ -119,10 +119,11 @@ def test_crypto_sleeve_when_enabled(cfg, tmp_path):
             for i, s in enumerate(cfg_d.allowlist())}
     as_of = bars["SPY"].index[-1]
     state = BookState.load("rules", tmp_path)
+    state.sim = {"cash": 100000.0, "positions": {}}  # D is capped at 5% (D-2), so use a $100k account
     e = run_book("rules", cfg_d, bars, _sim(cfg_d, state, bars), None, as_of, tmp_path, state=state)
     crypto = [o for o in e["orders"] if "/" in o["symbol"]]
     assert crypto, e["risk_log"]
     for o in crypto:
-        assert o["qty"] * o["price"] <= 0.10 * 10000 + 1
+        assert o["qty"] * o["price"] <= 0.05 * 100000 + 1
     lot = BookState.load("rules", tmp_path).lots["D"][crypto[0]["symbol"]]
     assert lot.stop is not None and lot.stop < crypto[0]["price"]
