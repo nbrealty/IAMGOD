@@ -140,8 +140,9 @@ _ITEM_SHAPES = {
     },
     "decide": {
         "actions[]": {"symbol": "<SYMBOL>", "sleeve": "<A|B|C|D>", "size": "<rule|half_rule|hold|exit|pct>",
-                      "target_pct_equity": 0.0, "stop": "<rule|tight|keep|none>", "reason_code": "<code>",
-                      "evidence": ["<path into context.json>"], "prediction_id": "p1", "rationale": "<why>"},
+                      "target_pct_equity": 0.02, "stop": "<rule|tight|keep|none>", "reason_code": "<code>",
+                      "evidence": ["<path into context.json>"], "prediction_id": "p1", "rationale": "<why>",
+                      "event_date": ""},
         "sleeve_weights.<S>": {"choice": "<keep|up|down|rule|default>", "reason_code": "<NONE or a raise code>",
                                "evidence": []},
     },
@@ -166,8 +167,9 @@ Code version tags: prompt_version {version}, schema_version {schema_version}, co
 4. Every file must contain `"date": "{date}"`. A file for another date, or with no date, is thrown away.
 5. You may add `"meta": {{"model": "<the model you are>", "sample": <k>}}`. Nothing else outside the schema.
 6. Produce every sample independently: one fresh subagent per file. It reads only context.json, schema.json
-   and this file, and must NOT read or copy another {prefix}_*.json file. Identical files are thrown away,
-   because the point of several samples is to measure how much independent answers agree (guide 8).
+   and this file, and must NOT read or copy another {prefix}_*.json file. A file identical to another one
+   that changes the plan is thrown away, because the point of several samples is to measure how much
+   independent answers agree (guide 8).
    A change is acted on only when a majority of the {samples} samples makes it; a missing or invalid
    sample counts as following the rules.
 7. Do not edit context.json, schema.json or this file, and do not run any trading command. The parent
@@ -185,12 +187,39 @@ Code version tags: prompt_version {version}, schema_version {schema_version}, co
 {shapes}
 ```
 
+## Where things are in context.json
+{layout}
+
 ## Your role
 {role_text}
 
 ## Playbook brief and risk policy
 {reference}
 """
+
+
+_COMMON_LAYOUT = """- account: equity, cash, drawdown, breakers (plain-English reasons; an empty list means none tripped),
+  open_risk_heat_pct and the sleeve latches. regime: label, temperature and the sleeve permissions.
+- positions: every open lot with its qty, entry, stop, price and pct_equity.
+- rule_signals.<S>: what the rules do today in sleeve S: targets (target_pct_equity is a fraction of equity),
+  indicators (sleeve C shows only its 15 names with the highest peer RS, rs_pct) and notes.
+- data_problems: symbols whose data failed a check today (no increases in them).
+- TEST FIRST shadow signals are not in the context: they are never traded and never evidence.
+- Evidence paths must point at a value that exists and is not null or empty; an empty list is not evidence.
+- This file, schema.json and context.json replace the rulebook for you: do not read other files."""
+
+_LAYOUT = {
+    "decide": _COMMON_LAYOUT + """
+- menus["S:SYM"] (for example menus["C:NVDA"]): the numbers behind each choice for one symbol in one sleeve:
+  current_pct, rule_pct, half_rule_pct (fractions of equity), eligible_increase (false means an increase is
+  dropped, with why_not_eligible) and stops {rule, tight, keep}. Today's C candidate list is the C menus with
+  eligible_increase true.
+- weights: current, rules, menu[S][choice] (the weight each choice would give, after every limit) and
+  change_allowed[S] (false: the weight cannot move today).""",
+    "review": _COMMON_LAYOUT + """
+- planned_increases: the B, C and D entries and adds the rules will send today; only these can be skipped,
+  and their sleeves halved.""",
+}
 
 
 def instructions_text(book: str, date: str, cfg: Config, samples: int, config_dir: Path = CONFIG_DIR) -> str:
@@ -207,13 +236,15 @@ def instructions_text(book: str, date: str, cfg: Config, samples: int, config_di
         example=json.dumps(example_file(book, date, 1), indent=2),
         shapes=json.dumps(shapes, indent=2),
         role_text=ROLE_TEXT[role],
+        layout=_LAYOUT[role],
         reference=reference_text(config_dir),
     )
 
 
 def instructions_version(book: str) -> str:
     """Hash of the fixed parts of instructions.md (the template, not today's data)."""
-    return fingerprint(_TEMPLATE, json.dumps(_ITEM_SHAPES, sort_keys=True), json.dumps(_PREDICTION_SHAPE),
+    return fingerprint(_TEMPLATE, _LAYOUT.get(_role(book), "") if book in FILE_PREFIX else "",
+                       json.dumps(_ITEM_SHAPES, sort_keys=True), json.dumps(_PREDICTION_SHAPE),
                        FILE_PREFIX.get(book, ""))
 
 
@@ -326,6 +357,14 @@ def _model_name(file_meta) -> str:
     return model.strip()
 
 
+def _changes_nothing(dump: dict) -> bool:
+    """A parsed file that follows the rules: no actions, skips or halves, and every sleeve weight kept."""
+    if dump.get("actions") or dump.get("skip_entries") or dump.get("halve_sleeves"):
+        return False
+    weights = dump.get("sleeve_weights") or {}
+    return all((w or {}).get("choice", "keep") in (None, "keep") for w in weights.values())
+
+
 class SessionAdvisor:
     """Reads the session's files. Same interface as llm.ClaudeAdvisor: (list of samples, meta).
 
@@ -361,7 +400,8 @@ class SessionAdvisor:
         prefix = FILE_PREFIX[book]
         parse = parse_review if role == "review" else parse_decision
         requested = _samples(self.cfg, self.samples)
-        meta = {"mode": "session", "role": role, "model": None, "models": [], "files": [],
+        meta = {"mode": "session", "role": role, "model": None, "model_source": "self-reported", "models": [],
+                "files": [],
                 "fallback_used": None, "low_confidence": False, "input_tokens": 0, "output_tokens": 0,
                 "usd": 0.0, "samples_requested": requested, "samples_valid": 0, "problems": [],
                 "prompt_version": prompt_version(role, self.config_dir), "schema_version": SCHEMA_VERSION,
@@ -377,9 +417,14 @@ class SessionAdvisor:
                 continue
             dump = parsed.model_dump()
             if dump in seen:
-                meta["problems"].append(f"{f.name}: identical to an earlier file, dropped "
-                                        "(samples must be independent)")
-                continue
+                if not _changes_nothing(dump):  # a copied change must never build a majority
+                    meta["problems"].append(f"{f.name}: identical to an earlier file that changes the plan, "
+                                            "dropped (samples must be independent)")
+                    continue
+                # Independent samples that all follow the rules can agree word for word; dropping them would
+                # read unanimous agreement as low confidence (guide 8). Kept, and counted.
+                meta["identical_samples"] = meta.get("identical_samples", 0) + 1
+                meta["problems"].append(f"{f.name}: identical to an earlier file that follows the rules; kept")
             seen.append(dump)
             valid.append(parsed)
             meta["models"].append(model)

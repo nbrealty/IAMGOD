@@ -62,5 +62,11 @@ scores. With several samples per day, the report gives the consensus module's ag
 If the context rebuilt at check time differs from the one written by `prepare` (code, config or prompt changed in
 between), the report names those days: prepare and answer them again.
 
+Each book in the report carries `versions`: the prompt, instructions, schema and context versions the code uses
+now, the prompt version(s) the days were prepared with, and the model(s) that answered. A new prompt or model is a
+new system (guide rules 7 and 15): before switching on the routine or relying on an old `eval_report.json`, check
+that its `prompt_version` matches the current one (`prompt_changed_since_prepare` is false); if not, run the set
+again.
+
 The report is printed and written to `<DIR>/eval_report.json`. Only the journal text would need a model grader
 against a fixed rubric; that is not built.

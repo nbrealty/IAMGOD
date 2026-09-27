@@ -330,8 +330,19 @@ class SimBroker:
         self.cost_in_price = cost_in_price
 
     def account(self) -> tuple[float, float]:
+        """Cash plus every position at today's price. A held symbol with no usable price today (missing or
+        NaN close, not fetched) keeps its last known mark: valuing it at $0 would fake a drawdown and latch
+        the halt and loss breakers."""
         cash = self.state["cash"]
-        equity = cash + sum(q * self.prices.get(s, 0.0) for s, q in self.state["positions"].items())
+        marks = self.state.setdefault("marks", {})
+        equity = cash
+        for s, q in self.state["positions"].items():
+            p = self.prices.get(s)
+            if _finite(p) and float(p) > 0:
+                marks[s] = float(p)
+            else:
+                p = marks.get(s, 0.0)
+            equity += q * float(p)
         return equity, cash
 
     def positions(self) -> dict[str, float]:
@@ -458,6 +469,7 @@ class SimBroker:
         signed = qty if buy else -qty
         self.state["cash"] -= signed * gross
         self.state["positions"][od["symbol"]] = held + signed
+        self.state.setdefault("marks", {})[od["symbol"]] = float(ref_price)  # a held symbol always has a mark
         fill = gross if self.cost_in_price else ref_price
         return self._close(od, "filled", qty=qty, price=fill, day=day, cost=qty * ref_price * rate, note=note)
 

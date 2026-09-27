@@ -81,6 +81,15 @@ pull() {
   ignore_cache
 }
 
+# The newest run date saved in the books' state files (the market date, not the wall clock); else today (UTC).
+run_date() {
+  local d
+  d="$(cat "$DIR"/*/state.json 2>/dev/null \
+       | grep -oE '"last_run_date": *"[0-9]{4}-[0-9]{2}-[0-9]{2}"' | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' \
+       | sort | tail -n 1 || true)"
+  echo "${d:-$(date -u +%F)}"
+}
+
 push() {
   own_repo || die "$DIR is not a state repository; run 'scripts/state.sh pull' first"
   local current
@@ -94,7 +103,7 @@ push() {
   if git -C "$DIR" diff --cached --quiet; then
     echo "state: nothing changed since the last save"
   else
-    git -C "$DIR" commit --quiet -m "State after run on $(date -u +%F)"
+    git -C "$DIR" commit --quiet -m "State after run on $(run_date)"
   fi
   if ! git -C "$DIR" rev-parse --verify --quiet HEAD >/dev/null; then
     echo "state: nothing to push yet"

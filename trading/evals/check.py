@@ -32,9 +32,9 @@ import pandas as pd
 
 from trader import engine
 from trader.config import Config, load_config
-from trader.llm import ClaudeError, jsonable
-from trader.schemas import ClaudeDecision, RulesReview
-from trader.session import SessionAdvisor, find_decision_files, prepared_samples
+from trader.llm import ClaudeError, jsonable, prompt_version
+from trader.schemas import CONTEXT_SCHEMA, SCHEMA_VERSION, ClaudeDecision, RulesReview
+from trader.session import SessionAdvisor, find_decision_files, instructions_version, prepared_samples
 
 from . import BARS_FILE, EVAL_FILE, MANIFEST_FILE, Bars, copy_day, load_bars, rebuild_day
 
@@ -243,6 +243,16 @@ def _score_review(ctx, cfg, rev: RulesReview, meta: dict, run: _Run, base: _Run,
 # --- one day, one book ------------------------------------------------------------------------------
 
 
+VERSION_KEYS = ("prompt_version", "instructions_version", "schema_version", "context_schema")
+
+
+def current_versions(book: str) -> dict:
+    """The prompt, instructions and schema versions the code would use today for this book."""
+    return {"prompt_version": prompt_version("review" if book == "rules" else "decide"),
+            "instructions_version": instructions_version(book),
+            "schema_version": SCHEMA_VERSION, "context_schema": CONTEXT_SCHEMA}
+
+
 def check_day(folder: Path, book: str, cfg: Config, bars: Bars, manifest_rows: dict, work_dir: Path) -> dict:
     date = folder.name
     info = {}
@@ -256,7 +266,8 @@ def check_day(folder: Path, book: str, cfg: Config, bars: Bars, manifest_rows: d
 
     day0 = rebuild_day(book, cfg, bars, pd.Timestamp(date), work_dir)
     saved = folder / "context.json"
-    drift = saved.exists() and json.loads(saved.read_text()) != jsonable(day0.context)
+    saved_ctx = json.loads(saved.read_text()) if saved.exists() else None
+    drift = saved_ctx is not None and saved_ctx != jsonable(day0.context)
     base = _baseline(day0, book)
     base_prices = {s: float(p) for s, p in day0.prices.items() if p is not None}
     role = "review" if book == "rules" else "decide"
@@ -291,6 +302,13 @@ def check_day(folder: Path, book: str, cfg: Config, bars: Bars, manifest_rows: d
         "missing": max(0, expected - len(files)),
         "format_failures": format_failures,
         "context_drift": bool(drift),
+        # guide rules 7 and 15: which prompt the answers were written against (prepare's context.json) and
+        # which versions the reader scored them with, so an old report can be matched to the current prompt
+        "versions": {
+            "prepared": {k: (saved_ctx or {}).get(k) for k in ("prompt_version", "context_schema")},
+            "scored": [json.loads(v) for v in sorted({json.dumps({k: m.get(k) for k in VERSION_KEYS},
+                                                                 sort_keys=True) for m in metas})],
+        },
         "samples": samples, "agreement": agreement,
     }
 
@@ -347,7 +365,13 @@ def check_dir(out_dir: Path, cfg: Config | None = None, bars: Bars | None = None
                              if p.is_dir() and (p / "context.json").exists()) \
                 if (out_dir / b / "pending").is_dir() else []
             days = [check_day(f, b, cfg, bars, rows, Path(tmp)) for f in folders]
-            report["books"][b] = {"summary": summarize(days), "days": days}
+            versions = {**current_versions(b),
+                        "prepared_prompt_versions": sorted({str(d["versions"]["prepared"]["prompt_version"])
+                                                            for d in days}),
+                        "models": sorted({s["model"] for d in days for s in d["samples"]})}
+            versions["prompt_changed_since_prepare"] = any(
+                v != versions["prompt_version"] for v in versions["prepared_prompt_versions"])
+            report["books"][b] = {"versions": versions, "summary": summarize(days), "days": days}
     if write:
         (out_dir / REPORT_FILE).write_text(json.dumps(jsonable(report), indent=2) + "\n")
     return report
@@ -359,6 +383,15 @@ def render(report: dict) -> str:
         s = r["summary"]
         lines.append(f"{b} book: {s['days']} day(s) ({s['control_days']} control), "
                      f"{s['samples_scored']} of {s['samples_expected']} sample(s) scored")
+        v = r.get("versions") or {}
+        if v:
+            lines.append(f"  versions: prompt {v['prompt_version']} (prepared with "
+                         f"{', '.join(v['prepared_prompt_versions']) or 'n/a'}), instructions "
+                         f"{v['instructions_version']}, schema {v['schema_version']}, context {v['context_schema']}, "
+                         f"model(s) {', '.join(v['models']) or 'none'}")
+            if v.get("prompt_changed_since_prepare"):
+                lines.append("  note: the prompt changed since prepare: these scores are for an older prompt "
+                             "(a new prompt is a new system): re-run evals.prepare and answer again")
         lines.append(f"  kept out of the scores: {s['api_failures']} missing answer(s) (API/session failures), "
                      f"{s['format_failures']} format failure(s)")
         for name, c in s["checks"].items():

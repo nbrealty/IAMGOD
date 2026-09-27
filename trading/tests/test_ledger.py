@@ -164,7 +164,7 @@ def test_tags_stamped_at_open_and_kept_on_add():
     s = _state("claude")
     ledger.apply_fill(s, "C", "META", 2, 100.0, "2026-09-01", stop=92.0, tags={"prompt_version": "v1"})
     ledger.apply_fill(s, "C", "META", 2, 100.0, "2026-09-02", stop=92.0, tags={"prompt_version": "v2", "model": "m"})
-    assert _lot(s, "C", "META").tags == {"prompt_version": "v1", "model": "m"}
+    assert _lot(s, "C", "META").tags == {"prompt_version": "v1", "model": "m", "mixed_prompt_versions": "v1,v2"}
     ledger.apply_fill(s, "C", "META", -4, 110.0, "2026-09-03")
     assert s.closed_trades[0]["tags"]["prompt_version"] == "v1"
 
@@ -581,7 +581,7 @@ def test_reconcile_all_zero_changes_nothing_unless_allowed():
         log = []
         bad = ledger.reconcile(s.lots, positions, log, state=s, prices={"SPY": 100.0}, date="2026-09-28")
         assert bad == {"SPY"} and _lot(s, "A", "SPY").qty == 10 and s.closed_trades == []
-        assert any(line.startswith("WARNING") and "allow_all_zero" in line for line in log)
+        assert any(line.startswith("WARNING") and "--confirm-empty-account" in line for line in log)
     s = _two_sleeves()
     ledger.reconcile(s.lots, {}, [], state=s, prices={"SPY": 100.0}, date="2026-09-28", allow_all_zero=True)
     assert s.lots == {} and len(s.closed_trades) == 2
@@ -1049,3 +1049,14 @@ def test_measured_cost_model_exactly_twice_the_model_is_not_raised(cfg):
     assert ledger.measured_cost_model(s, cfg.policy)["etf"] == 5.0 and s.cost_model_bps == {}
     s.fills = _fill_rows(30, "etf", 10.01)
     assert ledger.measured_cost_model(s, cfg.policy)["etf"] == 10.01
+
+
+def test_add_under_another_prompt_version_is_tagged():
+    """CL-3: a lot opened under one prompt version and added to under another says so."""
+    s = BookState(book="claude")
+    ledger.apply_fill(s, "B", "SPY", 5, 100.0, "2026-09-01", stop=95.0, tags={"prompt_version": "v1"})
+    ledger.apply_fill(s, "B", "SPY", 5, 101.0, "2026-09-02", stop=95.0, tags={"prompt_version": "v1"})
+    assert "mixed_prompt_versions" not in s.lots["B"]["SPY"].tags
+    ledger.apply_fill(s, "B", "SPY", 5, 102.0, "2026-09-03", stop=95.0, tags={"prompt_version": "v2"})
+    tags = s.lots["B"]["SPY"].tags
+    assert tags["prompt_version"] == "v1" and tags["mixed_prompt_versions"] == "v1,v2"

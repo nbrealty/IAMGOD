@@ -18,7 +18,9 @@ from .engine import BOOKS, SLEEVES, prepare_book, run_book
 from .state import BookState, kill_switch_on, set_kill_switch
 
 NY = "America/New_York"
-CLOSE_SETTLED = (16, 10)  # New York time after which today's daily bar is final
+# New York time after which today's daily bar is final: the free SIP feed only serves data older than
+# data.SIP_DELAY (16 minutes), so before about 16:16 today's bar lacks the closing auction. 16:30 leaves margin.
+CLOSE_SETTLED = (16, 30)
 
 
 def load_dotenv(path=ROOT / ".env") -> None:
@@ -104,7 +106,7 @@ def make_broker(book: str, cfg, state: BookState, bars: dict, simulate: bool):
         if not state.sim:
             state.sim = {"cash": float(cfg.playbook["simulation"]["starting_cash"]), "positions": {}}
         # The sim takes the cost from cash and fills at the raw open; the ledger charges the same bps once.
-        return SimBroker(state.sim, risk.last_prices(bars), ledger.cost_model(cfg, state), cfg.asset_class,
+        return SimBroker(state.sim, risk.last_valid_closes(bars), ledger.cost_model(cfg, state), cfg.asset_class,
                          bars=bars, fill_mode="next_open", cost_in_price=False)
     try:
         return AlpacaPaperBroker.for_book(book, cfg.crypto_symbols())
@@ -147,14 +149,29 @@ def cmd_run(args) -> int:
     bench = cfg.playbook["regime"]["benchmark"]
     as_of = bars[bench].index[-1]
     date = as_of.date().isoformat()
+    failed = []
     for book in books:
-        state = BookState.load(book, STATE_DIR)
-        broker = make_broker(book, cfg, state, bars, book in sims)
-        advisor, why = choose_advisor(book, args, cfg, date)
-        print(f"[{book}] advisor: {why}")
-        entry = run_book(book, cfg, bars, broker, advisor, as_of, STATE_DIR, dry_run=args.dry_run, force=args.force,
-                         state=state, data_notes=notes, allow_all_zero=args.confirm_empty_account)
+        try:  # one book failing never stops the other (they share no state)
+            state = BookState.load(book, STATE_DIR)
+            broker = make_broker(book, cfg, state, bars, book in sims)
+            advisor, why = choose_advisor(book, args, cfg, date)
+            print(f"[{book}] advisor: {why}")
+            entry = run_book(book, cfg, bars, broker, advisor, as_of, STATE_DIR, dry_run=args.dry_run,
+                             force=args.force, state=state, data_notes=notes,
+                             allow_all_zero=args.confirm_empty_account)
+        except (Exception, SystemExit) as e:  # noqa: BLE001
+            if len(books) == 1:
+                raise
+            import traceback
+
+            traceback.print_exc()
+            print(f"[{book}] FAILED: {type(e).__name__}: {e} (the other book still runs)")
+            failed.append(book)
+            continue
         print_entry(entry)
+    if failed:
+        print(f"FAILED books: {', '.join(failed)}")
+        return 1
     return 0
 
 
@@ -172,9 +189,34 @@ def cmd_prepare(args) -> int:
         print(f"\n=== prepare {book} book, {out['date']}{' (SIMULATED)' if book in sims else ''} ===")
         for line in out["summary"]:
             print(f"  {line}")
+        if out.get("skipped"):
+            continue
         print(f"  pending folder: {out['dir']}")
         print(f"  samples wanted: {out['samples']} (one independent subagent per file)")
     return 0
+
+
+MAX_PROBLEM_LINES = 12
+
+
+def claude_problem_lines(e: dict) -> list[str]:
+    """How many samples were valid and every dropped file, dropped item or ignored skip (runbook steps 5, 9)."""
+    m = e.get("claude_meta") or {}
+    out = []
+    if m.get("samples_requested"):
+        files = ", ".join(m.get("files") or [])
+        out.append(f"samples: {m.get('samples_valid', 0)} of {m['samples_requested']} valid"
+                   + (f" ({files})" if files else ""))
+    probs = list(m.get("problems") or []) + list((e.get("agreement") or {}).get("problems") or [])
+    for smp in e.get("samples") or []:
+        if isinstance(smp, dict):
+            probs += [f"sample {smp.get('sample')}: {p}" for p in smp.get("problems") or []]
+    probs += list((e.get("claude") or {}).get("problems") or [])
+    probs = list(dict.fromkeys(str(p) for p in probs))
+    out += [f"  claude problem: {p}" for p in probs[:MAX_PROBLEM_LINES]]
+    if len(probs) > MAX_PROBLEM_LINES:
+        out.append(f"  claude problem: ... {len(probs) - MAX_PROBLEM_LINES} more in the journal")
+    return out
 
 
 def print_entry(e: dict) -> None:
@@ -190,6 +232,8 @@ def print_entry(e: dict) -> None:
         print(f"claude: {e['claude'].get('journal_note', '')}")
     if e.get("claude_error"):
         print(f"claude error: {e['claude_error']}")
+    for line in claude_problem_lines(e):
+        print(line)
     for line in e["risk_log"]:
         print(f"  log: {line}")
     for line in e.get("shadow_signals") or []:
@@ -366,6 +410,11 @@ def cmd_report(args) -> int:
         g = rep["going_live"]
         print(f"G-1..G-5 going-live gate: rules {'passed' if g['rules_passed'] else 'not passed'}, "
               f"claude {'passed' if g['claude_passed'] else 'not passed'} ({g['note']})")
+        for b, checks in g["books"].items():
+            g7 = checks.get("G-7_slippage") or {}
+            if g7.get("breached"):
+                print(f"G-7 [{b}]: median slippage above 2x the cost model in {', '.join(g7['breached'])}"
+                      " (G-7 says go back to paper)")
     print("\n(use --json for every number)")
     return 0
 
@@ -433,7 +482,16 @@ def cmd_promote(args, promote: bool) -> int:
         print("Nothing changed. Only the owner may do this: add --i-am-the-owner.")
         return 1
     if promote and args.sleeve not in s.promoted_sleeves:
+        date = today_ny()
+        quarter = pd.Timestamp(date).to_period("Q")
+        earlier = [p for p in s.promotions if p.get("sleeve") == args.sleeve and p.get("date")
+                   and pd.Timestamp(p["date"]).to_period("Q") == quarter]
+        if earlier:
+            print(f"Refused: sleeve {args.sleeve} was already promoted on {earlier[-1]['date']} this quarter "
+                  f"({quarter}). M-12 allows at most one promotion per sleeve per quarter.")
+            return 1
         s.promoted_sleeves.append(args.sleeve)
+        s.promotions.append({"date": date, "sleeve": args.sleeve})
     if not promote and args.sleeve in s.promoted_sleeves:
         s.promoted_sleeves.remove(args.sleeve)
     s.save(STATE_DIR)
@@ -450,7 +508,8 @@ def main(argv=None) -> int:
     r.add_argument("--book", choices=[*BOOKS, "both"], default="both")
     r.add_argument("--sim", nargs="*", choices=list(BOOKS), metavar="BOOK",
                    help="use the local simulator (no value = every book; e.g. --sim claude)")
-    r.add_argument("--dry-run", action="store_true", help="compute everything, place no orders, save nothing")
+    r.add_argument("--dry-run", action="store_true",
+                   help="compute everything, place no orders, save no state (only a journal line is written)")
     r.add_argument("--no-claude", action="store_true", help="skip Claude (the Claude book then only enforces stops)")
     r.add_argument("--force", action="store_true", help="run again even if this date already ran")
     r.add_argument("--decision-file", action="append", metavar="PATH",

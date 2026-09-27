@@ -63,7 +63,8 @@ def main(argv=None) -> None:
         print(f"{r['book']} {r['date']}: {r['dir']}")
     n = results[0]["samples"] if results else a.samples
     print(f"{len(results)} day folder(s) written. In each, write "
-          + " / ".join(f"{'decision' if b == 'claude' else 'review'}_1.json ... _{n}.json"
+          + " / ".join(f"{'decision' if b == 'claude' else 'review'}_1.json ... "
+                       f"{'decision' if b == 'claude' else 'review'}_{n}.json"
                        for b in (BOOKS if a.book == "both" else (a.book,)))
           + f" (independently), then run `python -m evals.check {a.out}`.")
 

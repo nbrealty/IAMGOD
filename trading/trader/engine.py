@@ -40,6 +40,7 @@ BOOKS = ("rules", "claude")
 SLEEVES = ("A", "B", "C", "D")
 BENCH_CLOSES = ("SPY", "IEF", "EFA", "DBC", "VNQ", "BIL")  # M-1 benchmarks, M-4 (stored on every equity row)
 EPS = 1e-9
+SHADOW_REGIME_FIELDS = ("credit_canary",)  # REG-6 is TEST FIRST: journal only, never in Claude's context
 C_INDICATORS_SHOWN = 15
 
 
@@ -267,7 +268,8 @@ def build_context(book: str, cfg: Config, state: BookState, bars: Bars, equity: 
                          "stop": _r(t.stop, 4), "reason": t.reason} for t in plan.targets.values()],
             "indicators": cands,
             "notes": list(plan.notes),
-            "shadow": list(plan.shadow),
+            # TEST FIRST shadow signals are not shown: they may never change orders (rulebook, M-12), and a
+            # deviation must not cite them as CL-2 evidence. The journal carries them (shadow_signals).
         }
 
     one_r = {s: _r(cfg.risk_pct(s) * E, 2) for s in ("B", "C", "D")}
@@ -282,7 +284,7 @@ def build_context(book: str, cfg: Config, state: BookState, bars: Bars, equity: 
             "equity": _r(E, 2), "cash": _r(cash, 2), "peak_equity": _r(state.peak_equity, 2),
             "drawdown": _r(breakers.drawdown), "day_pnl_pct": _r(breakers.day_pnl_pct),
             "week_pnl_pct": _r(breakers.week_pnl_pct), "month_pnl_pct": _r(breakers.month_pnl_pct),
-            "one_R_dollars": _r(pol["per_trade"]["risk_pct_default"] * E, 2), "one_R_by_sleeve": one_r,
+            "one_R_by_sleeve": one_r,  # RISK-2 per sleeve (a promoted sleeve's 1R differs from the default)
             "breakers": list(breakers.reasons), "halted": bool(breakers.halted),
             "no_new_entries": bool(breakers.no_new_entries), "risk_mult": _r(breakers.risk_mult),
             "watch": bool(breakers.watch), "monthly_block": bool(breakers.monthly_block),
@@ -292,7 +294,7 @@ def build_context(book: str, cfg: Config, state: BookState, bars: Bars, equity: 
             "open_risk_heat_pct": _r(_heat(state.lots, prices, E)),
             "stress": metrics.stress_line(state.lots, prices, E, cfg),
         },
-        "regime": regime.to_dict(),
+        "regime": {k: v for k, v in regime.to_dict().items() if k not in SHADOW_REGIME_FIELDS},
         "sleeve_bounds": {s: {"min": cfg.sleeves[s]["min"], "max": cfg.sleeves[s]["max"],
                               "default": cfg.sleeves[s]["default"],
                               "cap": _r(cfg.sleeve_weight_cap(s, promoted)), "enabled": cfg.sleeve_enabled(s)}
@@ -413,6 +415,7 @@ class _Day:
     context: dict = field(default_factory=dict)
     cost_bps: dict = field(default_factory=dict)
     data_notes: dict = field(default_factory=dict)
+    suspect: set = field(default_factory=set)  # symbols whose broker quantity cannot be trusted today
 
 
 def _slice(bars: Bars, as_of: pd.Timestamp) -> Bars:
@@ -471,6 +474,9 @@ def _prepare_day(book: str, cfg: Config, bars: Bars, broker: Broker, as_of: pd.T
     st, pol, date, log = state, cfg.policy, day.date, day.log
     bench = cfg.playbook["regime"]["benchmark"]
 
+    # 0. splits: the bars are split-adjusted, so lots, pending orders and the simulator move to today's units
+    splits = ledger.apply_splits(st, bars, date, log, simulated=_simulated(broker))
+
     # 1. settle (EX-5 cost model first: measured slippage may raise it)
     day.cost_bps = ledger.measured_cost_model(st, pol)
     _settle(day, broker)
@@ -486,10 +492,12 @@ def _prepare_day(book: str, cfg: Config, bars: Bars, broker: Broker, as_of: pd.T
         log.append(f"broker positions unavailable ({e}); reconcile skipped and no orders will be sent today")
     suspect: set = set()
     if day.positions_ok:
+        lagging = set() if _simulated(broker) else ledger.split_lagging(st, splits, day.positions, log)
         suspect = ledger.reconcile(st.lots, day.positions, log, state=st, prices=closes, date=date,
-                                   allow_all_zero=allow_all_zero)
+                                   skip_symbols=lagging, allow_all_zero=allow_all_zero) | lagging
     else:
         suspect = {sym for held in st.lots.values() for sym in held}
+    day.suspect = set(suspect)
 
     # 3. marks and equity (M-1, M-4, M-5, RISK-13 inputs)
     ledger.update_marks(st, bars, date, log=log)
@@ -593,6 +601,12 @@ def prepare_book(book: str, cfg: Config, bars: Bars, broker: Broker, as_of: pd.T
     """
     assert book in BOOKS
     state = state or BookState.load(book, state_dir)
+    date = as_of.date().isoformat()
+    if state.last_run_date == date:  # a holiday or a finished day: never rewrite or archive that day's files
+        why = (f"already ran for {date} (market closed today, or today's run is done); nothing prepared, "
+               "the pending folder is left as it is")
+        return {"book": book, "date": date, "dir": "", "files": {}, "samples": 0, "summary": [why],
+                "skipped": why, "log": []}
     day = _prepare_day(book, cfg, bars, broker, as_of, state, state_dir, dry_run=True, data_notes=data_notes)
     n = session._samples(cfg, samples)
     files = session.write_pending(book, day.date, day.context, cfg, state_dir, n)
@@ -649,10 +663,15 @@ class _Outcome:
 
 def _note_confidence(day: _Day, meta: dict) -> None:
     """Guide 17 / guide 8: say when a fallback model answered or too few samples were valid."""
+    valid, wanted = meta.get("samples_valid"), meta.get("samples_requested")
+    causes = []
+    if meta.get("fallback_used"):
+        causes.append("a fallback model answered at least one sample (it votes like the others)")
+    if isinstance(valid, int) and isinstance(wanted, int) and valid < wanted:
+        causes.append("the missing samples count as following the rules")
     if meta.get("low_confidence") or meta.get("fallback_used"):
-        day.log.append(f"low confidence: {meta.get('samples_valid')} of {meta.get('samples_requested')} samples "
-                       f"valid{', a fallback model answered' if meta.get('fallback_used') else ''}; missing "
-                       "samples count as following the rules")
+        day.log.append(f"low confidence: {valid} of {wanted} samples valid; "
+                       + ("; ".join(causes) or "too few samples agree"))
 
 
 def _step(day: _Day, advisor) -> _Outcome:
@@ -806,6 +825,31 @@ def _block_bad_data(day: _Day, proposed: list[Target]) -> list[Target]:
     return safe
 
 
+def _deviations_traded(day: _Day, deviations: list[dict], approved: list[Target], unsent: set) -> list[dict]:
+    """M-5 / guide rule 6: only a deviation the book actually made is stored and scored. After the risk engine,
+    claude_pct is what was executed (claude_pct_requested keeps the ask); a deviation the risk engine or a
+    stop on sending turned back to the rule size (kill switch, halt, blocks, caps) is dropped."""
+    final = {(t.sleeve, t.symbol): float(t.qty) for t in approved}
+    kept = []
+    for dv in deviations:
+        sleeve, sym = dv.get("sleeve"), dv.get("symbol")
+        px, E = day.prices.get(sym), day.equity
+        want, rule = float(dv.get("claude_pct") or 0.0), float(dv.get("rule_pct") or 0.0)
+        if not px or E <= 0 or abs(want - rule) <= EPS:
+            kept.append(dv)
+            continue
+        cur = _lot_qty(day.state.lots, sleeve, sym)
+        qty = cur if sym in unsent else final.get((sleeve, sym), cur)
+        done = qty * px / E
+        moved = (done - rule) / (want - rule)
+        if moved < 0.1:
+            day.log.append(f"{sleeve}/{sym}: deviation not traded (risk limits or a stop on sending); not scored")
+            continue
+        kept.append({**dv, "claude_pct": round(rule + min(moved, 1.0) * (want - rule), 6),
+                     "claude_pct_requested": dv.get("claude_pct")})
+    return kept
+
+
 def _vetoes_risk_allows(day: _Day, vetoes: list[dict], unvetoed: list[Target], weights: dict) -> list[dict]:
     """CL-9: a vetoed increase only counts if the risk engine would have let the rules book make it."""
     if not vetoes:
@@ -864,6 +908,8 @@ def run_book(book: str, cfg: Config, bars: Bars, broker: Broker, advisor, as_of:
     date = as_of.date().isoformat()
     if state.last_run_date == date and not force:
         return {"book": book, "date": date, "skipped": f"already ran for {date} (use --force to rerun)"}
+    if force and state.last_run_date == date:
+        _drop_discarded_attempt(state, date)
 
     day = _prepare_day(book, cfg, bars, broker, as_of, state, state_dir, dry_run, data_notes, allow_all_zero)
     log = day.log
@@ -884,6 +930,16 @@ def run_book(book: str, cfg: Config, bars: Bars, broker: Broker, advisor, as_of:
     if not day.positions_ok and orders:
         log.append(f"{len(orders)} order(s) not sent: broker positions were unavailable")
         orders = []
+    if day.suspect and orders:
+        held = [o for o in orders if o.symbol in day.suspect]
+        if held:
+            log.append(f"STOP: broker positions look wrong for {', '.join(sorted({o.symbol for o in held}))}; "
+                       f"{len(held)} order(s) not sent. If the account really is empty, the owner reruns with "
+                       "--confirm-empty-account")
+            orders = [o for o in orders if o.symbol not in day.suspect]
+    if out.deviations:
+        unsent = {o.symbol for o in result.orders} - {o.symbol for o in orders}
+        out.deviations = _deviations_traded(day, out.deviations, result.targets, unsent)
     if not dry_run:
         suffix = new_suffix()
         _assign_ids(book, date, orders, state, suffix)
@@ -921,6 +977,17 @@ def run_book(book: str, cfg: Config, bars: Bars, broker: Broker, advisor, as_of:
     entry = _journal_entry(day, broker, out, result, orders, submit_results)
     journal(book, entry, state_dir)
     return entry
+
+
+def _drop_discarded_attempt(state: BookState, date: str) -> None:
+    """A --force rerun replaces the day: the discarded attempt's weight row and journal note must not feed
+    step 7 (previous weights, sessions since a change) or the next context. Its API cost rows stay (that money
+    was spent) but are marked superseded."""
+    state.weight_history = [r for r in state.weight_history if not (isinstance(r, dict) and r.get("date") == date)]
+    state.notes = [n for n in state.notes if not (isinstance(n, dict) and n.get("date") == date)]
+    for r in state.api_cost:
+        if isinstance(r, dict) and r.get("date") == date:
+            r["superseded"] = True
 
 
 def _cost_row(date: str, book: str, meta: dict) -> dict:

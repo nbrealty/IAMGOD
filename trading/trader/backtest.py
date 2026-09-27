@@ -9,6 +9,13 @@ from `metrics`. Signals only ever see bars dated on or before the session (each 
 CLI (run from `trading/`):
     python -m trader.backtest --start 2017-01-01 --end 2026-09-25 [--set k=v ...] [--out path]
 History comes from `AlpacaData.history` (market data only) and is cached under `<state dir>/cache/`.
+
+M-12 (i), backtesting a TEST FIRST variant: `--set` only edits existing settings, so a rule that needs new logic
+(for example REG-5, REG-6, A-7, A-8, B-7, B-9, B-10, C-10..C-17, D-5, EX-6) first goes into the live code behind
+a playbook flag whose default keeps today's behaviour (e.g. `regime.credit_canary: false` read in `regime.py`).
+Then `--set playbook.<flag>=true` replays the variant through the same path as the baseline run, and M-12 (iii)
+reruns it with each of its parameters moved +-25%. Promotions are the owner's (`python -m trader promote`),
+which records the date and refuses a second promotion of the same sleeve in one quarter.
 """
 from __future__ import annotations
 
@@ -36,7 +43,7 @@ from .decisions import cap_weights
 from .models import Target
 from .regime import classify, classify_kwargs
 from .risk import RiskEngine, breaker_status, loss_inputs, sleeves_to_latch
-from .state import BookState, fingerprint
+from .state import BookState, fingerprint, log_experiment
 
 BOOK = "backtest"
 SLEEVES = ("A", "B", "C", "D")
@@ -562,6 +569,12 @@ def main(argv=None, *, data=None) -> int:
     cash = a.cash or float(cfg.playbook.get("simulation", {}).get("starting_cash", 100_000))
     res = run_backtest(cfg, bars, a.start, a.end, starting_cash=cash, overrides=a.overrides, window=a.window,
                        allow_risk_changes=a.allow_risk_changes, progress=print)
+    # M-13: every parameter set tried is logged, so the number of trials behind a change can be counted
+    log_experiment({"date": pd.Timestamp.now(tz="America/New_York").date().isoformat(),
+                    "kind": "backtest-params", "version": res.params["version"],
+                    "baseline_version": res.params["baseline_version"], "overrides": res.params["overrides"],
+                    "window": [res.start, res.end],
+                    "reason": "backtest: " + (" ".join(a.overrides) or "baseline")}, STATE_DIR)
     print(res.headline())
     if a.out:
         out = Path(a.out)

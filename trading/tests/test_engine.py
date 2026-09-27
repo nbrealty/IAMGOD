@@ -46,7 +46,7 @@ class FakeAdvisor:
 
 def _sim(cfg, state, bars, cash=100_000.0):
     state.sim = state.sim or {"cash": cash, "positions": {}}
-    return SimBroker(state.sim, risk.last_prices(bars), ledger.cost_model(cfg, state), cfg.asset_class,
+    return SimBroker(state.sim, risk.last_valid_closes(bars), ledger.cost_model(cfg, state), cfg.asset_class,
                      bars=bars, cost_in_price=False)
 
 
@@ -227,10 +227,11 @@ def test_context_layout_claude(cfg, bars, tmp_path):
                 "sleeve_bounds", "weights", "positions", "rule_signals", "menus", "allowlist", "reason_codes",
                 "limits", "data_problems", "data_feed", "performance", "scorecard", "recent_notes"):
         assert key in ctx, key
-    assert ctx["context_schema"] == "ctx-2" and ctx["broker"] == "sim" and ctx["simulated"] is True
+    assert ctx["context_schema"] == "ctx-3" and ctx["broker"] == "sim" and ctx["simulated"] is True
     for key in ("day_pnl_pct", "week_pnl_pct", "month_pnl_pct", "watch", "monthly_block", "sleeve_risk_mult",
-                "open_risk_heat_pct", "stress", "one_R_dollars"):
+                "open_risk_heat_pct", "stress", "one_R_by_sleeve"):
         assert key in ctx["account"], key
+    assert "one_R_dollars" not in ctx["account"]  # the default-rate 1R was wrong for a promoted sleeve
     assert set(ctx["weights"]["menu"]["B"]) == {"keep", "up", "down", "rule", "default"}
     assert ctx["weights"]["change_allowed"] == {s: True for s in "ABCD"}
     assert "temperature" in ctx["regime"] and "permissions" in ctx["regime"]
@@ -285,6 +286,61 @@ def test_lots_reconcile_against_broker_with_state(cfg, bars, tmp_path):
     assert state.lots["A"]["IEF"].realized_pnl == pytest.approx(5 * (px - px * 0.9))
 
 
+class _NoTouchSim(SimBroker):
+    """A simulator that fails the test if anything sends or cancels an order."""
+
+    def submit(self, *a, **k):
+        raise AssertionError("submit called")
+
+    def cancel_open_orders(self):
+        raise AssertionError("cancel_open_orders called")
+
+
+def test_dry_run_and_prepare_never_touch_broker_orders(cfg, bars, tmp_path):
+    from trader.engine import prepare_book
+
+    d1, d2 = bars["SPY"].index[-2], bars["SPY"].index[-1]
+    b1 = _upto(bars, d1)
+    for book in ("rules", "claude"):
+        adv = FakeAdvisor([lambda c: ClaudeDecision(date=c["date"], market_view="m", journal_note="j")])
+        state = BookState.load(book, tmp_path)
+        run_book(book, cfg, b1, _sim(cfg, state, b1), adv, d1, tmp_path, state=state)
+        saved = BookState.load(book, tmp_path)
+        assert saved.pending_orders, book  # so the cancel branch in step 1 is reachable
+        before = BookState.path(book, tmp_path).read_text()
+        for call in ("prepare", "dry"):
+            st = BookState.load(book, tmp_path)
+            st.sim = st.sim or {"cash": 100_000.0, "positions": {}}
+            broker = _NoTouchSim(st.sim, risk.last_valid_closes(bars), ledger.cost_model(cfg, st), cfg.asset_class,
+                                 bars=bars, cost_in_price=False)
+            if call == "prepare":
+                prepare_book(book, cfg, bars, broker, d2, tmp_path, state=st)
+            else:
+                e = run_book(book, cfg, bars, broker, adv, d2, tmp_path, state=st, dry_run=True)
+                assert e["dry_run"] and e["fills"] == []
+        assert BookState.path(book, tmp_path).read_text() == before  # nothing saved
+
+
+def test_kill_file_blocks_entries_in_run_book(cfg, bars, tmp_path):
+    from trader.state import set_kill_switch
+
+    as_of = bars["SPY"].index[-1]
+    plain = BookState.load("rules", tmp_path / "plain")
+    e = run_book("rules", cfg, bars, _sim(cfg, plain, bars), None, as_of, tmp_path / "plain", state=plain,
+                 dry_run=True)
+    assert any(o["side"] == "buy" for o in e["orders"])  # without the kill switch the rules would buy
+
+    set_kill_switch(True, tmp_path)
+    state = BookState.load("rules", tmp_path)
+    sym = cfg.sleeves["B"]["symbols"][0]
+    px = float(bars[sym]["close"].iloc[-1])
+    state.lots = {"B": {sym: Lot(4.0, px * 1.05, bars["SPY"].index[-3].date().isoformat(), px * 1.01, px * 1.01)}}
+    state.sim = {"cash": 100_000.0 - 4 * px, "positions": {sym: 4.0}}
+    e = run_book("rules", cfg, bars, _sim(cfg, state, bars), None, as_of, tmp_path, state=state)
+    assert e["orders"] and all(o["side"] == "sell" and o["symbol"] == sym for o in e["orders"]), e["orders"]
+    assert "kill switch is on" in e["breakers"]["reasons"]
+
+
 # --- CLI ---------------------------------------------------------------------------------------------
 
 
@@ -301,6 +357,13 @@ def test_partial_bar_is_dropped_before_the_close():
     assert len(out["SPY"]) == 1 and note
     out, note = cli.drop_partial_bar(bars, pd.Timestamp("2026-09-25 16:30", tz="America/New_York"))
     assert len(out["SPY"]) == 2 and note is None
+    # the SIP feed lags 16 minutes: at 16:15 today's bar does not have the closing auction yet
+    out, note = cli.drop_partial_bar(bars, pd.Timestamp("2026-09-25 16:15", tz="America/New_York"))
+    assert len(out["SPY"]) == 1 and note
+    from trader.data import SIP_DELAY
+
+    settled = pd.Timestamp("2026-09-25").replace(hour=cli.CLOSE_SETTLED[0], minute=cli.CLOSE_SETTLED[1])
+    assert settled >= pd.Timestamp("2026-09-25 16:00") + SIP_DELAY + pd.Timedelta(minutes=5)
     out, note = cli.drop_partial_bar(bars, pd.Timestamp("2026-09-26 09:00", tz="America/New_York"))
     assert len(out["SPY"]) == 2 and note is None
 
@@ -340,6 +403,17 @@ def test_cli_owner_commands(tmp_path, monkeypatch, capsys):
     assert BookState.load("rules", tmp_path).promoted_sleeves == ["C"]
     assert cli.main(["demote", "C", "--book", "rules", "--i-am-the-owner"]) == 0
     assert BookState.load("rules", tmp_path).promoted_sleeves == []
+    # M-12: at most one promotion per sleeve per quarter; a demotion is always allowed.
+    assert cli.main(["promote", "C", "--book", "rules", "--i-am-the-owner"]) == 1
+    assert "at most one promotion" in capsys.readouterr().out
+    s = BookState.load("rules", tmp_path)
+    assert s.promoted_sleeves == [] and [p["sleeve"] for p in s.promotions] == ["C"]
+    assert cli.main(["promote", "D", "--book", "rules", "--i-am-the-owner"]) == 0  # another sleeve is fine
+    s = BookState.load("rules", tmp_path)
+    s.promotions = [{"date": "2000-01-03", "sleeve": "C"}]  # last quarter's promotion does not count
+    s.save(tmp_path)
+    assert cli.main(["promote", "C", "--book", "rules", "--i-am-the-owner"]) == 0
+    assert BookState.load("rules", tmp_path).promoted_sleeves == ["D", "C"]
     c = BookState(book="claude", deviations_restricted=True)
     c.save(tmp_path)
     assert cli.main(["deviation-reset"]) == 0
@@ -411,3 +485,45 @@ def test_guide_rule_6_latch_makes_the_claude_book_follow_the_rules(cfg, bars, tm
                  dry_run=True, state=s)
     assert sym not in {o["symbol"] for o in e["orders"]} and e["orders"]  # rule targets only
     assert any("deviations are restricted" in line for line in e["risk_log"])
+
+
+# --- M-13 experiment log (finding #10) -------------------------------------------------------------------
+
+
+def test_log_experiment_dedups_by_kind_and_version(tmp_path):
+    from trader.state import log_experiment
+
+    assert log_experiment({"kind": "params", "version": "a"}, tmp_path)
+    assert not log_experiment({"kind": "params", "version": "a"}, tmp_path)
+    assert log_experiment({"kind": "prompt:decide", "version": "a"}, tmp_path)
+    assert log_experiment({"kind": "params", "version": "b"}, tmp_path)
+    assert len((tmp_path / "experiments.jsonl").read_text().splitlines()) == 3
+
+
+def test_run_logs_prompt_and_params_once(cfg, bars, tmp_path):
+    d1, d2 = bars["SPY"].index[-2], bars["SPY"].index[-1]
+    adv = FakeAdvisor()
+    for d in (d1, d2):
+        state = BookState.load("rules", tmp_path)
+        b = _upto(bars, d)
+        run_book("rules", cfg, b, _sim(cfg, state, b), adv, d, tmp_path, state=state)
+    rows = [json.loads(x) for x in (tmp_path / "experiments.jsonl").read_text().splitlines()]
+    assert sorted(r["kind"] for r in rows) == ["params", "prompt:review"]
+
+
+def test_one_failed_book_does_not_stop_the_other(cfg, bars, tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(cli, "STATE_DIR", tmp_path)
+    monkeypatch.setattr(cli, "fetch_bars", lambda c: (bars, {"feed_used": "test", "notes": []}))
+    real = cli.run_book
+
+    def flaky(book, *a, **k):
+        if book == "rules":
+            raise RuntimeError("rules book broke")
+        return real(book, *a, **k)
+
+    monkeypatch.setattr(cli, "run_book", flaky)
+    assert cli.main(["run", "--sim", "--no-claude", "--dry-run"]) == 1
+    out = capsys.readouterr().out
+    assert "[rules] FAILED: RuntimeError: rules book broke" in out and "=== claude book" in out
+    with pytest.raises(RuntimeError):  # a single book still fails loudly
+        cli.main(["run", "--book", "rules", "--sim", "--no-claude", "--dry-run"])

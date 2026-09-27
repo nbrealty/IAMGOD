@@ -567,6 +567,15 @@ def test_deviation_summary_and_should_restrict_deviations(cfg):
     assert shadow.should_restrict_deviations(st, 10, policy=cfg) is True
 
 
+def test_weight_cap_records_never_move_the_deviation_latch(cfg):
+    """Finding #24: WEIGHT_CAP records are code's cuts, reported for M-5 but left out of guide rule 6."""
+    st = BookState(book="claude")
+    st.deviations = [{"date": f"2026-03-{d:02d}", "symbol": "SPY", "sleeve": "A", "reason_code": "WEIGHT_CAP",
+                      "value_20d": -0.001} for d in range(1, 31)]
+    assert shadow.deviation_summary(st)["by_code"]["WEIGHT_CAP"]["n"] == 30  # still reported
+    assert shadow.should_restrict_deviations(st, policy=cfg) is False
+
+
 # --- reruns and malformed records -----------------------------------------------------------------------------
 
 def test_clear_pending_drops_a_discarded_attempt(cfg):

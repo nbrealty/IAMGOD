@@ -108,6 +108,14 @@ def path_exists(ctx: Any, path: Any) -> bool:
     return tokens is not None and _present(_lookup(ctx, tokens))
 
 
+# CL-2: evidence is today's data. Labels and settings of the run, and Claude's own past journal notes
+# ("remembered narratives are not evidence"), are not.
+NON_EVIDENCE_ROOTS = frozenset({"context_schema", "prompt_version", "date", "book", "broker", "simulated",
+                                "allowlist", "reason_codes", "limits", "recent_notes"})
+# TEST FIRST shadow signals never change orders (rulebook, M-12), so they are never evidence either.
+SHADOW_EVIDENCE = frozenset({"shadow", "shadow_signals", "shadow_results", "credit_canary"})
+
+
 def evidence_ok(ctx: Any, paths: Any) -> tuple[bool, str]:
     """CL-2: a non-empty list of paths that all exist in today's context."""
     if not isinstance(paths, (list, tuple)) or not paths:
@@ -115,6 +123,11 @@ def evidence_ok(ctx: Any, paths: Any) -> tuple[bool, str]:
     if not isinstance(ctx, dict):
         return False, "no context to check the evidence against (CL-2)"
     for p in paths:
+        toks = _tokens(p) or []
+        if toks and str(toks[0]) in NON_EVIDENCE_ROOTS:
+            return False, f"evidence path is not market data: {str(p)[:120]!r} (CL-2)"
+        if any(str(t) in SHADOW_EVIDENCE for t in toks):
+            return False, f"evidence path cites a TEST FIRST shadow signal: {str(p)[:120]!r} (CL-2, M-12)"
         if not path_exists(ctx, p):
             return False, f"evidence path not in today's context: {str(p)[:120]!r} (CL-2)"
     return True, ""
@@ -781,7 +794,9 @@ def _baseline(sleeve: str, sym: str, inp: _Inputs) -> ResolvedTarget | None:
 
 
 def _size_pct(a, base: ResolvedTarget, inp: _Inputs, notes: list[str]) -> float | None:
-    """Size menu -> share of equity (guide 2). `pct` is clipped to [0, the symbol's notional cap]."""
+    """Size menu -> share of equity (guide 2). `pct` is a fraction (0.02 = 2%): a value above 1 is almost
+    certainly percent units and is refused (None), never clipped up to the cap; otherwise it is clipped to
+    [0, the symbol's notional cap]."""
     if a.size == "rule":
         return base.rule_pct
     if a.size == "half_rule":
@@ -791,7 +806,7 @@ def _size_pct(a, base: ResolvedTarget, inp: _Inputs, notes: list[str]) -> float 
     if a.size == "exit":
         return 0.0
     v = _num(a.target_pct_equity)
-    if v is None:
+    if v is None or v > 1.0:
         return None
     pf = inp.cfg.policy["portfolio"]
     cap = float(pf[f"max_single_{inp.cfg.asset_class(base.symbol)}_notional"])
@@ -848,6 +863,11 @@ def _action_why(a, base: ResolvedTarget, pct: float, inp: _Inputs) -> tuple[bool
         return False, f"unknown reason code {code}"
     if code in CODE_SLEEVES and a.sleeve not in CODE_SLEEVES[code]:
         return False, f"{code} is only for sleeve(s) {'/'.join(CODE_SLEEVES[code])}"
+    if code in EVENT_SESSIONS:  # the same date window as a rules-book skip (CL-8, C-18)
+        ctx_date = inp.ctx.get("date") if isinstance(inp.ctx, dict) else getattr(inp.ctx, "date", None)
+        why = _event_date_why(code, getattr(a, "event_date", ""), str(ctx_date or ""))
+        if why:
+            return False, why
     ok, why = evidence_ok(inp.ctx, a.evidence)
     if not ok:
         return False, why
@@ -875,7 +895,7 @@ def _resolve_one(a, sym: str, base: ResolvedTarget | None, inp: _Inputs,
         return None, "no price for the symbol"
     pct = _size_pct(a, base, inp, notes)
     if pct is None:
-        return None, "target_pct_equity is not a number"
+        return None, "target_pct_equity must be a fraction of equity in [0, 1] (0.02 = 2%)"
     dev, why = _action_why(a, base, pct, inp)
     if why:
         return None, why
@@ -1026,8 +1046,8 @@ def _scale_increases(sleeve: str, rows: list, cap: float, log: list[str]) -> lis
     """Fit the sleeve's notional into its weight by scaling increases only; holds and reductions stay.
 
     Claude's deviating increases give way first; increases that follow the rule are scaled only when the rule's
-    own increases do not fit. Returns (resolved, qty, current qty, price, cut) rows, cut = a non-deviating
-    increase was made smaller.
+    own increases do not fit. Returns (resolved, qty, current qty, price, cut) rows, cut = the increase was
+    made smaller.
     """
     kept = sum(min(qty, cur) * price for _, qty, cur, price in rows)
     if kept > cap * (1 + 1e-9):
@@ -1051,7 +1071,7 @@ def _scale_increases(sleeve: str, rows: list, cap: float, log: list[str]) -> lis
     for rt, qty, cur, price in rows:
         scale = scale_dev if rt.is_deviation else scale_rule
         if qty > cur and scale < 1.0:
-            out.append((rt, cur + (qty - cur) * scale, cur, price, not rt.is_deviation))
+            out.append((rt, cur + (qty - cur) * scale, cur, price, True))
         else:
             out.append((rt, qty, cur, price, False))
     return out
@@ -1100,6 +1120,11 @@ def resolved_to_targets(resolved: ResolvedDecision, *, lots: dict | None, prices
             if cut:
                 reason += " (cut to fit the sleeve weight)"
             targets.append(Target(rt.symbol, s, qty, rt.stop, reason))
+            if rt.is_deviation and cut and not is_deviation(final_pct, rt.rule_pct, rt.current_pct,
+                                                             deviation_threshold):
+                log.append(f"{s}/{rt.symbol}: deviation cut back to the rule size to fit the sleeve weight; "
+                           "no deviation recorded")
+                continue
             if rt.is_deviation:
                 code, evidence, pid = rt.reason_code, list(rt.evidence), rt.prediction_id
             elif cut and is_deviation(final_pct, rt.rule_pct, rt.current_pct, deviation_threshold):

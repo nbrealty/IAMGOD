@@ -186,7 +186,7 @@ def test_decision_tags():
     tags = decision_tags({"mode": "api", "prompt_version": "abc", "model": "claude-opus-5", "effort": "high",
                           "fallback_used": False}, "claude")
     assert tags["book"] == "claude" and tags["prompt_version"] == "abc" and tags["model"] == "claude-opus-5"
-    assert tags["effort"] == "high" and tags["schema_version"] == "2" and tags["context_schema"] == "ctx-2"
+    assert tags["effort"] == "high" and tags["schema_version"] == "2" and tags["context_schema"] == "ctx-3"
     assert decision_tags(None, "rules")["book"] == "rules"
     session_meta = {"mode": "session", "prompt_version": "abc", "model": "unknown", "instructions_version": "iv1"}
     assert decision_tags(session_meta, "claude")["instructions_version"] == "iv1"  # CL-3: the template read
@@ -501,7 +501,7 @@ def test_session_advisor_round_trip(cfg, tmp_path):
     assert meta["samples_requested"] == 3 and meta["samples_valid"] == 3
     assert meta["files"] == ["decision_1.json", "decision_2.json", "decision_3.json"]
     assert meta["prompt_version"] == prompt_version("decide") and meta["problems"] == []
-    assert meta["context_schema"] == "ctx-2" and meta["instructions_version"]
+    assert meta["context_schema"] == "ctx-3" and meta["instructions_version"]
 
 
 def test_session_rules_book_review_with_a_skip(cfg, tmp_path):
@@ -564,13 +564,26 @@ def test_session_review_does_not_accept_decision_files(cfg, tmp_path):
     assert "not a review file" in err.value.meta["problems"][0]
 
 
-def test_session_identical_files_count_once(cfg, tmp_path):
+def test_session_identical_files_that_change_the_plan_count_once(cfg, tmp_path):
     folder = _write_samples(tmp_path, ["same", "same", "other"])
+    for k in (1, 2):  # the same deviation copied twice must not build a majority
+        f = folder / f"decision_{k}.json"
+        d = json.loads(f.read_text())
+        d["sleeve_weights"]["B"]["choice"] = "down"
+        f.write_text(json.dumps(d))
     decisions, meta = SessionAdvisor.from_pending("claude", DATE, cfg, tmp_path).decide(CTX)
     assert [d.journal_note for d in decisions] == ["same", "other"]
-    assert any("identical to an earlier file" in p for p in meta["problems"])
+    assert any("identical to an earlier file that changes the plan" in p for p in meta["problems"])
     assert meta["files"] == ["decision_1.json", "decision_3.json"]
     assert folder.exists()
+
+
+def test_session_identical_follow_the_rules_files_are_kept(cfg, tmp_path):
+    """Finding #21: unanimous identical follow-the-rules answers are agreement, not low confidence."""
+    _write_samples(tmp_path, ["same", "same", "same"])
+    decisions, meta = SessionAdvisor.from_pending("claude", DATE, cfg, tmp_path).decide(CTX)
+    assert len(decisions) == 3 and meta["samples_valid"] == 3 and not meta["low_confidence"]
+    assert meta["identical_samples"] == 2
 
 
 def test_session_context_for_another_day_is_refused(cfg, tmp_path):
@@ -606,7 +619,8 @@ def _one_file(tmp_path, d, name="decision_1.json", book="claude"):
 
 def _action(**changes):
     a = {"symbol": "NVDA", "sleeve": "C", "size": "exit", "target_pct_equity": 0.0, "stop": "rule",
-         "reason_code": "TREND_WEAKENING", "evidence": ["regime.label"], "prediction_id": "p1", "rationale": "x"}
+         "reason_code": "TREND_WEAKENING", "evidence": ["regime.label"], "prediction_id": "p1", "rationale": "x",
+         "event_date": ""}
     a.update(changes)
     return a
 
@@ -731,3 +745,17 @@ def test_role_texts_say_a_prediction_must_be_about_its_symbol():
 
     for text in ROLE_TEXT.values():
         assert "must be about that same symbol, or name it in linked_decision" in text
+
+
+def test_instructions_explain_the_context_layout_and_units(cfg):
+    """Findings #17, #19, #22: the session text says where things are, that pcts are fractions, and when an
+    event date may be stated."""
+    from trader.session import instructions_text
+
+    dec = instructions_text("claude", DATE, cfg, 3)
+    for text in ('menus["S:SYM"]', "rule_pct", "half_rule_pct", "eligible_increase", "change_allowed",
+                 "an empty list is not evidence", "shadow", "FRACTION: 0.02 means 2%", '"target_pct_equity": 0.02',
+                 "5th session after", "exactly the next session", "replace the rulebook"):
+        assert text in dec, text
+    rev = instructions_text("rules", DATE, cfg, 3)
+    assert "planned_increases" in rev and "menus[" not in rev

@@ -789,6 +789,38 @@ def _reconcile_events(state, sessions: int = 60) -> list[dict]:
     return found
 
 
+def g7_slippage(state, pol: dict, since: str | None = None) -> dict:
+    """G-7: per asset class, the median measured slippage (bps, positive = worse for us) of settled fills
+    against the policy cost model. Measured once a class has `slippage_min_fills` fills (an order split
+    over several sleeves counts once). ok is False when any measured class's median is more than twice
+    the model (G-7: go back to paper); a class with too few fills is reported but does not fail."""
+    turnover = pol["turnover"]
+    model = {cls: float(b) for cls, b in turnover["cost_model_per_side_bps"].items()}
+    min_fills = int(turnover.get("slippage_min_fills", 30))
+    by_class: dict[str, list[float]] = {}
+    seen: set = set()
+    for i, row in enumerate(state.fills):
+        if since and str(row.get("date") or "") < since:
+            continue
+        slip = _f(row.get("slippage_bps"), 12)
+        if slip is None:
+            continue
+        key = (row.get("client_order_id"), row.get("date"), row.get("fill")) if row.get("client_order_id") else i
+        if key in seen:
+            continue
+        seen.add(key)
+        by_class.setdefault(row.get("asset_class"), []).append(slip)
+    classes, breached = {}, []
+    for cls, bps in model.items():
+        slips = by_class.get(cls, [])
+        med = float(np.median(slips)) if len(slips) >= min_fills else None
+        if med is not None and med > 2 * bps:
+            breached.append(cls)
+        classes[cls] = {"fills": len(slips), "need": min_fills, "median_bps": _f(med, 2), "model_bps": bps,
+                        "ok": None if med is None else med <= 2 * bps}
+    return {"ok": not breached, "breached": breached, "classes": classes}
+
+
 def _book_checks(state, pol: dict, since: str | None) -> dict:
     min_s = int(pol["measurement"]["going_live_min_sessions"])
     net = _net_equity(state, since)
@@ -807,6 +839,7 @@ def _book_checks(state, pol: dict, since: str | None) -> dict:
                             "book_max_dd": book and book["max_drawdown"], "spy_max_dd": spy and spy["max_drawdown"],
                             "window": {k: g[k] for k in ("start", "end", "days")} if g else None},
         "G-5_reconcile": {"ok": not recon, "n_events": len(recon), "events": recon[:10]},
+        "G-7_slippage": g7_slippage(state, pol, since),
         "api_cost_usd": _f(_usd(_api_rows(state, since)), 2),
     }
 
@@ -821,7 +854,7 @@ def _value_20d_usd(state, since: str | None = None) -> float:
 
 def going_live_report(rules_state, claude_state, policy, *, since: str | None = None,
                       data_problems: list[str] | None = None, rehearsed: bool | None = None) -> dict:
-    """G-1, G-2, G-4, G-5 as a report; nothing here moves money. A check that cannot be known yet is None and
+    """G-1, G-2, G-4, G-5 and G-7's slippage test as a report; nothing here moves money. A check that cannot be known yet is None and
     counts as not passed. `since` = the date the phase 1 fixes went live: G-1, G-2 and every G-4 sum count
     from there. `data_problems` = today's unresolved data-check messages; `rehearsed` = owner confirms the
     kill-switch and halt-reset rehearsal (G-5)."""
@@ -856,7 +889,7 @@ def going_live_report(rules_state, claude_state, policy, *, since: str | None = 
         "rules_passed": rules_ok, "claude_passed": claude_ok,
         "live_candidate": "claude" if claude_ok else ("rules" if rules_ok else None),
         "since": since, "note": "report only: going live always needs the owner's explicit decision "
-                                "(G-3, G-6, G-7 are policy). " + PRICE_ONLY_NOTE,
+                                "(G-3, G-6 and G-7's capital limits are policy). " + PRICE_ONLY_NOTE,
     }
 
 

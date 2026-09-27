@@ -96,10 +96,13 @@ _SAMPLES_BLOCK = """Think in samples (CL-6)
 _EVIDENCE_BLOCK = """Evidence (CL-2)
 - evidence is a list of paths into today's context, for example rule_signals.C.indicators[NVDA].volume_ratio
 - A dot walks into a key. [X] picks the list item whose "symbol" is X, or the dict key X. [3] picks list
-  item number 3 (counting from 0). The value at the end must exist and must not be null.
+  item number 3 (counting from 0). The value at the end must exist and must not be null or empty (an empty
+  list, such as data_problems on a clean day, is not evidence).
 - An item with no evidence, or with any path that does not exist, is dropped by code.
-- Only today's context is evidence. News, remembered facts and stories from memory are not evidence;
-  you have no market data beyond the context."""
+- Only today's context is evidence, except the event_date of EARNINGS_IN_WINDOW and SCHEDULED_EVENT.
+  News, remembered facts and stories from memory are not evidence;
+  you have no market data beyond the context. Paths under date, book, broker, prompt_version, limits,
+  reason_codes, allowlist or recent_notes (your own past notes) are not evidence and are dropped."""
 
 _PREDICTIONS_BLOCK = """Predictions (CL-5)
 - 0 to 3 a day, in "predictions". Required for every deviation and every skip or halve; link each one
@@ -120,11 +123,13 @@ _DAILY_BLOCK = """Daily fields (CL-4)
   or "none", plus a one-sentence note.
 - flags: short warnings for the human owner (data anomalies, positions to watch)."""
 
-_SKIP_CODES_TEXT = """  - EARNINGS_IN_WINDOW: sleeve C only. Put the report date in event_date. "verified" stays false
-    (there is no earnings calendar yet).
+_SKIP_CODES_TEXT = """  - EARNINGS_IN_WINDOW: sleeve C only. The report date must be between today and the 5th session after
+    today; put it in event_date (YYYY-MM-DD). The context has no earnings calendar, so this date is the one
+    thing you may state from memory: use the code only when you are sure of the date. "verified" stays false.
   - DATA_SUSPECT: evidence must cite a path under data_problems or a price field (close, open, high, low,
     price, volume).
-  - SCHEDULED_EVENT: FOMC, CPI or payrolls on the next session. Sleeves B and C only; date in event_date.
+  - SCHEDULED_EVENT: FOMC, CPI or payrolls on exactly the next session; event_date must be that session's
+    date. Sleeves B and C only. The context has no economic calendar, so use it only when you are sure.
   - HALT_OR_ILLIQUID: the symbol is halted or too thin to trade.
   - CORPORATE_ACTION: a split, merger or similar event.
   Mood, macro opinions and recent losses are not codes."""
@@ -175,8 +180,9 @@ Sleeve weights: sleeve_weights has one choice per sleeve (CL-10, CL-12)
 
 Actions: one entry per symbol and sleeve you want to change (CL-11, CL-13, CL-14)
 - size: "rule" (the rules' target today), "half_rule" (half of it), "hold" (keep the current quantity),
-  "exit" (sell all), "pct" (target_pct_equity = the position's share of total equity after the trade;
-  always counted as a deviation).
+  "exit" (sell all), "pct" (target_pct_equity = the position's share of total equity after the trade, as a
+  FRACTION: 0.02 means 2%, unlike threshold_pct which is in percent; a value above 1 is refused and the rule
+  applies; always counted as a deviation).
 - stop: "rule" (the rule stop, which is also the floor, so a wider stop is impossible), "tight" (halfway
   between the price and the rule stop), "keep" (the current stop), "none" (sleeve A only).
 - Eligible increases: A only in its assets and BIL; B only in B symbols above their 200-day average when
@@ -238,7 +244,8 @@ def decision_tags(meta: dict | None, book: str) -> dict:
             "schema_version": meta.get("schema_version", SCHEMA_VERSION),
             "context_schema": meta.get("context_schema", CONTEXT_SCHEMA),
             "instructions_version": meta.get("instructions_version"),  # session mode: the template read
-            "fallback_used": meta.get("fallback_used")}
+            "fallback_used": meta.get("fallback_used"),
+            "model_source": meta.get("model_source")}  # session mode: "self-reported" (the file's meta.model)
 
 
 def main_model(models: list[str], default: str | None = None) -> str | None:

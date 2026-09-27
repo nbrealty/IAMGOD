@@ -561,11 +561,31 @@ class RiskEngine:
             price = day.prices.get(t.symbol)
             if price is None:
                 day.log.append(f"{t.sleeve}/{t.symbol}: no valid close today, stop not checked")
+            elif price * 2 < t.stop and self._calm_close(day, t.symbol):
+                # A close under half the stop on an ordinary day is a stop on another price scale (a split
+                # the ledger missed), not a stop hit: selling would book a fake loss. Hold and block increases.
+                day.allow.discard(t.symbol)
+                day.log.append(f"DATA PROBLEM {t.sleeve}/{t.symbol}: close {price:.2f} is under half the stop "
+                               f"{t.stop:.2f} after an ordinary day (unhandled split?); stop not enforced, no "
+                               "increases; the owner must check the lot")
             elif price <= t.stop:
                 day.final[key] = Target(t.symbol, t.sleeve, 0.0, t.stop, "stop hit (enforced)")
                 day.log.append(f"{t.sleeve}/{t.symbol}: close {price:.2f} <= stop {t.stop:.2f}, exit enforced")
                 out.add(key)
         return out
+
+    def _calm_close(self, day: _Day, sym: str) -> bool:
+        """The last close moved less than the data check's daily limit (EX-7) from the one before. A real
+        crash through the stop moves more than that; an unhandled split does not (the bars are adjusted)."""
+        df = day.bars.get(sym)
+        if df is None or "close" not in df:
+            return False
+        c = pd.to_numeric(df["close"], errors="coerce")
+        c = c[np.isfinite(c) & (c > 0)]
+        if len(c) < 2:
+            return False
+        limit = _num(self.p.get("data_checks", {}).get("max_daily_move"), 0.25)
+        return abs(float(c.iloc[-1]) / float(c.iloc[-2]) - 1) <= limit
 
     # --- step 2: one proposal ------------------------------------------------------------------
 

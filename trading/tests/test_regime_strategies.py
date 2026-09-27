@@ -216,3 +216,70 @@ def test_faber_asset_matches_sleeve_a(cfg, bars):
     for c in plan.candidates:
         fa = strat.faber_asset(bars[c["symbol"]]["close"], as_of, cfg.policy["portfolio"]["vol_target_annual"])
         assert fa["in"] == c["above_10m_sma"] and round(fa["vol60"], 3) == c["vol60"]
+
+
+def _trend_bars(daily_sigma, seed, end="2026-09-25", n=400):
+    """Steady uptrend (always above its 10-month SMA) with a chosen daily log-return spread."""
+    import numpy as np
+    rng = np.random.default_rng(seed)
+    idx = pd.bdate_range(end=end, periods=n)
+    rets = 0.002 + daily_sigma * rng.choice([-1.0, 1.0], n)
+    close = 100 * np.exp(np.cumsum(rets))
+    return pd.DataFrame({"open": close, "high": close, "low": close, "close": close,
+                         "volume": 1e6}, index=idx)
+
+
+def test_a3_weight_is_one_fifth_times_vol_scale_measured_to_month_end(cfg, bars):
+    """A-3 by hand: weight_i = 1/5 x min(1, 0.10 / vol60_i), vol60 from daily log returns up to the
+    last completed month-end (a wild day after the month-end must not move it); remainder to BIL."""
+    import numpy as np
+    bars = dict(bars)
+    sigmas = {"SPY": 0.002, "EFA": 0.010, "IEF": 0.012, "DBC": 0.015, "VNQ": 0.020}
+    for i, (s, sig) in enumerate(sigmas.items()):
+        df = _trend_bars(sig, seed=300 + i)
+        df.iloc[-1, df.columns.get_loc("close")] *= 1.08  # 25 Sep: after the August month-end
+        bars[s] = df
+    as_of = bars["SPY"].index[-1]
+    capital = 50_000.0
+    target_vol = cfg.policy["portfolio"]["vol_target_annual"]
+    assert target_vol == 0.10
+    plan = strat.sleeve_a(bars, cfg.sleeves["A"], capital, {}, cfg.policy, as_of)
+    total = 0.0
+    for s in sigmas:
+        c = bars[s]["close"]
+        upto = c[c.index <= pd.Timestamp("2026-08-31")]
+        lr = np.diff(np.log(upto.to_numpy()))[-60:]
+        vol60 = lr.std(ddof=1) * np.sqrt(252)
+        w = 0.2 * min(1.0, 0.10 / vol60)
+        total += w
+        cand = next(x for x in plan.candidates if x["symbol"] == s)
+        assert cand["above_10m_sma"] and cand["vol60"] == round(vol60, 3)
+        assert cand["weight_in_sleeve"] == round(w, 3)
+        assert plan.targets[s].qty == pytest.approx(w * capital / c.iloc[-1])
+    # SPY's vol is far below 10% so it is uncapped at a full fifth; the others are scaled down.
+    assert next(x for x in plan.candidates if x["symbol"] == "SPY")["weight_in_sleeve"] == 0.2
+    bil = bars["BIL"]["close"].iloc[-1]
+    assert plan.targets["BIL"].qty == pytest.approx((1 - total) * capital / bil)
+
+
+def test_a4_rebalance_band_holds_19pct_and_trades_21pct(cfg, bars):
+    band = cfg.policy["turnover"]["rebalance_band"]
+    assert band == 0.20
+    assert strat._band(100.0, 81.0, band) == 81.0    # 19% of the larger: hold
+    assert strat._band(81.0, 100.0, band) == 100.0   # same, going down
+    assert strat._band(100.0, 79.0, band) == 100.0   # 21%: trade to target
+    assert strat._band(79.0, 100.0, band) == 79.0
+    assert strat._band(0.0, 50.0, band) == 0.0       # a full exit is never held back
+    assert strat._band(10.0, 0.0, band) == 10.0      # nor a new entry
+
+    # Through sleeve A: a held lot within 19% of its target keeps its quantity, one 21% off trades.
+    as_of = bars["SPY"].index[-1]
+    fresh = strat.sleeve_a(bars, cfg.sleeves["A"], 50_000, {}, cfg.policy, as_of)
+    held = {s: t for s, t in fresh.targets.items() if t.qty > 0}
+    assert len(held) >= 2
+    (s1, t1), (s2, t2) = list(held.items())[:2]
+    lots = {s1: Lot(t1.qty * 0.81, 1.0, "2026-01-02", 1.0, 1.0),
+            s2: Lot(t2.qty * 0.79, 1.0, "2026-01-02", 1.0, 1.0)}
+    plan = strat.sleeve_a(bars, cfg.sleeves["A"], 50_000, lots, cfg.policy, as_of)
+    assert plan.targets[s1].qty == pytest.approx(t1.qty * 0.81)
+    assert plan.targets[s2].qty == pytest.approx(t2.qty)

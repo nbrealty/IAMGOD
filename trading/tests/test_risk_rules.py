@@ -554,6 +554,29 @@ def test_b_index_cluster_heat(cfg):  # B-5
     assert target(res, "B", "IWM") is None  # the budget is spent
 
 
+def test_open_risk_heat_cap(cfg):  # RISK-5
+    # B lot: 116 sh, 50 risk/share = 5.8% heat on 11.6% notional. The 6% budget leaves 0.2% = 200.
+    # The new C stock gets rule stop 96, so 4 risk/share -> 50 shares, under the notional, sleeve and cash caps.
+    lots = {"B": {"SPY": Lot(116, 100, RECENT, 50.0, 50.0)}}
+    res = run(cfg, [Target("LLY", "C", 80, None, "breakout")], lots, bars=bars_for("SPY", "LLY"))
+    t = target(res, "C", "LLY")
+    assert t.qty == pytest.approx(50) and (100 - 96) * t.qty == pytest.approx(0.002 * E)
+    assert logged(res, "6% open-risk heat")
+
+
+def test_correlated_stock_limit(cfg):  # RISK-5
+    rng = np.random.default_rng(0)
+    base = rng.normal(0, 0.01, 260)
+    corr = lambda: frame(100 * np.exp(np.cumsum(base + rng.normal(0, 0.001, 260))))  # noqa: E731
+    bars = {"AAPL": corr(), "MSFT": corr(), "NVDA": corr(),
+            "XOM": frame(100 * np.exp(np.cumsum(rng.normal(0, 0.01, 260))))}
+    lots = {"C": {"AAPL": Lot(10, 100, OLD, 90.0, 90.0), "MSFT": Lot(10, 100, OLD, 90.0, 90.0)}}
+    res = run(cfg, [Target("NVDA", "C", 10, None, "breakout"), Target("XOM", "C", 10, None, "breakout")],
+              lots, bars=bars)
+    assert target(res, "C", "NVDA") is None and logged(res, "held stocks with 60d correlation > 0.7")
+    assert target(res, "C", "XOM") is not None
+
+
 def test_sector_cap(cfg):  # C-9
     lots = {"C": {"NVDA": Lot(20, 100, OLD, 96.0, 96.0), "AMD": Lot(20, 100, OLD, 96.0, 96.0)}}
     bars = bars_for("NVDA", "AMD", "AVGO", "MSFT")

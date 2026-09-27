@@ -68,7 +68,8 @@ drawdown, regime and the **pending folder**, for example
 - If it fails with "Market data is not set up" or "Could not fetch daily bars": **stop** and quote the message
   (it names the variable or host to fix).
 - If the date it prints is the same as both books' `last run` date from step 2, the market was closed today
-  (holiday) or today's run already happened. Do nothing more: go to step 9 and say so.
+  (holiday) or today's run already happened; `prepare` then says `already ran for <date> ... nothing
+  prepared` and leaves the pending folder alone. Do nothing more: go to step 9 and say so.
 
 ## Step 4. Write the decision files with independent subagents
 
@@ -102,16 +103,20 @@ If some files are missing, carry on anyway: a missing sample counts as "follow t
 valid file at all the Claude book holds its positions (stops still enforced) and the rules book runs
 unreviewed. Mention it in the summary.
 
-## Step 5. Dry run (places no orders, saves nothing)
+If this session has no way to start subagents, do not write the files yourself. Carry on with no files:
+the Claude book holds and the rules book runs unreviewed. Say so in the summary.
+
+## Step 5. Dry run (places no orders, saves no state; it only adds a journal line)
 
 ```bash
 python -m trader run --book both --sim claude --session --dry-run
 ```
 
 It prints, per book, `advisor: session files in ...: decision_1.json, ...`, the equity, the sleeve weights,
-Claude's note (`claude: ...`), risk log lines and `planned (not sent): buy ...` lines.
-Read it. `claude error: ...` means the files were not usable (the book then follows the fallback above);
-note the message for the summary. If the command itself crashes (a Python traceback): **stop**.
+Claude's note (`claude: ...`), a `samples: X of Y valid` line, risk log lines and `planned (not sent): buy ...`
+lines. Read it. `claude error: ...` means the files were not usable (the book then follows the fallback
+above); note the message for the summary. Each `claude problem: ...` line names a file that was dropped, or an
+action, skip or weight change inside a file that was ignored; note them for the summary. If the command itself crashes (a Python traceback): **stop**.
 
 ## Step 6. The real run
 
@@ -120,13 +125,20 @@ python -m trader run --book both --sim claude --session
 ```
 
 This sends the rules book's orders to the Alpaca paper account (market orders for the next open) and
-books the Claude book's orders in the simulator. It prints the same as step 5 with `order:` lines, plus
+books the Claude book's orders in the simulator. Before it sends anything, it cancels **every** open order in
+that paper account, so the owner must not place manual orders in the rules book's paper account. It prints the same as step 5 with `order:` lines, plus
 `filled:` lines for yesterday's orders that filled at today's open.
 
 - `ORDER PROBLEM: ...` lines: note every one for the summary. Do not retry.
 - `skipped: already ran for <date>`: that book already ran today. Do not rerun it (never use `--force`).
-- If it stops with a message about the account being empty or the state belonging to another broker:
-  **stop** and quote the message. Only the owner may decide what to do.
+- A `log: STOP: broker positions look wrong ...` line means the broker reported positions that do not match
+  the book (for example an empty account); the orders in those symbols were not sent. Quote the line in the
+  summary. Only the owner may decide what to do (never use `--confirm-empty-account`).
+- If it stops with a message about the state belonging to another broker: **stop** and quote the message.
+  Only the owner may decide what to do.
+- If the command crashes (a Python traceback) during one book, the other book may not have run. Check with
+  `python -m trader status`: if the other book's `last run` is not today, run that book alone: the same
+  command with `--book both` replaced by `--book rules` or `--book claude` (always keep `--sim claude`).
 
 ## Step 7. Status and report
 
@@ -158,7 +170,8 @@ without a few words of explanation. Include:
    Always call the Claude book **simulated**.
 3. Fills of yesterday's orders, if any.
 4. Claude's journal note for each book (the `claude:` line), and whether the decision files were used
-   (how many were valid) or the book fell back to holding / running unreviewed.
+   (quote the `samples: X of Y valid` line and every `claude problem:` line) or the book fell back to
+   holding / running unreviewed.
 5. Anything that needs the owner: breakers, blocked sleeves, `ORDER PROBLEM` lines, data notes (for example
    the IEX fallback), a failed state save, or a stop from this runbook.
 
@@ -168,7 +181,9 @@ Keep it under about 15 lines.
 
 Only after a successful dry run and with the owner's OK, create a routine that starts a fresh session each
 weekday after the close, in this repository on the `operation-invest` branch. Suggested time: 17:05 New York
-time (`CRON_TZ=America/New_York 5 17 * * 1-5`), which leaves time for the closing prices to settle.
+time (`CRON_TZ=America/New_York 5 17 * * 1-5`), which leaves time for the closing prices to settle. Never
+schedule it before 16:30 New York time: the free data feed lags 16 minutes, so before 16:30 the run drops
+today's bar and trades on yesterday's close.
 Suggested prompt:
 
 > Run today's paper-trading session. Open `trading/SESSION_RUNBOOK.md` in this repository and follow it step

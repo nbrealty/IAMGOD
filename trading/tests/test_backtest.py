@@ -217,3 +217,18 @@ def test_cli_refuses_loosening(cfg_small, monkeypatch, capsys):
     monkeypatch.setattr(bt, "load_config", lambda: cfg_small)
     assert bt.main(["--set", "breakers.drawdown_halt=0.5"], data=FakeData({})) == 2
     assert "Refused" in capsys.readouterr().out
+
+
+def test_cli_logs_each_parameter_set_tried(cfg_small, data, tmp_path, monkeypatch, capsys):
+    """M-13: every backtest parameter set lands in experiments.jsonl (an identical rerun adds nothing)."""
+    monkeypatch.setattr(bt, "load_config", lambda: cfg_small)
+    monkeypatch.setattr(bt, "STATE_DIR", tmp_path)
+    args = ["--start", "2026-09-01", "--end", END, "--window", "300"]
+    assert bt.main(args, data=FakeData(data)) == 0
+    assert bt.main(args, data=FakeData(data)) == 0
+    assert bt.main(args + ["--set", "sleeves.B.rsi_entry=5"], data=FakeData(data)) == 0
+    rows = [json.loads(x) for x in (tmp_path / "experiments.jsonl").read_text().splitlines()]
+    assert [r["kind"] for r in rows] == ["backtest-params", "backtest-params"]
+    assert rows[0]["overrides"] == {} and rows[0]["reason"] == "backtest: baseline"
+    assert rows[1]["overrides"] and "sleeves.B.rsi_entry=5" in rows[1]["reason"]
+    assert rows[0]["version"] != rows[1]["version"] and rows[1]["baseline_version"] == rows[0]["version"]

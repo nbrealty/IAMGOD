@@ -51,6 +51,8 @@ class BookState:
     # RISK-13 / M-11 latches: sleeve -> reason. New entries in these sleeves stop until the owner resets.
     sleeve_blocked: dict = field(default_factory=dict)
     promoted_sleeves: list[str] = field(default_factory=list)  # RISK-8: sleeves that passed M-10 (owner sets)
+    # M-12: owner promotions {date, sleeve}; at most one promotion per sleeve per calendar quarter
+    promotions: list[dict] = field(default_factory=list)
     # M-9: {date, role, mode ("api"|"session"), model, input_tokens, output_tokens, usd, samples}
     api_cost: list[dict] = field(default_factory=list)
     # CL-12: Claude book weights per run {date, weights: {A..D}, changed: [sleeves], reasons: {...}}

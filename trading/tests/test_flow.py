@@ -47,7 +47,7 @@ class Book:
     def broker(self, state, b):
         if not state.sim:
             state.sim = {"cash": CASH, "positions": {}}
-        return SimBroker(state.sim, risk.last_prices(b), ledger.cost_model(self.cfg, state), self.cfg.asset_class,
+        return SimBroker(state.sim, risk.last_valid_closes(b), ledger.cost_model(self.cfg, state), self.cfg.asset_class,
                          bars=b, fill_mode="next_open", cost_in_price=False)
 
     def run(self, d, advisor=None, state=None, **kw):
@@ -330,6 +330,7 @@ def test_session_files_from_the_pending_folder(world, tmp_path):
     adv = SessionAdvisor.from_pending("claude", date, cfg, tmp_path)
     e = book.run(d, adv)
     assert e["claude_meta"]["samples_valid"] == 2 and e["claude_error"] is None
+    assert e["tags"]["model_source"] == "self-reported"  # guide 17: session files name their own model
     s = book.state()
     assert s.api_cost[-1]["mode"] == "session" and s.api_cost[-1]["usd"] == 0.0  # M-9
     assert s.weight_history[-1]["date"] == date and s.weight_history[-1]["changed"] == []
@@ -428,6 +429,149 @@ def test_rerun_with_force_replaces_the_days_records(world, tmp_path):
     assert len(ids) == len(set(ids)) and all(i.startswith("c" + d.strftime("%Y%m%d")) for i in ids)
 
 
+def test_force_rerun_drops_the_discarded_attempts_weight_row_and_note(world, tmp_path):
+    from trader.schemas import SleeveWeightChoices, WeightChoice
+
+    cfg, bars = world
+    d0, d = bars["SPY"].index[-2], bars["SPY"].index[-1]
+    date = d.date().isoformat()
+    book = Book(cfg, bars, "claude", tmp_path)
+    book.run(d0, Fake(lambda c: decision(c)))
+    before = book.state().weight_history[-1]["weights"]["C"]
+
+    def down(c):
+        return ClaudeDecision(date=c["date"], market_view="m", journal_note="went down",
+                              sleeve_weights=SleeveWeightChoices(C=WeightChoice(choice="down")))
+
+    book.run(d, Fake(down))
+    s = book.state()
+    assert s.weight_history[-1]["weights"]["C"] < before and s.weight_history[-1]["changed"] == ["C"]
+    book.run(d, Fake(lambda c: ClaudeDecision(date=c["date"], market_view="m", journal_note="kept")), force=True)
+    s = book.state()
+    rows = [r for r in s.weight_history if r["date"] == date]
+    assert len(rows) == 1 and rows[0]["weights"]["C"] == pytest.approx(before) and rows[0]["changed"] == []
+    assert [n["note"] for n in s.notes if n["date"] == date] == ["kept"]
+    costs = [r for r in s.api_cost if r["date"] == date]
+    assert len(costs) == 2 and costs[0].get("superseded") and not costs[1].get("superseded")
+
+
+def test_empty_broker_positions_never_rebuy_the_book(world, tmp_path):
+    cfg, bars = world
+    days = list(bars["SPY"].index[-3:])
+    book = Book(cfg, bars, "rules", tmp_path)
+    book.run(days[0])
+    book.run(days[1])
+    s = book.state()
+    assert s.lots
+
+    class EmptyPositions(SimBroker):
+        def positions(self):
+            return {}
+
+    b = upto(bars, days[2])
+    held = {sym for lots in s.lots.values() for sym in lots}
+    for dry in (True, False):
+        st = book.state()
+        real = book.broker(st, b)
+        broker = EmptyPositions(st.sim, real.prices, real.cost_bps, real.asset_class, bars=b, fill_mode="next_open",
+                                cost_in_price=False)
+        e = run_book("rules", cfg, b, broker, None, days[2], tmp_path, state=st, dry_run=dry)
+        assert not [o for o in e["orders"] if o["symbol"] in held], e["orders"]
+        assert any(ln.startswith("STOP:") and "--confirm-empty-account" in ln for ln in e["risk_log"])
+
+
+def test_run_output_names_invalid_files_and_dropped_items(world, tmp_path, capsys):
+    from trader.__main__ import print_entry
+
+    cfg, bars = world
+    d = bars["SPY"].index[-1]
+    date = d.date().isoformat()
+    sym = eligible_b(cfg, bars, d)
+    folder = session.pending_dir("claude", date, tmp_path)
+    no_pred = _file(date, journal_note="no pred", actions=[b_action(sym, "pct", 0.05, with_pred=False).model_dump()])
+    _write(folder, "decision_1.json", _file(date, journal_note="first"))
+    _write(folder, "decision_2.json", no_pred)
+    _write(folder, "decision_3.json", "{not json")
+    e = Book(cfg, bars, "claude", tmp_path).run(d, SessionAdvisor.from_pending("claude", date, cfg, tmp_path),
+                                                 dry_run=True)
+    print_entry(e)
+    out = capsys.readouterr().out
+    assert "samples: 2 of 3 valid" in out
+    assert "claude problem: decision_3.json: not valid JSON" in out
+    assert "needs a prediction_id" in out
+
+
+def test_context_shows_no_test_first_shadow_signals(world, tmp_path):
+    cfg, bars = world
+    d = bars["SPY"].index[-1]
+    adv = Fake(lambda c: decision(c))
+    e = Book(cfg, bars, "claude", tmp_path).run(d, adv, dry_run=True)
+    ctx = adv.contexts[0]
+    assert all("shadow" not in sig for sig in ctx["rule_signals"].values())
+    assert "credit_canary" not in ctx["regime"]
+    assert "shadow" not in json.dumps(ctx["rule_signals"])
+    assert "shadow_signals" in e  # the journal still logs them
+
+
+def test_deviation_citing_a_shadow_signal_is_dropped(world, tmp_path):
+    cfg, bars = world
+    d = bars["SPY"].index[-1]
+    sym = eligible_b(cfg, bars, d)
+    act = Action(symbol=sym, sleeve="B", size="pct", target_pct_equity=0.05, reason_code="MEAN_REVERSION_SETUP",
+                 evidence=["regime.credit_canary"], prediction_id="p1", rationale="test")
+    e = Book(cfg, bars, "claude", tmp_path).run(d, Fake(lambda c: decision(c, [act], [pred(sym)])), dry_run=True)
+    assert sym not in {o["symbol"] for o in e["orders"]} and e["deviations"] == []
+
+
+def test_deviation_the_risk_engine_blocked_is_not_stored(world, tmp_path):
+    from trader.state import set_kill_switch
+
+    cfg, bars = world
+    d = bars["SPY"].index[-1]
+    sym = eligible_b(cfg, bars, d)
+    set_kill_switch(True, tmp_path)
+    book = Book(cfg, bars, "claude", tmp_path)
+    e = book.run(d, Fake(lambda c: decision(c, [b_action(sym, "pct", 0.05)], [pred(sym)])))
+    assert sym not in {o["symbol"] for o in e["orders"]}
+    assert e["deviations"] == [] and book.state().deviations == []
+    assert any("deviation not traded" in ln for ln in e["risk_log"])
+
+
+def test_api_path_through_run_book_with_a_fallback_sample(world, tmp_path):
+    """OPERATION_INVEST item 1: the API path (ClaudeAdvisor + a fake client) runs the whole day."""
+    from test_llm_session import FakeClient, decision_json, response
+    from trader.llm import ClaudeAdvisor
+
+    cfg, bars = world
+    d = bars["SPY"].index[-1]
+    date = d.date().isoformat()
+    items = [response(decision_json("a", date=date)), response(decision_json("b", date=date)),
+             response(decision_json("c", date=date), model="claude-sonnet-5")]
+    book = Book(cfg, bars, "claude", tmp_path)
+    e = book.run(d, ClaudeAdvisor(cfg, FakeClient(items)))
+    assert e["claude_error"] is None and e["orders"]  # three valid "follow the rules" answers
+    assert e["tags"]["mode"] == "api" and e["tags"]["fallback_used"] is True
+    [row] = book.state().api_cost
+    assert row["mode"] == "api" and row["usd"] > 0 and row["samples"] == 3
+    low = [ln for ln in e["risk_log"] if ln.startswith("low confidence")]
+    assert low and "fallback model" in low[0] and "missing samples" not in low[0]  # guide 17: say the cause
+
+
+def test_prepare_leaves_a_day_that_already_ran_alone(world, tmp_path):
+    cfg, bars = world
+    d = bars["SPY"].index[-1]
+    date = d.date().isoformat()
+    book = Book(cfg, bars, "claude", tmp_path)
+    book.prepare(d, samples=1)
+    folder = session.pending_dir("claude", date, tmp_path)
+    _write(folder, "decision_1.json", _file(date))
+    book.run(d, SessionAdvisor.from_pending("claude", date, cfg, tmp_path))
+    before = sorted(p.name for p in folder.iterdir())
+    out = book.prepare(d, samples=1)  # e.g. the next day is a holiday: the data still ends on `d`
+    assert out["skipped"] and "already ran" in out["summary"][0]
+    assert sorted(p.name for p in folder.iterdir()) == before
+
+
 # --- the journal ------------------------------------------------------------------------------------------
 
 
@@ -452,3 +596,38 @@ def test_journal_entries_are_json_serialisable(world, tmp_path):
                     "prompt_version", "data_feed"):
             assert key in e, key
         assert e["broker"] == "sim" and e["simulated"] is True
+
+
+# --- a missing close never values a holding at $0 (finding #1) --------------------------------------------
+
+
+def test_nan_close_on_a_held_etf_does_not_fake_a_drawdown(world, tmp_path):
+    cfg, base = world
+    days = list(base["SPY"].index[-5:])
+    book = Book(cfg, base, "rules", tmp_path)
+    for d in days[:-1]:
+        book.run(d)
+    s = book.state()
+    held = max(s.sim["positions"], key=lambda k: s.sim["positions"][k] * float(base[k]["close"].iloc[-2]))
+    eq_before = s.equity_history[-1]["equity"]
+    bars = dict(base)
+    df = base[held].copy()
+    df.loc[days[-1], "close"] = float("nan")
+    bars[held] = df
+    e = Book(cfg, bars, "rules", tmp_path).run(days[-1])
+    assert abs(e["equity"] / eq_before - 1) < 0.01, (held, e["equity"], eq_before)
+    s = book.state()
+    assert not s.halted
+    b = e["breakers"]
+    assert not b.get("halted") and not b.get("monthly_block")
+    assert not any("drawdown" in r or "week" in r for r in b.get("reasons", [])), b
+
+
+def test_sim_account_keeps_the_last_mark_for_a_symbol_without_a_price(world):
+    cfg, _ = world
+    sim = {"cash": 1_000.0, "positions": {"SPY": 10.0}}
+    SimBroker(sim, {"SPY": 50.0}, {}, cfg.asset_class).account()
+    equity, cash = SimBroker(sim, {}, {}, cfg.asset_class).account()  # SPY not fetched today
+    assert equity == pytest.approx(1_500.0) and cash == 1_000.0
+    equity, _ = SimBroker(sim, {"SPY": float("nan")}, {}, cfg.asset_class).account()
+    assert equity == pytest.approx(1_500.0)

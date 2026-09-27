@@ -20,11 +20,11 @@ The four sleeves (share of total equity):
   Exit when close > 5-day SMA, after 10 days, or at a 3-ATR disaster stop. Max 2 positions.
   Works in steady uptrends; worst in high-volatility declines.
 - C. Growth breakouts, 10-20%, on probation. Minervini trend template (price above rising 150/200-day
-  SMAs, 50 > 150 > 200, within 25% of the 52-week high, 25%+ above the 52-week low, relative strength
-  rank >= 70) plus a close above the 50-day pivot high on 1.5x average volume. Stop 2 ATR, max 8%.
+  SMAs, 50 > 150 > 200, within 25% of the 52-week high, 25%+ above the 52-week low, peer RS >= 70;
+  peer RS is the percentile of the 252-session return within the C names only, shown as rs_pct) plus a close above the 50-day pivot high on 1.5x average volume. Stop 2 ATR, max 8%.
   Exit on a close below the 10-day low or the 50-day SMA. Only when SPY is above its 200-day SMA.
   Win rates of 35-50% are normal; a few big winners pay for many small losses.
-- D. Crypto trend, 0-10%, only if the owner opted in. BTC/ETH long/flat Donchian ensemble,
+- D. Crypto trend, 0-5%, only if the owner opted in. BTC/ETH long/flat Donchian ensemble,
   volatility-targeted to 25%/yr.
 
 Regimes (computed by code): bull_calm, bull_volatile (half size for B and C), bear (B and C off),

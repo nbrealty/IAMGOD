@@ -288,6 +288,10 @@ def _buy(state, sleeve, symbol, qty, price, date, signal_close, stop, reason, co
         lot.costs += cost
         for k, v in (tags or {}).items():
             lot.tags.setdefault(k, v)
+        pv, first = (tags or {}).get("prompt_version"), lot.tags.get("prompt_version")
+        if pv and first and pv != first:  # CL-3: an add under another version must not pass as the first one's
+            seen = set(str(lot.tags.get("mixed_prompt_versions") or first).split(","))
+            lot.tags["mixed_prompt_versions"] = ",".join(sorted(seen | {str(pv)}))
         kind = "add"
     _touch_marks(lot, price)
     _sleeve_pnl(state, sleeve)["realized"] -= cost
@@ -706,6 +710,8 @@ def reconcile(lots: dict[str, dict[str, Lot]], positions: dict[str, float], log:
             log.append(f"{sym}: broker holds {have:.6g}, book expects {total:.6g}; order pending, checked next run")
             continue
         factor = have / total
+        if state is not None and _broker_split(state, sym, factor, _num((prices or {}).get(sym)), date, log):
+            continue
         note = f"broker holds {have:.6g}, book expected {total:.6g}"
         log.append(f"{sym}: reconcile: {note}; lots moved by factor {factor:.3f}")
         changed = True
@@ -739,9 +745,27 @@ def _suspect_positions(totals: dict[str, float], positions: dict, skip: set, all
     if live and not allow_all_zero and all((_num(positions.get(s, 0.0)) or 0.0) <= EPS for s in live):
         log.append(f"WARNING: the broker reports none of the {len(live)} symbol(s) this book holds "
                    f"({', '.join(sorted(live))}); reconcile changed nothing. If the account really is empty, "
-                   "rerun reconcile with allow_all_zero=True.")
+                   "the owner reruns with --confirm-empty-account.")
         suspect.update(live)
     return suspect
+
+
+def _broker_split(state: BookState, sym: str, factor: float, price: float | None, date: str,
+                  log: list[str]) -> bool:
+    """Backstop for `detect_splits` (no mark yet): the broker holds r times the shares and today's close sits
+    near the old price / r. Then it is a split, not r - 1 times the position bought at today's close."""
+    r = split_ratio(factor)
+    if r is None:
+        return False
+    mark = _mark_of(state, sym)
+    # yesterday's close when there is one (the entry price can be far from today's on its own)
+    refs = [mark["close"]] if mark else [h[sym].entry_price for h in state.lots.values() if sym in h]
+    if not _looks_split(r, price, refs):
+        return False
+    log.append(f"{sym}: broker holds {factor:.4g} times the book's shares and the price moved by 1/{r:g}; "
+               "treated as a split")
+    apply_split(state, sym, r, date, log)
+    return True
 
 
 def _reconcile_state(state: BookState, sym: str, factor: float, price: float | None, date: str, note: str,
@@ -777,6 +801,151 @@ def _log_untracked(totals: dict[str, float], positions: dict[str, float], log: l
         v = _num(q)
         if v is not None and v > 1e-6 and totals.get(sym, 0.0) <= 0:
             log.append(f"{sym}: broker holds {v:.6g} that no sleeve tracks (left alone)")
+
+
+# --- stock splits (the bars are split-adjusted, so a split shows only as restated history) ---------------
+
+SPLIT_TOL = 0.015  # a dividend adjustment on the same day can move the ratio by about 1%
+
+
+@lru_cache(maxsize=1)
+def _split_ratios() -> tuple[float, ...]:
+    """Split ratios seen in practice: n-for-1 and 1-for-n (n = 2..50) and the common fractional ones (3-for-2,
+    5-for-4 ...). None is within 20% of 1:1, so a dividend adjustment or a price move is never read as a split."""
+    out = set()
+    for r in [float(n) for n in range(2, 51)] + [3 / 2, 4 / 3, 5 / 4, 5 / 2, 5 / 3, 7 / 2, 7 / 4]:
+        out.update((r, 1 / r))
+    return tuple(sorted(out))
+
+
+def split_ratio(ratio) -> float | None:
+    """The split r (new shares per old share) that `ratio` = old price / new price matches within 1.5%."""
+    x = _num(ratio)
+    if x is None or x <= 0:
+        return None
+    best = min(_split_ratios(), key=lambda r: abs(math.log(x / r)))
+    return best if abs(x / best - 1) <= SPLIT_TOL else None
+
+
+def _looks_split(r: float, price: float | None, refs) -> bool:
+    """Today's close is nearer ref / r than ref for some pre-split reference price (a mark or the entry)."""
+    if price is None or price <= 0:
+        return False
+    for ref in refs:
+        ref = _num(ref)
+        if ref is not None and ref > 0 and abs(math.log(price * r / ref)) < min(abs(math.log(price / ref)),
+                                                                                math.log(1.5)):
+            return True
+    return False
+
+
+def _mark_of(state: BookState, sym: str) -> dict | None:
+    for sleeve, held in state.lots.items():
+        if sym in held:
+            m = ((state.sleeve_pnl.get(sleeve) or {}).get("marks") or {}).get(sym)
+            if isinstance(m, dict) and _num(m.get("close")) and m.get("date"):
+                return m
+    return None
+
+
+def detect_splits(state: BookState, bars: dict[str, pd.DataFrame]) -> dict[str, float]:
+    """{symbol: r} for held symbols whose history was restated by a split since the last mark.
+
+    The mark keeps the close last seen for a date; the split-adjusted bars now show that same date at
+    close / r. (Alpaca bars use Adjustment.ALL, so the daily-move data check never sees a split.)
+    """
+    out = {}
+    held = {sym for h in state.lots.values() for sym in h}
+    for sym in sorted(held):
+        mark, df = _mark_of(state, sym), bars.get(sym)
+        if mark is None or not isinstance(df, pd.DataFrame) or "close" not in df:
+            continue
+        close_then, bar_date = _last_close(df, mark["date"])
+        if close_then is None or bar_date != _day(mark["date"]):
+            continue
+        r = split_ratio(_num(mark["close"]) / close_then)
+        if r is not None:
+            out[sym] = r
+    return out
+
+
+def _scale(d: dict, r: float, qty_keys=(), price_keys=()) -> None:
+    for k in qty_keys:
+        if _num(d.get(k)) is not None:
+            d[k] = d[k] * r
+    for k in price_keys:
+        if _num(d.get(k)) is not None:
+            d[k] = d[k] / r
+
+
+def apply_split(state: BookState, sym: str, r: float, date: str, log: list[str], *,
+                simulated: bool = False) -> None:
+    """Rescale everything this book keeps in `sym` by a split of r new shares per old share. Not a trade:
+    no P&L, no cost, and 1R in dollars (initial_risk_dollars) is unchanged. Writes a "split" event per lot.
+
+    `simulated`: the simulator's positions and open orders are rescaled too (a real broker does its own).
+    """
+    for sleeve, held in state.lots.items():
+        lot = held.get(sym)
+        if lot is None:
+            continue
+        lot.qty *= r
+        lot.bought_qty *= r
+        lot.entry_price /= r
+        for k in ("stop", "initial_stop", "max_high", "min_low"):
+            if _num(getattr(lot, k)) is not None:
+                setattr(lot, k, getattr(lot, k) / r)
+        for e in lot.events:  # earlier events in today's units, so exit prices and MAE/MFE stay comparable
+            _scale(e, r, ("qty", "qty_after"), ("price", "stop", "signal_close"))
+            e["split_adjusted"] = round(e.get("split_adjusted", 1.0) * r, 9)
+        _event(lot, date, "split", 0.0, lot.entry_price, None, 0.0, 0.0, "split", f"{r:g}-for-1 split")
+        mark = ((state.sleeve_pnl.get(sleeve) or {}).get("marks") or {}).get(sym)
+        if isinstance(mark, dict):
+            _scale(mark, r, price_keys=("close",))
+    for o in state.pending_orders:
+        if o.get("symbol") == sym:
+            _scale(o, r, ("qty", "settled_qty"), ("signal_close",))
+            for a in o.get("alloc", []):
+                _scale(a, r, ("delta_qty", "target_qty"), ("stop",))
+    for s in state.shadow_lots:
+        if s.get("symbol") == sym and s.get("status") != "closed":
+            _scale(s, r, ("qty", "rule_qty", "current_qty"), ("stop", "initial_stop", "entry_price", "signal_close"))
+    for p in state.predictions:
+        if p.get("symbol") == sym and p.get("outcome") is None:
+            _scale(p, r, price_keys=("base_close",))
+    for d in state.deviations:
+        if d.get("symbol") == sym and d.get("value_20d") is None:
+            _scale(d, r, price_keys=("fill_ref",))
+    if simulated and isinstance(state.sim, dict):
+        _scale(state.sim.get("positions") or {}, r, qty_keys=(sym,))
+        for o in state.sim.get("open_orders") or []:
+            if o.get("symbol") == sym:
+                _scale(o, r, ("qty",), ("ref_price",))
+    log.append(f"{sym}: {r:g}-for-1 split: lots, stops and entry prices rescaled (no trade, no P&L)")
+
+
+def apply_splits(state: BookState, bars: dict[str, pd.DataFrame], date: str, log: list[str], *,
+                 simulated: bool = False) -> dict[str, float]:
+    """Find and apply splits in held symbols. Run it before the account and reconcile (the simulator's
+    equity uses its rescaled positions). Returns {symbol: r}."""
+    found = detect_splits(state, bars)
+    for sym, r in found.items():
+        apply_split(state, sym, r, date, log, simulated=simulated)
+    return found
+
+
+def split_lagging(state: BookState, splits: dict[str, float], positions: dict, log: list[str]) -> set[str]:
+    """Split symbols a real broker does not show split yet; the caller skips reconcile and blocks increases
+    in them today, so the old share count is never booked as a sale."""
+    lagging = set()
+    for sym, r in splits.items():
+        total = sum(h[sym].qty for h in state.lots.values() if sym in h)
+        have = _num((positions or {}).get(sym, 0.0)) or 0.0
+        if total > EPS and abs(have - total) > 0.01 * total:
+            lagging.add(sym)
+            log.append(f"{sym}: the bars show a {r:g}-for-1 split but the broker holds {have:.6g}, not "
+                       f"{total:.6g}; reconcile skipped and no increases today")
+    return lagging
 
 
 # --- old immediate-fill path ------------------------------------------------------------------------------

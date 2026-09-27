@@ -637,3 +637,32 @@ def test_deviation_attribution_flags_the_realized_fallback():
     rules = BookState(book="rules", equity_history=[row("2026-01-30", 1000), row("2026-02-27", 1000)])
     rep = metrics.deviation_attribution(claude, rules)
     assert rep["basis"] == "realized closed lots only" and "open positions are missing" in rep["note"]
+
+
+def test_going_live_g7_slippage_over_30_fills(cfg):
+    """G-7: median live slippage over >= 30 fills above twice the model fails the book's gate."""
+    rules, claude = live_states()
+    etf_model = cfg.policy["turnover"]["cost_model_per_side_bps"]["etf"]
+    d0 = rules.equity_history[0]["date"]
+    rep = metrics.going_live_report(rules, claude, cfg.policy, data_problems=[], rehearsed=True)
+    assert rep["books"]["rules"]["G-7_slippage"]["ok"] is True  # no fills yet: nothing measured, not failed
+    # 29 bad fills: not yet measured.
+    rules.fills = [{"date": d0, "asset_class": "etf", "client_order_id": f"o{i}", "fill": 1.0 + i,
+                    "slippage_bps": 2 * etf_model + 1} for i in range(29)]
+    g7 = metrics.g7_slippage(rules, cfg.policy)
+    assert g7["ok"] is True and g7["classes"]["etf"]["fills"] == 29 and g7["classes"]["etf"]["median_bps"] is None
+    # A split order counted twice still counts once.
+    rules.fills.append(dict(rules.fills[0]))
+    assert metrics.g7_slippage(rules, cfg.policy)["classes"]["etf"]["fills"] == 29
+    rules.fills.append({"date": d0, "asset_class": "etf", "client_order_id": "o99", "fill": 9.0,
+                        "slippage_bps": 2 * etf_model + 1})
+    rep = metrics.going_live_report(rules, claude, cfg.policy, data_problems=[], rehearsed=True)
+    g7 = rep["books"]["rules"]["G-7_slippage"]
+    assert g7["ok"] is False and g7["breached"] == ["etf"] and g7["classes"]["etf"]["fills"] == 30
+    assert rep["rules_passed"] is False and rep["books"]["claude"]["G-7_slippage"]["ok"] is True
+    # Exactly twice the model is still within G-7; fills before `since` are not counted.
+    for r in rules.fills:
+        r["slippage_bps"] = 2 * etf_model
+    assert metrics.g7_slippage(rules, cfg.policy)["ok"] is True
+    assert metrics.g7_slippage(rules, cfg.policy, since="2999-01-01")["classes"]["etf"]["fills"] == 0
+    assert json_safe(rep)

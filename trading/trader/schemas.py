@@ -20,7 +20,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, ValidationError
 
 SCHEMA_VERSION = "2"
-CONTEXT_SCHEMA = "ctx-2"
+CONTEXT_SCHEMA = "ctx-3"  # ctx-3: TEST FIRST shadow signals removed (M-12)
 
 Sleeve = Literal["A", "B", "C", "D"]
 
@@ -144,6 +144,7 @@ class Action(BaseModel):
     evidence: list[str]
     prediction_id: str = ""
     rationale: str = ""
+    event_date: str = ""  # EARNINGS_IN_WINDOW and SCHEDULED_EVENT: the stated date, checked as for a skip (CL-8)
 
 
 class ClaudeDecision(BaseModel):

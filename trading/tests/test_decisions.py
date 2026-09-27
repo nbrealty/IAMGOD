@@ -662,6 +662,19 @@ def test_deviation_needs_a_deviation_code(mcfg, market, book):
     assert dropped(res, "C:MSFT") and res.targets["C:MSFT"].pct == pytest.approx(0.03)
 
 
+def test_claude_book_event_codes_need_a_dated_event_in_the_window(mcfg, market, book):
+    """Finding #14: EARNINGS_IN_WINDOW / SCHEDULED_EVENT in the Claude book use the same event_date window as a
+    rules-book skip (CL-8, C-18), so an undated "earnings soon" from memory cannot move a position."""
+    a = act("MSFT", "C", "exit", reason_code="EARNINGS_IN_WINDOW", prediction_id="p1",
+            evidence=["regime.label"])
+    for bad in ("", "soon", "2026-10-20"):
+        res = resolve(mcfg, market, book, decision([a.model_copy(update={"event_date": bad})], [pred("p1", "MSFT")]))
+        assert dropped(res, "C:MSFT") and "event_date" in " ".join(res.problems)
+    res = resolve(mcfg, market, book, decision([a.model_copy(update={"event_date": "2026-09-29"})],
+                                               [pred("p1", "MSFT")]))
+    assert res.targets["C:MSFT"].source == "action" and res.targets["C:MSFT"].pct == 0.0, res.problems
+
+
 def test_pct_size_is_always_a_deviation_and_is_clipped(mcfg, market, book):
     rule_pct = res_pct = resolve(mcfg, market, book, decision()).targets["A:SPY"].rule_pct
     same = act("SPY", "A", "pct", target_pct_equity=res_pct)
@@ -679,6 +692,15 @@ def test_pct_size_is_always_a_deviation_and_is_clipped(mcfg, market, book):
     nan = big.model_copy(update={"target_pct_equity": float("nan")})
     res = resolve(mcfg, market, book, decision([nan], [pred()]))
     assert dropped(res, "C:NVDA") and res.targets["C:NVDA"].source == "rule"
+
+
+def test_pct_above_one_is_refused_not_clipped_up_to_the_cap(mcfg, market, book):
+    """Finding #17: 2.0 meant as "2%" must not be sized at the 10% cap; the action is dropped, the rule applies."""
+    two = act("NVDA", "C", "pct", target_pct_equity=2.0, reason_code="TREND_STRENGTHENING", prediction_id="p1")
+    res = resolve(mcfg, market, book, decision([two], [pred()]))
+    assert dropped(res, "C:NVDA") and res.targets["C:NVDA"].source == "rule"
+    assert any("fraction of equity" in p for p in res.problems)
+    assert res.targets["C:NVDA"].pct == pytest.approx(res.targets["C:NVDA"].rule_pct)
 
 
 def test_half_rule_and_hold_sizes(mcfg, market, book):
@@ -953,6 +975,22 @@ def test_resolved_to_targets_scales_only_increases_to_the_sleeve_weight():
     assert "deviating increases scaled by 0.25" in log[0]
     assert len(devs) == 1 and devs[0]["symbol"] == "NVDA"
     assert devs[0]["claude_pct"] == pytest.approx(0.01)  # the deviation records what was actually targeted
+
+
+def test_deviation_scaled_back_to_the_rule_is_not_recorded():
+    """Finding #24: a deviating increase cut back to the rule size by the sleeve weight is no longer a deviation,
+    so it writes no record (it would count in guide rule 6 with a value of 0)."""
+    prices = {"NVDA": 100.0, "AVGO": 100.0}
+    res = ResolvedDecision(weights={}, targets={
+        "C:NVDA": _rt("C", "NVDA", 0.08, rule=0.04, stop=90.0, source="action", is_deviation=True,
+                      reason_code="TREND_STRENGTHENING", evidence=["x.y"], prediction_id="p1"),
+        "C:AVGO": _rt("C", "AVGO", 0.04, stop=90.0),
+    })
+    log = []
+    targets, devs = d.resolved_to_targets(res, lots={}, prices=prices, equity=EQ, weights={"C": 0.08},
+                                          date=DATE, log=log)
+    assert by_key(targets)[("C", "NVDA")].qty == pytest.approx(40.0)
+    assert devs == [] and any("no deviation recorded" in x for x in log)
 
 
 def test_resolved_to_targets_zero_weight_blocks_increases_but_keeps_holds_and_exits():
@@ -1328,3 +1366,28 @@ def test_sessions_since_reads_odd_dates_and_rows():
     assert out == {"A": d.NEVER, "B": d.NEVER, "C": 5, "D": d.NEVER}
     assert len(problems) == 4 and any("not YYYY-MM-DD" in p for p in problems)
     assert any("not a list of sleeves" in p for p in problems)
+
+
+# --- CL-2: what counts as evidence (findings #6 and #9) ----------------------------------------------------
+
+
+def test_shadow_signals_are_never_evidence():
+    ctx = {"rule_signals": {"B": {"shadow": [{"rule": "B-7", "note": "x"}], "indicators": [{"symbol": "SPY",
+                                                                                           "rsi2": 5.0}]}},
+           "regime": {"label": "bull_calm", "credit_canary": {"signal_negative": True}}}
+    ok, why = d.evidence_ok(ctx, ["rule_signals.B.shadow[0].rule"])
+    assert not ok and "TEST FIRST" in why
+    ok, why = d.evidence_ok(ctx, ["regime.credit_canary.signal_negative"])
+    assert not ok and "TEST FIRST" in why
+    ok, why = d.evidence_ok(ctx, ["regime.label", "rule_signals.B.shadow[0].rule"])
+    assert not ok  # one shadow path spoils the list
+    assert d.evidence_ok(ctx, ["rule_signals.B.indicators[SPY].rsi2"]) == (True, "")
+
+
+def test_run_labels_and_past_notes_are_not_evidence():
+    ctx = {"date": "2026-09-25", "recent_notes": [{"note": "I feel bullish"}], "prompt_version": "abc",
+           "limits": {"weight_step": 0.05}, "regime": {"label": "bull_calm"}}
+    for p in ("date", "recent_notes[0].note", "prompt_version", "limits.weight_step"):
+        ok, why = d.evidence_ok(ctx, [p])
+        assert not ok and "not market data" in why, p
+    assert d.evidence_ok(ctx, ["regime.label"]) == (True, "")

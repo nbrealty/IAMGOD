@@ -150,10 +150,11 @@ def test_check_scores_a_good_and_a_bad_decision(prepared):
     bad["sleeve_weights"]["A"]["choice"] = "up"
     bad["actions"] = [
         {"symbol": "ZZZZ", "sleeve": "C", "size": "rule", "target_pct_equity": 0.0, "stop": "rule",
-         "reason_code": "TREND_STRENGTHENING", "evidence": ["regime.label"], "prediction_id": "", "rationale": ""},
+         "reason_code": "TREND_STRENGTHENING", "evidence": ["regime.label"], "prediction_id": "", "rationale": "",
+         "event_date": ""},
         {"symbol": sym, "sleeve": "B", "size": "pct", "target_pct_equity": 0.5, "stop": "rule",
          "reason_code": "MEAN_REVERSION_SETUP", "evidence": [f"rule_signals.B.indicators[{sym}].rsi2"],
-         "prediction_id": "p1", "rationale": "oversold"},
+         "prediction_id": "p1", "rationale": "oversold", "event_date": ""},
     ]
     bad["predictions"] = [{"id": "p1", "symbol": sym, "horizon": 5, "direction": "above", "threshold_pct": 1.0,
                            "probability": 0.99, "linked_decision": f"action:B:{sym}"}]
@@ -186,6 +187,17 @@ def test_check_scores_a_good_and_a_bad_decision(prepared):
     assert (out / check.REPORT_FILE).exists()
     text = check.render(rep)
     assert "format failure" in text and "decision_2.json: failed" in text
+    # guide rules 7 and 15: the report says which prompt, instructions, schema and model it scored
+    v = rep["books"]["claude"]["versions"]
+    assert v == {**check.current_versions("claude"), "prepared_prompt_versions": [v["prompt_version"]],
+                 "models": v["models"], "prompt_changed_since_prepare": False}
+    assert v["prompt_version"] and v["instructions_version"] and v["schema_version"] and v["context_schema"]
+    assert v["models"] == sorted({s["model"] for s in day["samples"]})
+    assert day["versions"]["prepared"]["prompt_version"] == v["prompt_version"]
+    assert day["versions"]["scored"] == [{k: v[k] for k in check.VERSION_KEYS}]
+    saved = json.loads((out / check.REPORT_FILE).read_text())
+    assert saved["books"]["claude"]["versions"]["prompt_version"] == v["prompt_version"]
+    assert f"prompt {v['prompt_version']}" in text and "prompt changed since prepare" not in text
 
 
 def test_check_scores_reviews_and_counts_missing_answers(prepared):
@@ -209,6 +221,20 @@ def test_check_scores_reviews_and_counts_missing_answers(prepared):
     assert b["stops_below_price"] is None and b["allowlist"] is True
     s = rep["books"]["rules"]["summary"]
     assert s["api_failures"] == 1 and s["samples_scored"] == 2
+
+
+def test_check_flags_a_prompt_changed_since_prepare(prepared):
+    cfg, bars, out, date, manifest, _ = prepared
+    folder = out / "rules" / "pending" / date
+    _write(folder, "review_1.json", _good("rules", date, 1))
+    ctx = json.loads((folder / "context.json").read_text())
+    ctx["prompt_version"] = "old-prompt"
+    (folder / "context.json").write_text(json.dumps(ctx))
+    rep = check.check_dir(out, cfg, bars, manifest, book="rules", write=False)
+    v = rep["books"]["rules"]["versions"]
+    assert v["prepared_prompt_versions"] == ["old-prompt"] and v["prompt_changed_since_prepare"] is True
+    assert v["prompt_version"] == check.current_versions("rules")["prompt_version"] != "old-prompt"
+    assert "prompt changed since prepare" in check.render(rep)
 
 
 def test_wrong_date_is_a_format_failure(prepared):

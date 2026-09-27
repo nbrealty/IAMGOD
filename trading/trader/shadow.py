@@ -14,6 +14,8 @@ import pandas as pd
 
 from . import strategies
 
+WEIGHT_CAP_CODE = "WEIGHT_CAP"  # decisions.WEIGHT_CAP_CODE: a rule target cut by code to fit the sleeve weight
+
 VETO_SLEEVES = ("B", "C", "D")  # CL-7: only increases in B, C and D can be vetoed
 BASE_RATE_LOOKBACK = 1260  # M-7: Brier_ref uses the event's frequency over the last 1,260 sessions
 BASE_RATE_MIN_OBS = 60  # fewer past cases than this and the base rate is unknown (no skill score)
@@ -485,6 +487,8 @@ def add_deviations(state, records: list[dict], tags: dict | None = None) -> list
             "fill_ref": None, "fill_date": None, "value_20d": None, "resolved_date": None,
             "tags": dict(tags or r.get("tags") or {}),
         }
+        if _num(r.get("claude_pct_requested")) is not None:  # the ask, when the risk engine clipped it
+            rec["claude_pct_requested"] = _num(r.get("claude_pct_requested"))
         key = (rec["date"], rec["sleeve"], rec["symbol"])
         existing = next((i for i, d in enumerate(state.deviations)
                          if (d.get("date"), d.get("sleeve"), d.get("symbol")) == key), None)
@@ -541,10 +545,11 @@ def _resolve_deviation(d: dict, bars: dict, date: str, sessions: int) -> bool:
 # --- guide rule 6: automatic cut in the Claude book's freedom when deviations lose ------------------------------
 
 
-def deviation_summary(state, *, since: str | None = None) -> dict:
+def deviation_summary(state, *, since: str | None = None, exclude_codes=()) -> dict:
     """{n, n_resolved, sum_value_20d, by_code: {code: {n, sum}}} over the Claude book's deviations dated on or
-    after `since`."""
-    devs = [d for d in getattr(state, "deviations", []) or [] if not since or str(d.get("date", "")) >= since]
+    after `since`, leaving out records whose reason_code is in `exclude_codes`."""
+    devs = [d for d in getattr(state, "deviations", []) or []
+            if (not since or str(d.get("date", "")) >= since) and d.get("reason_code") not in exclude_codes]
     done = [d for d in devs if _num(d.get("value_20d")) is not None]
     by_code: dict[str, dict] = {}
     for d in done:
@@ -567,5 +572,7 @@ def should_restrict_deviations(state, min_resolved: int | None = None, *, since:
     """
     n_min = _min_scored(min_resolved, policy, "deviation_min_scored", "veto_min_scored")
     since = since or getattr(state, "deviations_reset_date", None)
-    s = deviation_summary(state, since=since)
+    # WEIGHT_CAP records are code's own cuts to fit a sleeve weight, not Claude's choices: M-5 reports them,
+    # but they never move the latch on Claude's freedom.
+    s = deviation_summary(state, since=since, exclude_codes=(WEIGHT_CAP_CODE,))
     return s["n_resolved"] >= n_min and s["sum_value_20d"] < 0
