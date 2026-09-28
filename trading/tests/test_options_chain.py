@@ -325,7 +325,7 @@ def test_opra_not_signed_is_not_retried_and_stops_all_batches(no_sleep, error):
     assert len(quotes) > chain.BAR_BATCH * 2  # three batches: only the first is sent
     assert len(client.bar_requests) == 1 and no_sleep == []  # one request, no retry waits, no pacing
     fatal = [f for f in quotes.meta["fatal"] if "option bars" in f]
-    assert len(fatal) == 1 and "not authorized" in fatal[0] and "Alpaca dashboard" in fatal[0]
+    assert len(fatal) == 1 and "not authorized" in fatal[0] and "15 minutes" in fatal[0]
     assert all(q.volume is None for q in quotes)
 
 
@@ -1037,3 +1037,28 @@ def test_adjustment_enum_accepted_and_unknown_refused():
     with pytest.raises(ValueError):
         d.daily_bars(["SPY"], 5, adjustment="adjusted")
     assert len(stock.requests) == 1  # refused before any request
+
+
+def test_option_bars_end_at_least_15_minutes_ago(no_sleep):
+    """Free plan: bars ending 'now' are refused with 'OPRA agreement is not signed'; requests must end 16 min ago."""
+    client = FakeOptionClient()
+    fetch(client=client)
+    ends = [r.end for r in client.bar_requests]
+    assert ends and all(NOW - e.astimezone(timezone.utc) >= timedelta(minutes=15) for e in ends)
+
+
+def test_before_the_open_volume_is_unknown_not_zero(no_sleep):
+    """Before 00:16 NY on the session day there are no servable bars: volume stays None, one clear note, no request."""
+    early = datetime(2026, 9, 28, 4, 5, tzinfo=timezone.utc)  # 00:05 New York
+    meta = {"fatal": []}
+    q = [type("Q", (), {"symbol": occ_symbol("SPY", "2026-10-30", "put", 560), "volume": 7})()]
+    calls = []
+
+    class C:
+        def get_option_bars(self, req):
+            calls.append(req)
+            raise AssertionError("no request expected")
+
+    chain._add_volume(C(), q, date(2026, 9, 28), early, meta)
+    assert calls == [] and q[0].volume is None
+    assert any("not available yet" in f for f in meta["fatal"])

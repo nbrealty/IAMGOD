@@ -191,7 +191,9 @@ python -m trader options prepare
 `log-chain` saves today's SPY, QQQ and IWM option chains (OPT-35; `complete: True` or the problems it found).
 A big chain can take several minutes when Alpaca rate-limits the option bars (each failed batch is retried after
 10, 30 and 60 seconds). An `option bars not authorized` problem (for example "OPRA agreement is not signed") is
-not retried: the chain is incomplete until the owner fixes it in the Alpaca dashboard, so say so in the summary.
+not retried. On the free plan the code already asks only for bars older than 15 minutes, so if it still appears, the
+options account may not be approved yet: the chain is incomplete, so say so in the summary. Run `log-chain` after the
+open; before it, today's volume is unknown.
 `prepare` builds the day's one spread (or none, with the reasons) and writes a pending folder
 `trading/state/options/pending/<date>/` with `context.json`, `schema.json` and `instructions.md`.
 

@@ -30,6 +30,7 @@ SOURCE = {
     "spot": "alpaca latest stock trade (IEX)",
 }
 BAR_BATCH = 100  # symbols per option-bars request (Alpaca's option endpoints take at most 100 symbols)
+BAR_DELAY = timedelta(minutes=16)  # free plan: option bars must end at least 15 minutes ago
 BAR_RETRY_WAITS = (10.0, 30.0, 60.0)  # seconds before each retry of a failed bars batch (429 rate limit)
 BAR_PACE = 0.35  # seconds between bars batches on big chains: stays under the free plan's 200 requests/minute
 BAR_PACE_AFTER = 50  # chains needing more batches than this are paced (small ones are not)
@@ -353,7 +354,16 @@ def _add_volume(client, quotes, session: date, now: datetime, meta, problems: li
 
     problems = problems if problems is not None else []
     start = datetime.combine(session, time(0, 0), NY).astimezone(timezone.utc)
+    # The free plan serves option bars only if they end at least 15 minutes ago; asking for bars up to "now" is
+    # refused with the misleading error "OPRA agreement is not signed" (same rule as SIP stock bars).
+    end = now - BAR_DELAY
     symbols = [q.symbol for q in quotes]
+    if end <= start:
+        meta["fatal"].append("today's option bars are not available yet (the free plan serves bars older than "
+                             "15 minutes); volume unknown, run again after the open")
+        for q in quotes:
+            q.volume = None
+        return
     batches = [symbols[i:i + BAR_BATCH] for i in range(0, len(symbols), BAR_BATCH)]
     pace = BAR_PACE if len(batches) > BAR_PACE_AFTER else 0.0
     volumes: dict[str, int | None] = {}
@@ -365,7 +375,7 @@ def _add_volume(client, quotes, session: date, now: datetime, meta, problems: li
             continue
         if n and pace:
             _sleep(pace)
-        req = OptionBarsRequest(symbol_or_symbols=batch, timeframe=TimeFrame.Day, start=start, end=now)
+        req = OptionBarsRequest(symbol_or_symbols=batch, timeframe=TimeFrame.Day, start=start, end=end)
         error, tries = None, 0
         for wait in (0.0, *BAR_RETRY_WAITS):
             if wait:
@@ -387,8 +397,9 @@ def _add_volume(client, quotes, session: date, now: datetime, meta, problems: li
         if _auth_error(error):
             abort = error
             meta["fatal"].append(f"option bars not authorized ({_short(error)}); volume unknown for all "
-                                 f"{len(symbols) - n * BAR_BATCH} remaining contracts, no more requests sent. If it "
-                                 "says 'OPRA agreement is not signed', the owner signs it in the Alpaca dashboard")
+                                 f"{len(symbols) - n * BAR_BATCH} remaining contracts, no more requests sent. On the free "
+                                 "plan 'OPRA agreement is not signed' usually means bars newer than 15 minutes were "
+                                 "requested, or the options account is not approved yet")
         else:
             meta["fatal"].append(f"option bars request failed for {len(batch)} contracts after "
                                  f"{tries - 1} retries ({_short(error)})")
