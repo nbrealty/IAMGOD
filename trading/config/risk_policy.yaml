@@ -114,7 +114,7 @@ options_book:                 # book O only (reports/Options rulebook.md); books
   fees_per_contract: 0.0                    # paper; the cost model adds quoted cost (OPT-16)
 news:                         # reports/Market psychology and news signals.md; owner decisions 7 and 8
   source: alpaca_benzinga     # public data only; every signal logs its source
-  active_vetoes: [NEWS-4, NEWS-13, NEWS-18-PROMO]   # decision 8: block new longs only, both books, still shadow-scored
+  active_vetoes: [NEWS-18-PROMO]   # decision 8 (updated 28 Sept): blocks new B/C/D longs only; NEWS-4 and NEWS-13 are TEST FIRST
   promo_block_sessions: 20
   promo_words: ["paid", "sponsored", "investor awareness", "paid promotion", "advertorial"]
   max_headline_chars: 300     # prompt-injection guard: Claude never sees raw headlines
