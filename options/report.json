@@ -1,0 +1,336 @@
+{
+  "feed_note": "Quotes, IV and greeks come from Alpaca's free indicative feed, derived from OPRA but not real OPRA quotes (OPT-12).",
+  "enabled": false,
+  "shadow": {
+    "n": 0,
+    "win_rate": null,
+    "avg_win_R": null,
+    "avg_loss_R": null,
+    "E": null,
+    "E_paper": null,
+    "sqn": null,
+    "worst_R": null,
+    "max_drawdown_R": null,
+    "slippage_dollars": null,
+    "slippage_pct_of_E": null,
+    "no_trade_rate": null,
+    "benchmarks": {
+      "zero": 0.0,
+      "bil_E": null,
+      "bil_rate_assumed": false,
+      "E_above_zero": null,
+      "E_above_bil": null
+    },
+    "invested": []
+  },
+  "paper": {
+    "n": 0,
+    "win_rate": null,
+    "avg_win_R": null,
+    "avg_loss_R": null,
+    "E": null,
+    "E_paper": null,
+    "sqn": null,
+    "worst_R": null,
+    "max_drawdown_R": null,
+    "slippage_dollars": null,
+    "slippage_pct_of_E": null,
+    "no_trade_rate": null,
+    "benchmarks": {
+      "zero": 0.0,
+      "bil_E": null,
+      "bil_rate_assumed": false,
+      "E_above_zero": null,
+      "E_above_bil": null
+    },
+    "invested": []
+  },
+  "skips": {
+    "n": 0,
+    "win_rate": null,
+    "avg_win_R": null,
+    "avg_loss_R": null,
+    "E": null,
+    "E_paper": null,
+    "sqn": null,
+    "worst_R": null,
+    "max_drawdown_R": null,
+    "slippage_dollars": null,
+    "slippage_pct_of_E": null,
+    "no_trade_rate": null,
+    "benchmarks": {
+      "zero": 0.0,
+      "bil_E": null,
+      "bil_rate_assumed": false,
+      "E_above_zero": null,
+      "E_above_bil": null
+    },
+    "invested": [],
+    "log": [],
+    "predictions": [],
+    "note": "informational only (OPT-34; CL-9's code shrink does not apply to O)"
+  },
+  "no_trade": {
+    "close": {
+      "eligible_cycles": 0,
+      "blocked_by_opt13": 0,
+      "rate": null
+    },
+    "1545": {
+      "eligible_cycles": 0,
+      "blocked_by_opt13": 0,
+      "rate": null
+    }
+  },
+  "variants": {
+    "OPT-25": {
+      "tp50": {
+        "n": 0,
+        "E": null,
+        "win_rate": null
+      },
+      "time21": {
+        "n": 0,
+        "E": null,
+        "win_rate": null
+      },
+      "stop2x": {
+        "n": 0,
+        "E": null,
+        "win_rate": null
+      },
+      "stop1x": {
+        "n": 0,
+        "E": null,
+        "win_rate": null
+      },
+      "hold7": {
+        "n": 0,
+        "E": null,
+        "win_rate": null
+      }
+    },
+    "OPT-39": {
+      "QQQ": {
+        "n": 0,
+        "win_rate": null,
+        "avg_win_R": null,
+        "avg_loss_R": null,
+        "E": null,
+        "E_paper": null,
+        "sqn": null,
+        "worst_R": null,
+        "max_drawdown_R": null,
+        "slippage_dollars": null,
+        "slippage_pct_of_E": null,
+        "no_trade_rate": null,
+        "benchmarks": {
+          "zero": 0.0,
+          "bil_E": null,
+          "bil_rate_assumed": false,
+          "E_above_zero": null,
+          "E_above_bil": null
+        },
+        "invested": []
+      },
+      "IWM": {
+        "n": 0,
+        "win_rate": null,
+        "avg_win_R": null,
+        "avg_loss_R": null,
+        "E": null,
+        "E_paper": null,
+        "sqn": null,
+        "worst_R": null,
+        "max_drawdown_R": null,
+        "slippage_dollars": null,
+        "slippage_pct_of_E": null,
+        "no_trade_rate": null,
+        "benchmarks": {
+          "zero": 0.0,
+          "bil_E": null,
+          "bil_rate_assumed": false,
+          "E_above_zero": null,
+          "E_above_bil": null
+        },
+        "invested": []
+      }
+    },
+    "OPT-20_i": {
+      "n": 0,
+      "win_rate": null,
+      "avg_win_R": null,
+      "avg_loss_R": null,
+      "E": null,
+      "E_paper": null,
+      "sqn": null,
+      "worst_R": null,
+      "max_drawdown_R": null,
+      "slippage_dollars": null,
+      "slippage_pct_of_E": null,
+      "no_trade_rate": null,
+      "benchmarks": {
+        "zero": 0.0,
+        "bil_E": null,
+        "bil_rate_assumed": false,
+        "E_above_zero": null,
+        "E_above_bil": null
+      },
+      "invested": []
+    },
+    "OPT-39_signals": "B/C signal spreads not built (needs the stock books' signals)"
+  },
+  "test_first_not_built": {
+    "OPT-17_1015_vs_1545": "OPT-17: the logged comparison of a 10:15 ET order run with the 15:45 ET run is not built (no 10:15 ET snapshot is taken)",
+    "OPT-20_ii": "OPT-20 (ii): 'enter after volatility spikes' is not built (the rulebook gives no rule text)",
+    "OPT-39_signals": "OPT-39: the put spread on every B signal and the call spread on every C signal are not built (needs the stock books' signals)",
+    "OPT-40_i_alpaca_bars": "OPT-40 (i): the backtest run on real Alpaca option bars since Feb 2024 is not built, so the alpaca_option_bars_run item fails and promotion is blocked"
+  },
+  "invested_per_trade": {
+    "paper": [],
+    "shadow": []
+  },
+  "committed_max_loss": {
+    "paper": 0,
+    "shadow": 0
+  },
+  "delta_notional_OPT11": {
+    "SPY_delta_notional": 0.0,
+    "lots_without_greeks": 0,
+    "rules_book_SPY_shares": 11.147044
+  },
+  "halted": {
+    "paper": false,
+    "shadow": false
+  },
+  "gates": {
+    "enabled": false,
+    "paper_start_ok": false,
+    "orders_allowed": false,
+    "opt41": {
+      "items": {
+        "built_and_tested": {
+          "ok": true,
+          "detail": {
+            "ok": true,
+            "missing": [],
+            "built": {
+              "OPT-35": "trader/options/logger.py",
+              "OPT-36": "trader/options/shadow.py",
+              "OPT-37": "trader/options/backtest.py",
+              "OPT-38": "trader/options/shadow.py opt38_stats",
+              "OPT-17": "trader/options/run.py recheck_entry",
+              "separation": "broker.cancel_open_orders(prefixes)"
+            }
+          }
+        },
+        "complete_chain_sessions": {
+          "ok": false,
+          "detail": "0 of 40"
+        },
+        "shadow_cycles": {
+          "ok": false,
+          "detail": "0 of 2: []"
+        },
+        "model_credit_ratio": {
+          "ok": false,
+          "detail": {
+            "n": 0,
+            "median": null,
+            "ok": false
+          }
+        },
+        "no_trade_rate_reported": {
+          "ok": false,
+          "detail": {
+            "eligible_cycles": 0,
+            "blocked_by_opt13": 0,
+            "rate": null
+          }
+        },
+        "separation_built": {
+          "ok": true,
+          "detail": {
+            "ok": true,
+            "problems": []
+          }
+        },
+        "owner_yes": {
+          "ok": false,
+          "detail": {
+            "what": "owner_approval.json paper_start",
+            "file": null,
+            "check": "the owner confirms this file hash is the yes they wrote (never a session)"
+          }
+        }
+      },
+      "paper_start_ok": false
+    },
+    "opt40": {
+      "items": {
+        "backtest_at_traded_width": {
+          "ok": false,
+          "detail": {
+            "backtest_width": null,
+            "traded_width": null
+          }
+        },
+        "doubled_costs_positive": {
+          "ok": false,
+          "detail": null
+        },
+        "sign_holds_pm25": {
+          "ok": false,
+          "detail": []
+        },
+        "spreads_agree_in_sign": {
+          "ok": false,
+          "detail": {
+            "n": 0,
+            "E": null
+          }
+        },
+        "E_above_zero_and_bil": {
+          "ok": false,
+          "detail": {
+            "backtest": null,
+            "shadow": null,
+            "bil": null
+          }
+        },
+        "alpaca_option_bars_run": {
+          "ok": false,
+          "detail": "OPT-40 (i): no run on real Alpaca option bars since Feb 2024 (not built yet)"
+        },
+        "one_promotion_per_quarter": {
+          "ok": true,
+          "detail": {
+            "today": "2026-09-28",
+            "promotions": [],
+            "this_quarter": []
+          }
+        },
+        "owner_sign_off": {
+          "ok": false,
+          "detail": {
+            "what": "owner_approval.json promotion",
+            "file": null,
+            "check": "the owner confirms this file hash is the yes they wrote (never a session)"
+          }
+        }
+      },
+      "promotion_ok": false,
+      "test_first_not_built": {
+        "OPT-17_1015_vs_1545": "OPT-17: the logged comparison of a 10:15 ET order run with the 15:45 ET run is not built (no 10:15 ET snapshot is taken)",
+        "OPT-20_ii": "OPT-20 (ii): 'enter after volatility spikes' is not built (the rulebook gives no rule text)",
+        "OPT-39_signals": "OPT-39: the put spread on every B signal and the call spread on every C signal are not built (needs the stock books' signals)",
+        "OPT-40_i_alpaca_bars": "OPT-40 (i): the backtest run on real Alpaca option bars since Feb 2024 is not built, so the alpaca_option_bars_run item fails and promotion is blocked"
+      },
+      "note": "At most one promotion per quarter; the cap may rise to 0.5% of E only (OPT-8)."
+    },
+    "opt42": {
+      "live_ok": false,
+      "reason": "OPT-42: no live options under this rulebook (M-10 needs >= 100 closed spreads; a $100 account cannot hold one spread)"
+    }
+  }
+}

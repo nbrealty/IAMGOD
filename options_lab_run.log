@@ -1,0 +1,20 @@
+[10:00] start: {"dry": false, "caps": {"per_trade": 250.0, "total": 750.0, "opens": 4}}
+[10:15] error: {"where": "entry", "error": "TypeError: Lab.log() got multiple values for argument 'kind'"}
+[restart] lab restarted after the log-name fix; 10:15 checkpoint re-run now
+[10:16] start: {"dry": false, "caps": {"per_trade": 250.0, "total": 750.0, "opens": 4}}
+[10:16] signal: {"checkpoint": "10:15", "underlying": "SPY", "kind": null, "spot": 767.4, "opening_range": [768.575, 767.005], "vwap": 767.74, "mom60_pct": -0.044, "why": "inside the opening range or mixed signals: no trade"}
+[10:16] signal: {"checkpoint": "10:15", "underlying": "QQQ", "kind": "put_debit", "spot": 736.39, "opening_range": [741.41, 737.31], "vwap": 738.27, "mom60_pct": -0.495, "why": "60-minute move of 0.4% or more"}
+[10:16] open_order: {"trade": {"underlying": "QQQ", "kind": "put_debit", "expiry": "2026-09-30", "type": "put", "credit": false, "long": "QQQ260930P00736000", "short": "QQQ260930P00734000", "long_strike": 736.0, "short_strike": 734.0, "width": 2.0, "qty": 2, "net": 0.92, "max_loss": 191.0, "structural_max_loss": 184.0, "exit_cost_budget": 7.0, "max_gain": 216.0, "short_delta": -0.4236, "long_delta": -0.4925, "id": "0
+[10:16] filled_open: {"id": "09281", "qty": 2, "entry_net": 0.855, "order": "filled"}
+[11:30] signal: {"checkpoint": "11:30", "underlying": "SPY", "kind": "call_credit", "spot": 764.95, "opening_range": [768.575, 767.005], "vwap": 766.39, "mom60_pct": -0.321, "why": "below the 30-minute opening range and VWAP"}
+[11:30] open_order: {"trade": {"underlying": "SPY", "kind": "call_credit", "expiry": "2026-09-30", "type": "call", "credit": true, "long": "SPY260930C00772000", "short": "SPY260930C00770000", "long_strike": 772.0, "short_strike": 770.0, "width": 2.0, "qty": 1, "net": 0.49, "max_loss": 152.0, "structural_max_loss": 151.0, "exit_cost_budget": 1.0, "max_gain": 49.0, "short_delta": 0.2771, "long_delta": 0.198, "id": "092
+[11:30] filled_open: {"id": "09282", "qty": 1, "entry_net": 0.49, "order": "filled"}
+[13:00] signal: {"checkpoint": "13:00", "underlying": "SPY", "kind": null, "spot": 767.2, "opening_range": [768.575, 767.005], "vwap": 766.58, "mom60_pct": 0.221, "why": "inside the opening range or mixed signals: no trade"}
+[13:00] signal: {"checkpoint": "13:00", "underlying": "QQQ", "kind": null, "spot": 737.62, "opening_range": [741.41, 737.31], "vwap": 736.13, "mom60_pct": 0.277, "why": "inside the opening range or mixed signals: no trade"}
+[14:15] signal: {"checkpoint": "14:15", "underlying": "SPY", "kind": null, "spot": 767.37, "opening_range": [768.575, 767.005], "vwap": 766.73, "mom60_pct": -0.195, "why": "inside the opening range or mixed signals: no trade"}
+[14:15] signal: {"checkpoint": "14:15", "underlying": "QQQ", "kind": null, "spot": 738.38, "opening_range": [741.41, 737.31], "vwap": 736.53, "mom60_pct": -0.131, "why": "inside the opening range or mixed signals: no trade"}
+[15:35] close_order: {"id": "09281", "reason": "time exit before the close", "value": 0.77, "natural": 0.76, "limit": 0.74, "attempt": 0, "result": {"status": "pending_new", "id": "1d40773c-2b81-4a43-a41b-309b562692ee", "client_order_id": "LAB-09281-close-0", "limit": -0.74}}
+[15:35] close_order: {"id": "09282", "reason": "time exit before the close", "value": 0.55, "natural": 0.61, "limit": 0.58, "attempt": 0, "result": {"status": "pending_new", "id": "f3e3053e-0db1-49dc-979f-e4c4e9873c94", "client_order_id": "LAB-09282-close-0", "limit": 0.58}}
+[15:35] closed: {"id": "09281", "pnl": -23.0, "reason": "time exit before the close"}
+[15:35] closed: {"id": "09282", "pnl": -7.0, "reason": "time exit before the close"}
+[15:51] summary: {"trades": 2, "closed": 2, "pnl": -30.0, "still_open": []}

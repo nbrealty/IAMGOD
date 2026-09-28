@@ -1,0 +1,79 @@
+{
+  "book": {
+    "lots": {},
+    "closed": [],
+    "events": [],
+    "o_stock": {},
+    "marks": [
+      {
+        "date": "2026-09-28",
+        "o_pnl": 0.0,
+        "day_pnl": 0.0
+      }
+    ],
+    "peak_pnl": 0.0,
+    "halted": false,
+    "seq": 0,
+    "order_fills": {},
+    "seen_fill_ids": []
+  },
+  "skips": {
+    "lots": {},
+    "closed": [],
+    "events": [],
+    "o_stock": {},
+    "marks": [],
+    "peak_pnl": 0.0,
+    "halted": false,
+    "seq": 0,
+    "order_fills": {},
+    "seen_fill_ids": []
+  },
+  "variants": {
+    "lots": {},
+    "closed": [],
+    "events": [],
+    "o_stock": {},
+    "marks": [],
+    "peak_pnl": 0.0,
+    "halted": false,
+    "seq": 0,
+    "order_fills": {},
+    "seen_fill_ids": []
+  },
+  "trackers": [],
+  "evaluations": [
+    {
+      "date": "2026-09-28",
+      "when": "close",
+      "underlying": "SPY",
+      "in_window": false,
+      "expiry": null,
+      "regime": "bull_calm",
+      "eligible": false,
+      "candidate": false,
+      "opt13_blocked": false,
+      "reasons": [
+        "OPT-27: SPY chain incomplete (open interest on 74% of contracts (need 80%)); no new entries"
+      ],
+      "account_known": true,
+      "pair": null,
+      "model_mid_credit": null,
+      "ratio": null,
+      "opt20": {
+        "vix": 14.87,
+        "vix3m": 17.93,
+        "vix_date": "2026-09-25",
+        "vix3m_date": "2026-09-25",
+        "ratio": 0.8293,
+        "blocks_entry": false,
+        "stale": false,
+        "source": "cboe",
+        "variant_ii": "not built: the rulebook gives no rule text for 'enter after volatility spikes'"
+      }
+    }
+  ],
+  "predictions": [],
+  "skip_log": [],
+  "account": {}
+}

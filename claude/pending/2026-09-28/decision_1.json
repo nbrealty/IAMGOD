@@ -1,0 +1,44 @@
+{
+  "schema_version": "2",
+  "date": "2026-09-28",
+  "temperature_ack": "Temperature is 0.5759 (neutral), so it is not a reason to press risk or to cut it today.",
+  "likely_error": {
+    "kind": "none",
+    "note": "No rule signal fires today and nothing in the context gives a coded reason to deviate, so following the rules is the lowest-error choice."
+  },
+  "flags": [
+    "IWM RSI(2) is 10.4, just above the sleeve B entry threshold of 10; a B entry may trigger next session.",
+    "canary_ok is false and bonds_not_hedging is true (stock-bond correlation 0.56), so IEF gives no hedge; sleeve A already holds BIL in its place."
+  ],
+  "predictions": [],
+  "journal_note": "Regime is bull_calm: SPY closes at 765.61, well above its 200-day SMA of 715.28, and 20-day volatility of 0.111 is below its one-year median of 0.127. Sleeve A holds its Faber targets unchanged: SPY, EFA, DBC and VNQ are above their 10-month SMAs, and IEF is below, so its share stays in BIL. Sleeve B has no entry because no index has RSI(2) below 10 (IWM is closest at 10.4). Sleeve C has no breakout: all nine top-RS names are below their pivots, and only NVDA has a volume ratio above 1.0. I agree with the rules because there are no breakers, no data problems and no coded evidence for any deviation or weight change."
+  ,
+  "market_view": "The uptrend is intact and volatility is calm, but breadth above the 50-day average is only 0.45 and bonds are not hedging stocks, so following the rules' existing trend exposure without adding risk is the right stance.",
+  "sleeve_weights": {
+    "A": {
+      "choice": "keep",
+      "reason_code": "NONE",
+      "evidence": []
+    },
+    "B": {
+      "choice": "keep",
+      "reason_code": "NONE",
+      "evidence": []
+    },
+    "C": {
+      "choice": "keep",
+      "reason_code": "NONE",
+      "evidence": []
+    },
+    "D": {
+      "choice": "keep",
+      "reason_code": "NONE",
+      "evidence": []
+    }
+  },
+  "actions": [],
+  "meta": {
+    "model": "claude-opus-5-5",
+    "sample": 1
+  }
+}

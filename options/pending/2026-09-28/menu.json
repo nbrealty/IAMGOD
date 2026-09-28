@@ -1,0 +1,13 @@
+{
+  "date": "2026-09-28",
+  "underlying": "SPY",
+  "candidate": null,
+  "reasons": [
+    "OPT-27: SPY chain incomplete (open interest on 74% of contracts (need 80%)); no new entries"
+  ],
+  "notes": [],
+  "regime": "bull_calm",
+  "account_source": "arguments",
+  "regime_source": "REG-2 on SPY closes",
+  "samples": 3
+}

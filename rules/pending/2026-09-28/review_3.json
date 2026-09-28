@@ -1,0 +1,22 @@
+{
+  "schema_version": "2",
+  "date": "2026-09-28",
+  "temperature_ack": "Market temperature is 0.5759 (neutral), which is display only and gives no reason to lean against or add to the rules today.",
+  "likely_error": {
+    "kind": "none",
+    "note": "planned_increases is empty, so there is nothing to skip or halve and following the rules carries no commission or omission risk today."
+  },
+  "flags": [
+    "regime.canary_ok is false and regime.bonds_not_hedging is true (stock-bond correlation 0.555); sleeve A already holds IEF at 0 and about half the sleeve in BIL.",
+    "IWM RSI(2) is 10.4, just above the sleeve B entry threshold of 10 with close 280.02 above its 200-day SMA 274.58; a B entry may trigger soon."
+  ],
+  "predictions": [],
+  "journal_note": "The regime is bull_calm with SPY at 765.61 above its 200-day SMA of 715.28, 20-day vol of 0.111 below its one-year median of 0.127, drawdown of 0.1% and no breakers tripped. Sleeve B has no entry because no index ETF has RSI(2) below 10; the closest is IWM at 10.4. Sleeve C has no breakout: every listed name shows breakout_today false and only NVDA has a volume ratio above 1 (1.17), still below the 1.5x requirement. planned_increases and data_problems are both empty, so no skip code could apply and sleeve A simply holds its Faber targets. I agree with the rules: waiting for valid setups is the correct action today."
+  ,
+  "skip_entries": [],
+  "halve_sleeves": [],
+  "meta": {
+    "model": "claude-opus-5-5",
+    "sample": 3
+  }
+}

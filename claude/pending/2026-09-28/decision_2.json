@@ -1,0 +1,43 @@
+{
+  "schema_version": "2",
+  "date": "2026-09-28",
+  "temperature_ack": "The market temperature is 0.5759 (neutral), so nothing today argues for leaning harder in or out than the rules already do.",
+  "likely_error": {
+    "kind": "none",
+    "note": "The rules have no new B or C signal, sleeve A is already on target, and nothing in the context gives a coded reason to deviate."
+  },
+  "flags": [
+    "IWM RSI(2) is 10.4, just above the sleeve B entry threshold of 10, so a B entry could trigger in the next session.",
+    "canary_ok is false and stock_bond_corr is 0.555 (bonds_not_hedging true), so IEF's absence from sleeve A is consistent with bonds not diversifying right now."
+  ],
+  "predictions": [],
+  "journal_note": "The regime is bull_calm: SPY at 765.61 is well above its 200-day SMA of 715.28, and 20-day volatility of 0.111 is below its one-year median of 0.127. Sleeve A already holds the rules' targets: SPY, EFA, DBC and VNQ are above their 10-month SMAs and IEF is below, so IEF's share sits in BIL. Sleeve B has no entry because no index has RSI(2) under 10; IWM is closest at 10.4. Sleeve C has no breakout because every top-RS name is below its pivot and only NVDA has a volume ratio above 1.0 (1.17), still short of the 1.5x rule. I agree with the rules because the book is flat against its targets with no breakers, no data problems and zero open risk heat, so there is nothing to defend or correct.",
+  "market_view": "The uptrend is intact and calm, but breadth above the 50-day is only 0.45 and bonds are not hedging, so the rules' mixed A allocation with half the sleeve in T-bills is a sensible posture.",
+  "sleeve_weights": {
+    "A": {
+      "choice": "keep",
+      "reason_code": "NONE",
+      "evidence": []
+    },
+    "B": {
+      "choice": "keep",
+      "reason_code": "NONE",
+      "evidence": []
+    },
+    "C": {
+      "choice": "keep",
+      "reason_code": "NONE",
+      "evidence": []
+    },
+    "D": {
+      "choice": "keep",
+      "reason_code": "NONE",
+      "evidence": []
+    }
+  },
+  "actions": [],
+  "meta": {
+    "model": "claude-opus-5-5",
+    "sample": 2
+  }
+}

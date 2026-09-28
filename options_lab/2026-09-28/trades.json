@@ -1,0 +1,112 @@
+[
+ {
+  "underlying": "QQQ",
+  "kind": "put_debit",
+  "expiry": "2026-09-30",
+  "type": "put",
+  "credit": false,
+  "long": "QQQ260930P00736000",
+  "short": "QQQ260930P00734000",
+  "long_strike": 736.0,
+  "short_strike": 734.0,
+  "width": 2.0,
+  "qty": 0,
+  "net": 0.92,
+  "max_loss": 0.0,
+  "structural_max_loss": 184.0,
+  "exit_cost_budget": 7.0,
+  "max_gain": 216.0,
+  "short_delta": -0.4236,
+  "long_delta": -0.4925,
+  "id": "09281",
+  "checkpoint": "10:15",
+  "status": "closed",
+  "signal": {
+   "spot": 736.39,
+   "opening_range": [
+    741.41,
+    737.31
+   ],
+   "vwap": 738.27,
+   "mom60_pct": -0.495,
+   "why": "60-minute move of 0.4% or more"
+  },
+  "open_order": {
+   "status": "pending_new",
+   "id": "626bad5e-4298-4c80-b4d1-d8af05adf602",
+   "client_order_id": "LAB-09281-open-0",
+   "limit": 0.92
+  },
+  "sent_at": 1790604974.3897634,
+  "opened": true,
+  "entry_net": 0.855,
+  "stop_hits": 0,
+  "last_value": 0.77,
+  "last_pnl": -17.0,
+  "exit_reason": "time exit before the close",
+  "close_order": {
+   "status": "pending_new",
+   "id": "1d40773c-2b81-4a43-a41b-309b562692ee",
+   "client_order_id": "LAB-09281-close-0",
+   "limit": -0.74
+  },
+  "close_sent": 1790624108.2097049,
+  "pnl": -23.0,
+  "close_attempts": 1
+ },
+ {
+  "underlying": "SPY",
+  "kind": "call_credit",
+  "expiry": "2026-09-30",
+  "type": "call",
+  "credit": true,
+  "long": "SPY260930C00772000",
+  "short": "SPY260930C00770000",
+  "long_strike": 772.0,
+  "short_strike": 770.0,
+  "width": 2.0,
+  "qty": 0,
+  "net": 0.49,
+  "max_loss": 0.0,
+  "structural_max_loss": 151.0,
+  "exit_cost_budget": 1.0,
+  "max_gain": 49.0,
+  "short_delta": 0.2771,
+  "long_delta": 0.198,
+  "id": "09282",
+  "checkpoint": "11:30",
+  "status": "closed",
+  "signal": {
+   "spot": 764.95,
+   "opening_range": [
+    768.575,
+    767.005
+   ],
+   "vwap": 766.39,
+   "mom60_pct": -0.321,
+   "why": "below the 30-minute opening range and VWAP"
+  },
+  "open_order": {
+   "status": "pending_new",
+   "id": "ad738dd3-2682-43dc-a7ae-a14ce4b650a8",
+   "client_order_id": "LAB-09282-open-0",
+   "limit": -0.49
+  },
+  "sent_at": 1790609408.7652497,
+  "opened": true,
+  "entry_net": 0.49,
+  "stop_hits": 0,
+  "last_value": 0.55,
+  "last_pnl": -6.0,
+  "exit_reason": "time exit before the close",
+  "close_order": {
+   "status": "pending_new",
+   "id": "f3e3053e-0db1-49dc-979f-e4c4e9873c94",
+   "client_order_id": "LAB-09282-close-0",
+   "limit": 0.58
+  },
+  "close_sent": 1790624108.4684713,
+  "pnl": -7.0,
+  "close_attempts": 1
+ }
+]

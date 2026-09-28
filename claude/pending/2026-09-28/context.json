@@ -1,0 +1,1713 @@
+{
+  "context_schema": "ctx-3",
+  "prompt_version": "bf08477443ac",
+  "date": "2026-09-28",
+  "book": "claude",
+  "broker": "sim",
+  "simulated": true,
+  "account": {
+    "equity": 99851.92,
+    "cash": 40184.14,
+    "peak_equity": 100000.0,
+    "drawdown": 0.0015,
+    "day_pnl_pct": -0.0015,
+    "week_pnl_pct": -0.0015,
+    "month_pnl_pct": -0.0015,
+    "one_R_by_sleeve": {
+      "B": 499.26,
+      "C": 499.26,
+      "D": 499.26
+    },
+    "breakers": [],
+    "halted": false,
+    "no_new_entries": false,
+    "risk_mult": 1.0,
+    "watch": false,
+    "monthly_block": false,
+    "sleeve_risk_mult": {
+      "B": 1.0,
+      "C": 1.0,
+      "D": 1.0
+    },
+    "sleeve_dd_pct": {
+      "B": 0.0,
+      "C": 0.0,
+      "D": 0.0
+    },
+    "sleeve_blocked": {},
+    "open_risk_heat_pct": 0.0,
+    "stress": {
+      "notional": {
+        "equity_like": 24307.75,
+        "DBC": 5356.75,
+        "crypto": 0.0
+      },
+      "shocks": {
+        "equity_like": 0.2,
+        "DBC": 0.1,
+        "crypto": 0.3
+      },
+      "loss_usd": 5397.22,
+      "loss_pct": 0.0541,
+      "text": "If stocks fell 20%, commodities 10% and crypto 30% together, the book would lose about $5,397 (5.4% of equity)."
+    }
+  },
+  "regime": {
+    "label": "bull_calm",
+    "spy_close": 765.61,
+    "spy_sma200": 715.2762999999999,
+    "vol20": 0.11069844831345746,
+    "vol20_median_1y": 0.1271417459610718,
+    "crossings_60d": 0,
+    "return_24m": 0.37504265522010094,
+    "vol_top_quintile": false,
+    "breadth_above_200d": 0.625,
+    "canary_ok": false,
+    "permissions": {
+      "A": 1.0,
+      "B": 1.0,
+      "C": 1.0,
+      "D": 1.0
+    },
+    "temperature": 0.5759,
+    "temperature_label": "neutral",
+    "temperature_components": {
+      "spy_return_504d": 0.4667,
+      "spy_vol20_inverted": 0.7175,
+      "breadth_above_200d": 0.3675,
+      "spy_vs_sma200": 0.4849,
+      "credit_hyg_ief_126d": 0.8429,
+      "n_sessions": 1865,
+      "n_used": 5,
+      "n_values": {
+        "spy_return_504d": 1260,
+        "spy_vol20_inverted": 1260,
+        "breadth_above_200d": 1260,
+        "spy_vs_sma200": 1260,
+        "credit_hyg_ief_126d": 1260
+      }
+    },
+    "temperature_inputs": {
+      "spy_return_504d": 0.375043,
+      "spy_vol20_inverted": 0.110698,
+      "breadth_above_200d": 0.625,
+      "spy_vs_sma200": 0.07037,
+      "credit_hyg_ief_126d": 0.050994
+    },
+    "temperature_note": "neutral: T 0.5759 from 5 of 5 components (display only)",
+    "breadth_above_50d": 0.45,
+    "stock_bond_corr": 0.5552,
+    "bonds_not_hedging": true
+  },
+  "sleeve_bounds": {
+    "A": {
+      "min": 0.5,
+      "max": 0.6,
+      "default": 0.55,
+      "cap": 0.6,
+      "enabled": true
+    },
+    "B": {
+      "min": 0.15,
+      "max": 0.25,
+      "default": 0.2,
+      "cap": 0.2,
+      "enabled": true
+    },
+    "C": {
+      "min": 0.1,
+      "max": 0.2,
+      "default": 0.15,
+      "cap": 0.15,
+      "enabled": true
+    },
+    "D": {
+      "min": 0.0,
+      "max": 0.05,
+      "default": 0.03,
+      "cap": 0.03,
+      "enabled": false
+    }
+  },
+  "weights": {
+    "current": {
+      "A": 0.6,
+      "B": 0.1813,
+      "C": 0.15,
+      "D": 0.0
+    },
+    "rules": {
+      "A": 0.6,
+      "B": 0.1806,
+      "C": 0.15,
+      "D": 0.0
+    },
+    "menu": {
+      "A": {
+        "keep": 0.6,
+        "up": 0.6,
+        "down": 0.55,
+        "rule": 0.6,
+        "default": 0.55
+      },
+      "B": {
+        "keep": 0.1813,
+        "up": 0.2,
+        "down": 0.15,
+        "rule": 0.1806,
+        "default": 0.2
+      },
+      "C": {
+        "keep": 0.15,
+        "up": 0.15,
+        "down": 0.1,
+        "rule": 0.15,
+        "default": 0.15
+      },
+      "D": {
+        "keep": 0.0,
+        "up": 0.0,
+        "down": 0.0,
+        "rule": 0.0,
+        "default": 0.0
+      }
+    },
+    "change_allowed": {
+      "A": true,
+      "B": true,
+      "C": true,
+      "D": true
+    },
+    "sessions_since_change": {
+      "A": null,
+      "B": null,
+      "C": null,
+      "D": null
+    }
+  },
+  "positions": [
+    {
+      "sleeve": "A",
+      "symbol": "BIL",
+      "lot_id": "claude:A:BIL:2026-09-25",
+      "qty": 327.439424,
+      "entry_price": 91.62,
+      "entry_date": "2026-09-25",
+      "sessions_held": 1,
+      "stop": null,
+      "price": 91.63,
+      "pct_equity": 0.300478,
+      "unrealized_R": null
+    },
+    {
+      "sleeve": "A",
+      "symbol": "SPY",
+      "lot_id": "claude:A:SPY:2026-09-25",
+      "qty": 11.147044,
+      "entry_price": 768.35,
+      "entry_date": "2026-09-25",
+      "sessions_held": 1,
+      "stop": null,
+      "price": 765.61,
+      "pct_equity": 0.085469,
+      "unrealized_R": null
+    },
+    {
+      "sleeve": "A",
+      "symbol": "VNQ",
+      "lot_id": "claude:A:VNQ:2026-09-25",
+      "qty": 87.124165,
+      "entry_price": 91.17,
+      "entry_date": "2026-09-25",
+      "sessions_held": 1,
+      "stop": null,
+      "price": 90.59,
+      "pct_equity": 0.079043,
+      "unrealized_R": null
+    },
+    {
+      "sleeve": "A",
+      "symbol": "EFA",
+      "lot_id": "claude:A:EFA:2026-09-25",
+      "qty": 75.027435,
+      "entry_price": 104.985,
+      "entry_date": "2026-09-25",
+      "sessions_held": 1,
+      "stop": null,
+      "price": 105.04,
+      "pct_equity": 0.078926,
+      "unrealized_R": null
+    },
+    {
+      "sleeve": "A",
+      "symbol": "DBC",
+      "lot_id": "claude:A:DBC:2026-09-25",
+      "qty": 164.873799,
+      "entry_price": 32.76,
+      "entry_date": "2026-09-25",
+      "sessions_held": 1,
+      "stop": null,
+      "price": 32.49,
+      "pct_equity": 0.053647,
+      "unrealized_R": null
+    }
+  ],
+  "rule_signals": {
+    "A": {
+      "sleeve_weight": 0.6,
+      "targets": [
+        {
+          "symbol": "SPY",
+          "target_pct_equity": 0.085469,
+          "current_pct_equity": 0.085469,
+          "stop": null,
+          "reason": "faber weight 0.14 of sleeve"
+        },
+        {
+          "symbol": "EFA",
+          "target_pct_equity": 0.078926,
+          "current_pct_equity": 0.078926,
+          "stop": null,
+          "reason": "faber weight 0.13 of sleeve"
+        },
+        {
+          "symbol": "IEF",
+          "target_pct_equity": 0.0,
+          "current_pct_equity": 0.0,
+          "stop": null,
+          "reason": "faber weight 0.00 of sleeve"
+        },
+        {
+          "symbol": "DBC",
+          "target_pct_equity": 0.053647,
+          "current_pct_equity": 0.053647,
+          "stop": null,
+          "reason": "faber weight 0.09 of sleeve"
+        },
+        {
+          "symbol": "VNQ",
+          "target_pct_equity": 0.079043,
+          "current_pct_equity": 0.079043,
+          "stop": null,
+          "reason": "faber weight 0.13 of sleeve"
+        },
+        {
+          "symbol": "BIL",
+          "target_pct_equity": 0.300478,
+          "current_pct_equity": 0.300478,
+          "stop": null,
+          "reason": "faber weight 0.50 of sleeve"
+        }
+      ],
+      "indicators": [
+        {
+          "symbol": "SPY",
+          "month_close": 765.15,
+          "sma10m": 708.99,
+          "above_10m_sma": true,
+          "vol60": 0.14,
+          "weight_in_sleeve": 0.143
+        },
+        {
+          "symbol": "EFA",
+          "month_close": 107.45,
+          "sma10m": 100.59,
+          "above_10m_sma": true,
+          "vol60": 0.152,
+          "weight_in_sleeve": 0.132
+        },
+        {
+          "symbol": "IEF",
+          "month_close": 92.41,
+          "sma10m": 93.58,
+          "above_10m_sma": false,
+          "vol60": 0.049,
+          "weight_in_sleeve": 0.0
+        },
+        {
+          "symbol": "DBC",
+          "month_close": 31.3,
+          "sma10m": 27.11,
+          "above_10m_sma": true,
+          "vol60": 0.223,
+          "weight_in_sleeve": 0.09
+        },
+        {
+          "symbol": "VNQ",
+          "month_close": 95.61,
+          "sma10m": 92.06,
+          "above_10m_sma": true,
+          "vol60": 0.151,
+          "weight_in_sleeve": 0.132
+        }
+      ],
+      "notes": []
+    },
+    "B": {
+      "sleeve_weight": 0.1813,
+      "targets": [],
+      "indicators": [
+        {
+          "symbol": "SPY",
+          "close": 765.61,
+          "sma200": 715.28,
+          "sma5": 769.07,
+          "rsi2": 27.7,
+          "atr20": 6.77
+        },
+        {
+          "symbol": "QQQ",
+          "close": 736.53,
+          "sma200": 664.72,
+          "sma5": 742.16,
+          "rsi2": 24.8,
+          "atr20": 10.14
+        },
+        {
+          "symbol": "IWM",
+          "close": 280.02,
+          "sma200": 274.58,
+          "sma5": 282.56,
+          "rsi2": 10.4,
+          "atr20": 3.53
+        },
+        {
+          "symbol": "DIA",
+          "close": 514.02,
+          "sma200": 498.98,
+          "sma5": 515.3,
+          "rsi2": 36.2,
+          "atr20": 4.96
+        }
+      ],
+      "notes": []
+    },
+    "C": {
+      "sleeve_weight": 0.15,
+      "targets": [],
+      "indicators": [
+        {
+          "symbol": "AMD",
+          "close": 607.87,
+          "pivot": 639.0,
+          "volume_ratio": 0.92,
+          "rs_pct": 100.0,
+          "return_12m": 2.769,
+          "breakout_today": false,
+          "sector": "semis_ai"
+        },
+        {
+          "symbol": "MRK",
+          "close": 148.69,
+          "pivot": 156.0,
+          "volume_ratio": 0.75,
+          "rs_pct": 95.0,
+          "return_12m": 0.972,
+          "breakout_today": false,
+          "sector": "health"
+        },
+        {
+          "symbol": "PANW",
+          "close": 392.09,
+          "pivot": 398.88,
+          "volume_ratio": 0.96,
+          "rs_pct": 92.5,
+          "return_12m": 0.939,
+          "breakout_today": false,
+          "sector": "software"
+        },
+        {
+          "symbol": "LLY",
+          "close": 1184.78,
+          "pivot": 1292.65,
+          "volume_ratio": 0.78,
+          "rs_pct": 87.5,
+          "return_12m": 0.668,
+          "breakout_today": false,
+          "sector": "health"
+        },
+        {
+          "symbol": "XOM",
+          "close": 162.52,
+          "pivot": 169.64,
+          "volume_ratio": 0.89,
+          "rs_pct": 82.5,
+          "return_12m": 0.447,
+          "breakout_today": false,
+          "sector": "industrial_energy"
+        },
+        {
+          "symbol": "ANET",
+          "close": 204.92,
+          "pivot": 214.89,
+          "volume_ratio": 0.55,
+          "rs_pct": 80.0,
+          "return_12m": 0.432,
+          "breakout_today": false,
+          "sector": "semis_ai"
+        },
+        {
+          "symbol": "KO",
+          "close": 87.18,
+          "pivot": 91.94,
+          "volume_ratio": 0.91,
+          "rs_pct": 75.0,
+          "return_12m": 0.356,
+          "breakout_today": false,
+          "sector": "staples_retail"
+        },
+        {
+          "symbol": "AAPL",
+          "close": 338.4,
+          "pivot": 345.34,
+          "volume_ratio": 0.7,
+          "rs_pct": 72.5,
+          "return_12m": 0.322,
+          "breakout_today": false,
+          "sector": "hardware_auto"
+        },
+        {
+          "symbol": "NVDA",
+          "close": 228.86,
+          "pivot": 234.5,
+          "volume_ratio": 1.17,
+          "rs_pct": 70.0,
+          "return_12m": 0.291,
+          "breakout_today": false,
+          "sector": "semis_ai"
+        }
+      ],
+      "notes": []
+    }
+  },
+  "menus": {
+    "A:SPY": {
+      "sleeve": "A",
+      "symbol": "SPY",
+      "price": 765.61,
+      "current_pct": 0.085469,
+      "rule_pct": 0.085469,
+      "half_rule_pct": 0.042735,
+      "eligible_increase": true,
+      "why_not_eligible": "",
+      "stops": {
+        "rule": null,
+        "tight": null,
+        "keep": null
+      }
+    },
+    "A:EFA": {
+      "sleeve": "A",
+      "symbol": "EFA",
+      "price": 105.04,
+      "current_pct": 0.078926,
+      "rule_pct": 0.078926,
+      "half_rule_pct": 0.039463,
+      "eligible_increase": true,
+      "why_not_eligible": "",
+      "stops": {
+        "rule": null,
+        "tight": null,
+        "keep": null
+      }
+    },
+    "A:IEF": {
+      "sleeve": "A",
+      "symbol": "IEF",
+      "price": 89.53,
+      "current_pct": 0.0,
+      "rule_pct": 0.0,
+      "half_rule_pct": 0.0,
+      "eligible_increase": true,
+      "why_not_eligible": "",
+      "stops": {
+        "rule": null,
+        "tight": null,
+        "keep": null
+      }
+    },
+    "A:DBC": {
+      "sleeve": "A",
+      "symbol": "DBC",
+      "price": 32.49,
+      "current_pct": 0.053647,
+      "rule_pct": 0.053647,
+      "half_rule_pct": 0.026823,
+      "eligible_increase": true,
+      "why_not_eligible": "",
+      "stops": {
+        "rule": null,
+        "tight": null,
+        "keep": null
+      }
+    },
+    "A:VNQ": {
+      "sleeve": "A",
+      "symbol": "VNQ",
+      "price": 90.59,
+      "current_pct": 0.079043,
+      "rule_pct": 0.079043,
+      "half_rule_pct": 0.039521,
+      "eligible_increase": true,
+      "why_not_eligible": "",
+      "stops": {
+        "rule": null,
+        "tight": null,
+        "keep": null
+      }
+    },
+    "A:BIL": {
+      "sleeve": "A",
+      "symbol": "BIL",
+      "price": 91.63,
+      "current_pct": 0.300478,
+      "rule_pct": 0.300478,
+      "half_rule_pct": 0.150239,
+      "eligible_increase": true,
+      "why_not_eligible": "",
+      "stops": {
+        "rule": null,
+        "tight": null,
+        "keep": null
+      }
+    },
+    "B:DIA": {
+      "sleeve": "B",
+      "symbol": "DIA",
+      "price": 514.02,
+      "current_pct": 0.0,
+      "rule_pct": 0.0,
+      "half_rule_pct": 0.0,
+      "eligible_increase": true,
+      "why_not_eligible": "",
+      "stops": {
+        "rule": 499.1338,
+        "tight": 506.5769,
+        "keep": 499.1338
+      }
+    },
+    "B:IWM": {
+      "sleeve": "B",
+      "symbol": "IWM",
+      "price": 280.02,
+      "current_pct": 0.0,
+      "rule_pct": 0.0,
+      "half_rule_pct": 0.0,
+      "eligible_increase": true,
+      "why_not_eligible": "",
+      "stops": {
+        "rule": 269.4427,
+        "tight": 274.7314,
+        "keep": 269.4427
+      }
+    },
+    "B:QQQ": {
+      "sleeve": "B",
+      "symbol": "QQQ",
+      "price": 736.53,
+      "current_pct": 0.0,
+      "rule_pct": 0.0,
+      "half_rule_pct": 0.0,
+      "eligible_increase": true,
+      "why_not_eligible": "",
+      "stops": {
+        "rule": 706.1149,
+        "tight": 721.3224,
+        "keep": 706.1149
+      }
+    },
+    "B:SPY": {
+      "sleeve": "B",
+      "symbol": "SPY",
+      "price": 765.61,
+      "current_pct": 0.0,
+      "rule_pct": 0.0,
+      "half_rule_pct": 0.0,
+      "eligible_increase": true,
+      "why_not_eligible": "",
+      "stops": {
+        "rule": 745.2865,
+        "tight": 755.4482,
+        "keep": 745.2865
+      }
+    },
+    "C:AAPL": {
+      "sleeve": "C",
+      "symbol": "AAPL",
+      "price": 338.4,
+      "current_pct": 0.0,
+      "rule_pct": 0.0,
+      "half_rule_pct": 0.0,
+      "eligible_increase": true,
+      "why_not_eligible": "",
+      "stops": {
+        "rule": 324.2923,
+        "tight": 331.3462,
+        "keep": 324.2923
+      }
+    },
+    "C:AMD": {
+      "sleeve": "C",
+      "symbol": "AMD",
+      "price": 607.87,
+      "current_pct": 0.0,
+      "rule_pct": 0.0,
+      "half_rule_pct": 0.0,
+      "eligible_increase": true,
+      "why_not_eligible": "",
+      "stops": {
+        "rule": 559.2404,
+        "tight": 583.5552,
+        "keep": 559.2404
+      }
+    },
+    "C:ANET": {
+      "sleeve": "C",
+      "symbol": "ANET",
+      "price": 204.92,
+      "current_pct": 0.0,
+      "rule_pct": 0.0,
+      "half_rule_pct": 0.0,
+      "eligible_increase": true,
+      "why_not_eligible": "",
+      "stops": {
+        "rule": 189.2337,
+        "tight": 197.0768,
+        "keep": 189.2337
+      }
+    },
+    "C:KO": {
+      "sleeve": "C",
+      "symbol": "KO",
+      "price": 87.18,
+      "current_pct": 0.0,
+      "rule_pct": 0.0,
+      "half_rule_pct": 0.0,
+      "eligible_increase": true,
+      "why_not_eligible": "",
+      "stops": {
+        "rule": 84.551,
+        "tight": 85.8655,
+        "keep": 84.551
+      }
+    },
+    "C:LLY": {
+      "sleeve": "C",
+      "symbol": "LLY",
+      "price": 1184.78,
+      "current_pct": 0.0,
+      "rule_pct": 0.0,
+      "half_rule_pct": 0.0,
+      "eligible_increase": true,
+      "why_not_eligible": "",
+      "stops": {
+        "rule": 1119.3511,
+        "tight": 1152.0655,
+        "keep": 1119.3511
+      }
+    },
+    "C:MRK": {
+      "sleeve": "C",
+      "symbol": "MRK",
+      "price": 148.69,
+      "current_pct": 0.0,
+      "rule_pct": 0.0,
+      "half_rule_pct": 0.0,
+      "eligible_increase": true,
+      "why_not_eligible": "",
+      "stops": {
+        "rule": 141.5795,
+        "tight": 145.1348,
+        "keep": 141.5795
+      }
+    },
+    "C:NVDA": {
+      "sleeve": "C",
+      "symbol": "NVDA",
+      "price": 228.86,
+      "current_pct": 0.0,
+      "rule_pct": 0.0,
+      "half_rule_pct": 0.0,
+      "eligible_increase": true,
+      "why_not_eligible": "",
+      "stops": {
+        "rule": 216.3217,
+        "tight": 222.5909,
+        "keep": 216.3217
+      }
+    },
+    "C:PANW": {
+      "sleeve": "C",
+      "symbol": "PANW",
+      "price": 392.09,
+      "current_pct": 0.0,
+      "rule_pct": 0.0,
+      "half_rule_pct": 0.0,
+      "eligible_increase": true,
+      "why_not_eligible": "",
+      "stops": {
+        "rule": 360.7228,
+        "tight": 376.4064,
+        "keep": 360.7228
+      }
+    },
+    "C:XOM": {
+      "sleeve": "C",
+      "symbol": "XOM",
+      "price": 162.52,
+      "current_pct": 0.0,
+      "rule_pct": 0.0,
+      "half_rule_pct": 0.0,
+      "eligible_increase": true,
+      "why_not_eligible": "",
+      "stops": {
+        "rule": 155.1995,
+        "tight": 158.8598,
+        "keep": 155.1995
+      }
+    }
+  },
+  "news_meta": {
+    "status": "shadow",
+    "note": "shadow: code-computed numbers and fixed labels only (no headline text). You may cite these in journal_note or a prediction; they are not evidence for any skip, halve, action or weight change (CL-2, M-12). news_vetoes are already enforced by code: new longs in those names are blocked.",
+    "as_of": "2026-09-28",
+    "source": "alpaca_benzinga",
+    "headlines": 7208,
+    "active_vetoes": [
+      "NEWS-18-PROMO"
+    ],
+    "veto_sleeves": [
+      "B",
+      "C",
+      "D"
+    ],
+    "notes": [
+      "7208 headlines 2026-07-20 to 2026-09-28"
+    ]
+  },
+  "news_signals": {
+    "NEWS-2": {
+      "PG": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "direction": 1.0,
+        "long_eligible": true,
+        "short_leg_logged": false,
+        "earnings_day": false,
+        "ar": 0.026589,
+        "sigma60": 0.012837,
+        "hl": 1.0,
+        "hold_sessions": "3-5"
+      }
+    },
+    "NEWS-4": {
+      "PG": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "attention_z": 3.7433,
+        "z_hl": 1.4,
+        "z_vr": 0.237681,
+        "z_abs_ar": 2.105574,
+        "hl_known": true,
+        "ar": 0.026589,
+        "top_decile": true,
+        "veto": true,
+        "insufficient_history": false,
+        "shadow": "fade 20 sessions"
+      },
+      "PEP": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "attention_z": 4.43,
+        "z_hl": 5.0,
+        "z_vr": 0.013119,
+        "z_abs_ar": -0.583138,
+        "hl_known": true,
+        "ar": 0.006431,
+        "top_decile": true,
+        "veto": true,
+        "insufficient_history": false,
+        "shadow": "fade 20 sessions"
+      },
+      "MRK": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "attention_z": 3.0062,
+        "z_hl": 3.883305,
+        "z_vr": -0.436842,
+        "z_abs_ar": -0.440243,
+        "hl_known": true,
+        "ar": 0.006837,
+        "top_decile": true,
+        "veto": true,
+        "insufficient_history": false,
+        "shadow": "fade 20 sessions"
+      },
+      "ABBV": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "attention_z": 3.6973,
+        "z_hl": 2.609437,
+        "z_vr": 0.976454,
+        "z_abs_ar": 0.111406,
+        "hl_known": true,
+        "ar": 0.014781,
+        "top_decile": true,
+        "veto": true,
+        "insufficient_history": false,
+        "shadow": "fade 20 sessions"
+      }
+    },
+    "NEWS-5": {
+      "PG": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "novelty": 1.0,
+        "label": "continuation",
+        "direction": 1.0,
+        "ar": 0.026589,
+        "sigma60": 0.012837,
+        "hold_sessions": 5.0
+      }
+    },
+    "NEWS-6": {
+      "IWM": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "neg": -0.5,
+        "hl": 2.0,
+        "has_news": true,
+        "bad_news": true,
+        "scorer": "lm-subset-v1"
+      },
+      "PG": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "neg": -1.0,
+        "hl": 1.0,
+        "has_news": true,
+        "bad_news": true,
+        "scorer": "lm-subset-v1"
+      },
+      "NFLX": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "neg": -1.0,
+        "hl": 1.0,
+        "has_news": true,
+        "bad_news": true,
+        "scorer": "lm-subset-v1"
+      },
+      "PEP": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "neg": -0.75,
+        "hl": 4.0,
+        "has_news": true,
+        "bad_news": true,
+        "scorer": "lm-subset-v1"
+      },
+      "WMT": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "neg": -0.5,
+        "hl": 2.0,
+        "has_news": true,
+        "bad_news": true,
+        "scorer": "lm-subset-v1"
+      }
+    },
+    "NEWS-7": {
+      "SPY": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": -0.047673,
+        "s60": -0.0597,
+        "s120": -0.059693
+      },
+      "QQQ": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": -0.113435,
+        "s60": -0.0822,
+        "s120": -0.082193
+      },
+      "IWM": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": 0.037025,
+        "s60": -0.024743,
+        "s120": -0.024736
+      },
+      "DIA": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": -0.090832,
+        "s60": -0.072553,
+        "s120": -0.072546
+      },
+      "AAPL": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": 0.038046,
+        "s60": -0.029917,
+        "s120": -0.030331
+      },
+      "MSFT": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": 0.008201,
+        "s60": -0.022114,
+        "s120": -0.022107
+      },
+      "NVDA": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": -0.008409,
+        "s60": -0.030544,
+        "s120": -0.030537
+      },
+      "AMZN": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": -0.042974,
+        "s60": -0.040421,
+        "s120": -0.040414
+      },
+      "GOOGL": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": -0.048448,
+        "s60": -0.05116,
+        "s120": -0.051153
+      },
+      "META": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": -0.00597,
+        "s60": -0.058599,
+        "s120": -0.058451
+      },
+      "AVGO": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": -0.067239,
+        "s60": 0.014218,
+        "s120": 0.014225
+      },
+      "TSLA": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": -0.02397,
+        "s60": -0.08175,
+        "s120": -0.081743
+      },
+      "LLY": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": -0.117361,
+        "s60": -0.120519,
+        "s120": -0.120512
+      },
+      "JPM": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": -0.043399,
+        "s60": -0.151559,
+        "s120": -0.151552
+      },
+      "V": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": 0.316512,
+        "s60": 0.141298,
+        "s120": 0.141305
+      },
+      "MA": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": 0.118506,
+        "s60": 0.124516,
+        "s120": 0.124523
+      },
+      "UNH": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": -0.315356,
+        "s60": -0.182444,
+        "s120": -0.182437
+      },
+      "XOM": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": 0.028201,
+        "s60": -0.017243,
+        "s120": -0.017236
+      },
+      "COST": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": -0.015959,
+        "s60": -0.063273,
+        "s120": -0.063266
+      },
+      "HD": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": -0.172499,
+        "s60": -0.026362,
+        "s120": -0.026355
+      },
+      "PG": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": -0.315356,
+        "s60": -0.218077,
+        "s120": -0.21807
+      },
+      "NFLX": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": -0.171309,
+        "s60": -0.029342,
+        "s120": -0.029335
+      },
+      "CRM": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": 0.049704,
+        "s60": -0.025314,
+        "s120": -0.025307
+      },
+      "ORCL": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": 0.007465,
+        "s60": -0.105903,
+        "s120": -0.105896
+      },
+      "AMD": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": 0.08006,
+        "s60": 0.062328,
+        "s120": 0.062335
+      },
+      "ADBE": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": 0.167696,
+        "s60": 0.031634,
+        "s120": 0.031641
+      },
+      "PEP": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": -0.123392,
+        "s60": -0.095528,
+        "s120": -0.095521
+      },
+      "KO": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": 0.012025,
+        "s60": 0.0974,
+        "s120": 0.097407
+      },
+      "MRK": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": 0.345358,
+        "s60": 0.213631,
+        "s120": 0.213638
+      },
+      "ABBV": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": 0.204882,
+        "s60": 0.269942,
+        "s120": 0.269949
+      },
+      "TMO": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": 0.345358,
+        "s60": 0.159238,
+        "s120": 0.159245
+      },
+      "WMT": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": -0.095267,
+        "s60": -0.039958,
+        "s120": -0.039951
+      },
+      "BAC": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": 0.023691,
+        "s60": 0.051293,
+        "s120": 0.0513
+      },
+      "CAT": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": -0.150854,
+        "s60": -0.056966,
+        "s120": -0.056959
+      },
+      "GE": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": -0.080924,
+        "s60": -0.099029,
+        "s120": -0.099022
+      },
+      "ISRG": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": 0.081469,
+        "s60": -0.025769,
+        "s120": -0.025762
+      },
+      "NOW": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": 0.293435,
+        "s60": 0.139032,
+        "s120": 0.139039
+      },
+      "INTU": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": 0.159247,
+        "s60": 0.011685,
+        "s120": 0.011692
+      },
+      "UBER": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": 0.023439,
+        "s60": -0.008147,
+        "s120": -0.00814
+      },
+      "PANW": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": -0.031891,
+        "s60": 0.162372,
+        "s120": 0.162379
+      },
+      "AMAT": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": -0.154642,
+        "s60": -0.135875,
+        "s120": -0.135868
+      },
+      "BKNG": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": -0.092142,
+        "s60": 0.053853,
+        "s120": 0.05386
+      },
+      "LIN": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": -0.029642,
+        "s60": 0.189331,
+        "s120": 0.189338
+      },
+      "ANET": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "scorer": "lm-subset-v1",
+        "use": "tie-break between C candidates only",
+        "s20": -0.196309,
+        "s60": -0.005955,
+        "s120": -0.005948
+      }
+    },
+    "NEWS-9": {
+      "SPY": {
+        "event": false,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "spy_r": -0.007441,
+        "macro_share": 0.1026,
+        "n_headlines": 156.0,
+        "down_2pct_day": false,
+        "regime": "bull_calm"
+      }
+    },
+    "NEWS-11": {
+      "SPY": {
+        "event": false,
+        "status": "shadow",
+        "source": "alpaca_bars",
+        "spy_ret252": 0.176052,
+        "spy_vol20": 0.111013,
+        "fast_panic": false,
+        "reg2_panic": false,
+        "regime": "bull_calm",
+        "iv_variant": {
+          "skipped": "needs IV history",
+          "source": "alpaca_options_iv (not logged yet)"
+        },
+        "shadow": null
+      }
+    },
+    "NEWS-12": {
+      "SPY": {
+        "event": false,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "composite": 52.02,
+        "extreme": null,
+        "partial": true,
+        "parts": {
+          "spy_vol20": 28.57,
+          "c_below_sma50": 75.48,
+          "p_neg": null
+        },
+        "iv_parts": {
+          "skipped": "needs IV history",
+          "source": "alpaca_options_iv (not logged yet)"
+        },
+        "hold_sessions": "5-60"
+      }
+    },
+    "NEWS-13": {
+      "META": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_bars",
+        "max21": 0.114269,
+        "top_decile": true,
+        "veto": true,
+        "insufficient_history": false
+      },
+      "AMD": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_bars",
+        "max21": 0.099496,
+        "top_decile": true,
+        "veto": true,
+        "insufficient_history": false
+      },
+      "NOW": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_bars",
+        "max21": 0.074096,
+        "top_decile": true,
+        "veto": true,
+        "insufficient_history": false
+      },
+      "PANW": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_bars",
+        "max21": 0.130924,
+        "top_decile": true,
+        "veto": true,
+        "insufficient_history": false
+      },
+      "AMAT": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_bars",
+        "max21": 0.065093,
+        "top_decile": true,
+        "veto": true,
+        "insufficient_history": false
+      }
+    },
+    "NEWS-14": {
+      "COST": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "cgo": -0.027821,
+        "reference_price": 949.17157,
+        "cgo_date": "2026-09-25",
+        "earnings_day": false,
+        "earnings_yesterday": true,
+        "ar_0_1": 0.031494,
+        "aligned": false,
+        "hold_sessions": "20-60"
+      },
+      "PEP": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "cgo": -0.090207,
+        "reference_price": 141.383825,
+        "cgo_date": "2026-09-25",
+        "earnings_day": false,
+        "earnings_yesterday": true,
+        "ar_0_1": 0.004741,
+        "aligned": false,
+        "hold_sessions": "20-60"
+      }
+    },
+    "NEWS-15": {
+      "PEP": {
+        "event": true,
+        "status": "shadow",
+        "source": "alpaca_benzinga+alpaca_bars",
+        "direction": -1.0,
+        "hold_sessions": "20-60"
+      }
+    }
+  },
+  "news_vetoes": {},
+  "allowlist": [
+    "SPY",
+    "EFA",
+    "IEF",
+    "DBC",
+    "VNQ",
+    "BIL",
+    "QQQ",
+    "IWM",
+    "DIA",
+    "VWO",
+    "BND",
+    "AAPL",
+    "MSFT",
+    "NVDA",
+    "AMZN",
+    "GOOGL",
+    "META",
+    "AVGO",
+    "TSLA",
+    "LLY",
+    "JPM",
+    "V",
+    "MA",
+    "UNH",
+    "XOM",
+    "COST",
+    "HD",
+    "PG",
+    "NFLX",
+    "CRM",
+    "ORCL",
+    "AMD",
+    "ADBE",
+    "PEP",
+    "KO",
+    "MRK",
+    "ABBV",
+    "TMO",
+    "WMT",
+    "BAC",
+    "CAT",
+    "GE",
+    "ISRG",
+    "NOW",
+    "INTU",
+    "UBER",
+    "PANW",
+    "AMAT",
+    "BKNG",
+    "LIN",
+    "ANET"
+  ],
+  "reason_codes": {
+    "action": [
+      "FOLLOW_RULE",
+      "EARNINGS_IN_WINDOW",
+      "DATA_SUSPECT",
+      "SCHEDULED_EVENT",
+      "HALT_OR_ILLIQUID",
+      "CORPORATE_ACTION",
+      "REGIME_RISK",
+      "CONCENTRATION",
+      "TREND_WEAKENING",
+      "TREND_STRENGTHENING",
+      "MEAN_REVERSION_SETUP"
+    ],
+    "deviation": [
+      "EARNINGS_IN_WINDOW",
+      "DATA_SUSPECT",
+      "SCHEDULED_EVENT",
+      "HALT_OR_ILLIQUID",
+      "CORPORATE_ACTION",
+      "REGIME_RISK",
+      "CONCENTRATION",
+      "TREND_WEAKENING",
+      "TREND_STRENGTHENING",
+      "MEAN_REVERSION_SETUP"
+    ],
+    "weight_up": [
+      "SIGNAL_COUNT_CHANGE",
+      "REGIME_CHANGE",
+      "VOLATILITY_CHANGE",
+      "RETURN_TO_DEFAULT"
+    ],
+    "skip": [
+      "EARNINGS_IN_WINDOW",
+      "DATA_SUSPECT",
+      "SCHEDULED_EVENT",
+      "HALT_OR_ILLIQUID",
+      "CORPORATE_ACTION"
+    ]
+  },
+  "limits": {
+    "deviation_threshold": 0.2,
+    "weight_step": 0.05,
+    "weight_change_min_sessions": 5,
+    "max_predictions_per_day": 3
+  },
+  "data_problems": [],
+  "data_feed": {
+    "feed_used": "sip",
+    "notes": []
+  },
+  "performance": {
+    "days": 2,
+    "book_return": -0.0015,
+    "spy_return": -0.0074,
+    "per_sleeve": {
+      "B": {
+        "n": 0,
+        "n_without_R": 0,
+        "win_rate": null,
+        "avg_win_R": null,
+        "avg_loss_R": null,
+        "E": null,
+        "SQN": null,
+        "SQN_label": "t-stat of mean R",
+        "max_losing_streak": 0,
+        "best_R": null,
+        "worst_R": null,
+        "median_hold": null,
+        "total_pnl": 0.0,
+        "boot_upper": null
+      },
+      "C": {
+        "n": 0,
+        "n_without_R": 0,
+        "win_rate": null,
+        "avg_win_R": null,
+        "avg_loss_R": null,
+        "E": null,
+        "SQN": null,
+        "SQN_label": "t-stat of mean R",
+        "max_losing_streak": 0,
+        "best_R": null,
+        "worst_R": null,
+        "median_hold": null,
+        "total_pnl": 0.0,
+        "boot_upper": null
+      },
+      "D": {
+        "n": 0,
+        "n_without_R": 0,
+        "win_rate": null,
+        "avg_win_R": null,
+        "avg_loss_R": null,
+        "E": null,
+        "SQN": null,
+        "SQN_label": "t-stat of mean R",
+        "max_losing_streak": 0,
+        "best_R": null,
+        "worst_R": null,
+        "median_hold": null,
+        "total_pnl": 0.0,
+        "boot_upper": null
+      }
+    },
+    "losing_streak_brief": "Longest losing streak in 100 independent trades (exact odds):\nwin rate | typical (middle half) | worst 5% of cases\n35%      | 7-11                   | 14 or more\n40%      | 6-9                   | 12 or more\n45%      | 5-8                   | 11 or more\nA streak this long is normal for a working rule; it is not evidence the rule broke."
+  },
+  "scorecard": {
+    "predictions": {
+      "n": 0,
+      "n_resolved": 0,
+      "min_resolved": 50,
+      "shown": false,
+      "brier": null,
+      "brier_ref": null,
+      "skill": null,
+      "n_with_ref": 0,
+      "base_rate_full_window_share": null,
+      "calibration": null,
+      "note": "scores are shown after 50 resolved predictions (0 so far)"
+    },
+    "deviations": {
+      "n": 0,
+      "n_resolved": 0,
+      "sum_value_20d": 0.0,
+      "hit_rate": null,
+      "mean_value_20d": null,
+      "by_sleeve": {},
+      "by_code": {},
+      "monthly_vs_rules": null,
+      "basis": null
+    },
+    "vetoes": {
+      "n_vetoes": 0,
+      "n_scored": 0,
+      "n_open": 0,
+      "n_pending_entry": 0,
+      "n_expired": 0,
+      "sum_value": 0.0,
+      "sum_value_usd": 0.0,
+      "hit_rate": null,
+      "by_code": {},
+      "by_sleeve": {},
+      "restricted": false
+    }
+  },
+  "recent_notes": [
+    {
+      "date": "2026-09-25",
+      "note": "Regime is bull_calm with SPY 771.35 well above its 200-day SMA of 714.83 and 20-day volatility 0.108 below its one-year median. The rules build sleeve A from cash: SPY, EFA, DBC and VNQ are above their 10-month SMAs, and IEF is below, so its share goes to BIL. Sleeve B has no signal because every index has RSI(2) far above 10 (the lowest is IWM at 29.4). Sleeve C has no breakout today; all nine top-RS names are below their pivots on volume ratios under 1.0. I agree with the rules because nothing in today's context gives a coded reason to deviate, and the book has no positions to defend."
+    }
+  ]
+}

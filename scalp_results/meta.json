@@ -1,0 +1,29 @@
+{
+  "symbols": [
+    "SPY",
+    "QQQ"
+  ],
+  "start": "2024-09-03",
+  "end": "2026-09-25",
+  "sessions": 513,
+  "split_mid": "2025-09-16",
+  "seed": 0,
+  "setups": [
+    "ORB5_QQQ",
+    "NOISE_MOM_SPY",
+    "VWAP_TREND_QQQ",
+    "LAST30_MOM_SPY",
+    "LAST30_ROD_SPY",
+    "LAST30_ETA_SPY",
+    "LAST30_MOM_SPY_CLOSE",
+    "ORB30_CLASSIC",
+    "ORB15_CLASSIC",
+    "EMA9_21_PULLBACK_5M",
+    "PDH_PDL_BREAK_5M",
+    "VWAP_2SD_FADE_1M",
+    "GAP_FADE_SPY",
+    "GAP_GO_SPY"
+  ],
+  "adjustment": "all",
+  "incomplete_sessions_skipped": []
+}

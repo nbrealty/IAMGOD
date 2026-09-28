@@ -1,0 +1,31 @@
+{
+  "book": "options",
+  "date": "2026-09-28",
+  "context_schema": "o-ctx-1",
+  "order_session": "2026-09-29",
+  "reason_codes": [
+    "DATA_SUSPECT",
+    "HALT_OR_ILLIQUID",
+    "SCHEDULED_EVENT"
+  ],
+  "menu": {
+    "kind": "none",
+    "choices": [
+      "follow"
+    ]
+  },
+  "regime": {
+    "label": "bull_calm"
+  },
+  "chain": {
+    "feed": "indicative",
+    "when": "close",
+    "note": "Quotes, IV and greeks come from Alpaca's free indicative feed, derived from OPRA but not real OPRA quotes (OPT-12).",
+    "complete": false,
+    "vix": 14.87,
+    "vix3m": 17.93
+  },
+  "no_trade_reasons": [
+    "OPT-27: SPY chain incomplete (open interest on 74% of contracts (need 80%)); no new entries"
+  ]
+}

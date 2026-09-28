@@ -1,0 +1,22 @@
+{
+  "schema_version": "2",
+  "date": "2026-09-28",
+  "temperature_ack": "Temperature reads 0.5759 (neutral), so this is neither a stretched nor a washed-out market, and nothing in it argues for adding caution or aggression beyond what the rules already do.",
+  "likely_error": {
+    "kind": "none",
+    "note": "planned_increases is empty and data_problems is empty, so there is no entry to skip and no valid reason code applies; acting would be pure commission."
+  },
+  "flags": [
+    "regime.canary_ok is false and regime.bonds_not_hedging is true (stock-bond correlation 0.555): IEF is out of sleeve A and bonds may not cushion an equity drop.",
+    "IWM RSI(2) is 10.4, just above the sleeve B entry threshold of 10, with close 280.02 still above its 200-day SMA of 274.58; a B entry is possible next session.",
+    "Stress test: a joint 20% stock / 10% commodity / 30% crypto shock would cost about 5.4% of equity."
+  ],
+  "predictions": [],
+  "journal_note": "The regime is bull_calm with SPY at 765.61, above its 200-day SMA of 715.28, 20-day vol of 0.111 below its one-year median of 0.127, and no breakers tripped. Sleeve A sits at its Faber targets, with IEF at zero because it closed below its 10-month SMA, so half the sleeve is in BIL. Sleeve B has no entry because no index ETF has RSI(2) below 10, the nearest being IWM at 10.4. Sleeve C has no breakout: every top-RS name shows breakout_today false, and only NVDA has volume above average at 1.17x, still short of the 1.5x requirement. With planned_increases and data_problems both empty, there is nothing to skip, and I agree with the rules running as planned.",
+  "skip_entries": [],
+  "halve_sleeves": [],
+  "meta": {
+    "model": "claude-opus-5-5",
+    "sample": 1
+  }
+}

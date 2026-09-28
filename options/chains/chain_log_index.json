@@ -1,0 +1,38 @@
+[
+ {
+  "date": "2026-09-28",
+  "when": "close",
+  "taken_at": "2026-09-28T21:22:08.634525+00:00",
+  "n": 11822,
+  "complete": false,
+  "problems": [
+   "SPY: open interest on 74% of contracts (need 80%)",
+   "QQQ: open interest on 77% of contracts (need 80%)",
+   "IWM: open interest on 70% of contracts (need 80%)"
+  ],
+  "required": [
+   "SPY",
+   "QQQ",
+   "IWM"
+  ],
+  "per_underlying": {
+   "SPY": {
+    "n": 4920,
+    "complete": false,
+    "contract_problems": 0
+   },
+   "QQQ": {
+    "n": 4799,
+    "complete": false,
+    "contract_problems": 0
+   },
+   "IWM": {
+    "n": 2103,
+    "complete": false,
+    "contract_problems": 0
+   }
+  },
+  "feed": "indicative",
+  "file": "options/chains/2026-09-28/close.json.gz"
+ }
+]

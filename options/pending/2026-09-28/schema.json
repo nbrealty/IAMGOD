@@ -1,0 +1,113 @@
+{
+  "$defs": {
+    "SkipPrediction": {
+      "description": "OPT-34 / CL-5: the skip's prediction. Only `probability` is Claude's; code fixes the rest.",
+      "properties": {
+        "probability": {
+          "title": "Probability",
+          "type": "number"
+        },
+        "symbol": {
+          "default": "SPY",
+          "title": "Symbol",
+          "type": "string"
+        },
+        "horizon": {
+          "default": 20,
+          "title": "Horizon",
+          "type": "integer"
+        },
+        "direction": {
+          "default": "below",
+          "title": "Direction",
+          "type": "string"
+        },
+        "threshold_pct": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Threshold Pct"
+        }
+      },
+      "required": [
+        "probability"
+      ],
+      "title": "SkipPrediction",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "One skip sample (OPT-33). `choice` \"follow\" keeps the code's spread; \"skip\" drops it for this run.\nUnknown keys (a strike, a width, a size) are allowed by the parser only so they can be logged and dropped.",
+  "properties": {
+    "date": {
+      "title": "Date",
+      "type": "string"
+    },
+    "choice": {
+      "enum": [
+        "follow",
+        "skip"
+      ],
+      "title": "Choice",
+      "type": "string"
+    },
+    "reason_code": {
+      "default": "NONE",
+      "enum": [
+        "NONE",
+        "DATA_SUSPECT",
+        "HALT_OR_ILLIQUID",
+        "SCHEDULED_EVENT"
+      ],
+      "title": "Reason Code",
+      "type": "string"
+    },
+    "evidence": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Evidence",
+      "type": "array"
+    },
+    "event_date": {
+      "default": "",
+      "title": "Event Date",
+      "type": "string"
+    },
+    "prediction": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SkipPrediction"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "rationale": {
+      "default": "",
+      "title": "Rationale",
+      "type": "string"
+    },
+    "meta": {
+      "additionalProperties": true,
+      "default": {},
+      "title": "Meta",
+      "type": "object"
+    }
+  },
+  "required": [
+    "date",
+    "choice"
+  ],
+  "title": "OptionsDecision",
+  "type": "object"
+}
