@@ -295,3 +295,81 @@ but an exit still goes out; partial fill protection; a cancel request that is sl
 stop unconfirmed -> flat; the paper lock refuses a live URL before any network call (MT-G36) and never reads
 ALPACA_RULES_* keys; the package never imports anthropic, trader or options_lab; the live decision for each of the
 three setups equals the backtest's intent on the same bars (live = backtest).
+
+## 4. Changes after the first independent review (v1 build)
+- Whole-test stop: `registry.json` keeps `test_start: null`; the first PAPER run pins its date in
+  `state/scalp/test_start.pin` (logged in changes.log) and restore counts every session since (runner
+  `resolve_test_start`). Paper refuses to run without one.
+- `run --mode paper` always starts the watchdog (`--no-watchdog` is dry only). SIGTERM keeps ticking until flat, hands
+  over to the kill switch after 20 s and stops after 90 s with an alert.
+- Heartbeats are per mode (`heartbeat-paper.json`, `heartbeat-dry.json`): the paper watchdog and `kill` read the
+  paper one only. Every alpaca-py HTTP call has a 5 s timeout (`broker.with_timeout`); the watchdog and `kill` wait at
+  most 10 s for the broker lock, then act without it.
+- Deploy guard: a session's first start between 09:00 and 16:15 is compared with the previous session's last start;
+  a PAPER first start there with no earlier session at all is blocked.
+- Registry: `uses_volume` (required; MT-G35: a volume setup is shadow-only on a non-SIP live feed, so NOISE_MOM_SPY
+  is SHADOW in dry and paper runs), `model_slip_bps` (the backtest's realistic 1.5 bps per side; MT-G3 / G13 slippage
+  switch-offs), `prior_registered` / `safety_fix` (MT-G10 20-session cadence). `labels()` carries `code_hash`.
+- MT-G37 note: `lab/scalp/backtest.py` does not call risk.py. The 20- and 60-session paper reviews must use
+  `python -m lab.scalp.live replay` (the real engine and risk gate on SIP bars) as their backtest.
+
+## 5. Changes after the second verification round
+- Whole-test start and HALT do not trust the local state folder alone (a fresh container has none): PAPER reads
+  ~400 days of the broker's order history (read-only) at startup and refuses to start without it. The test start is
+  the earlier of the pin and the first SCALP- order's session; a kill (K) or watchdog (W) order after the last
+  `reset-halt` in changes.log with no HALT file here writes HALT again (`runner.resolve_test_start`,
+  `runner.broker_halt_reason`).
+- The plain KILL / HALT / daily_stop-DATE files are the PAPER bot's. A dry run's engine uses KILL-dry, HALT-dry and
+  daily_stop-DATE-dry (`state.flag_name`), obeys the paper HALT read-only, and never writes or removes a paper
+  flag. `reset-halt` clears both.
+- Deploy guard: a start in 09:00-16:15 must match the code that ran before 09:00 (today's last pre-window start,
+  else the previous session's last start) and every start already made in the window; a flagged start writes
+  `deploy_block-DATE.json` and the block holds for the rest of the day (`runner.deploy_check`).
+- A cancel the broker refuses (422 NOT_CANCELABLE) never stops a tick or the engine's construction; the 15:55 kill is
+  checked before the 15:50 flatten step.
+- MT-G4 / G12: a take-profit fill stays out of the switch-off R series (never counted as 0R) until a completed live
+  bar of its minute or the next printed above its limit (journal `tp_verified`, read back at the next start). The
+  P&L gates still count it as at most 0. `trade_closed.r` is the honest R; `gate_r` is what the P&L gates used.
+- During a kill the trade's own exit orders are still read, so an exit that fills while being cancelled is booked
+  and the trade is closed (`how = kill: ...`).
+
+## 6. Changes after the third verification round
+- Kill fills are booked (V3-1): Alpaca acknowledges a marketable limit unfilled and fills it ~0.6 s later, so the kill
+  order sent on the tick that finds the account flat is filled but unread. Before the kill completes, the engine
+  re-reads the kill orders, the trade's own sells and the parent and legs, books every fill (fill line, ledger,
+  counters) and closes the trade (`how = kill: ...`). Shares no order explains -> wait 3 s, then `trade_unbooked` and
+  an alert (the next start rebuilds the P&L from the broker). The exit, protect and SIGTERM paths already read the
+  order before letting the trade go.
+- MT-G4 resolution (V3-2, V3-1a, V3-2a): `trade_closed` carries `parent_cid`, `tp_limit`, `tp_filled_at`;
+  resolutions (`tp_verified` from a live bar or the SIP re-mark, `tp_missed` from the re-mark) are matched by the
+  entry's client id (the SimBroker's order ids repeat across processes; an old line's order id counts only inside
+  its own journal file). The evening re-mark (`report --remark`, and best effort at every start) resolves each
+  pending take-profit older than 16 minutes against historical SIP trades of its fill minute and the next: strictly
+  through the limit -> its R; otherwise a missed fill at 0R. While any is still pending, `gates.lane_check_pending`
+  demotes when the resolved series trips OR the series with every pending take-profit at its gate value (min(R, 0))
+  trips: an unverified win never counts at its paper R, and counting it at 0R is used only when stricter. This may
+  hold a winning setup in shadow for the rest of a run; the re-mark makes the series exact within a day. The report's
+  MT-G12 / G13 lines use the same series and print how many take-profits were verified, missed or left out.
+- Durable state (V3-3): `state-save` / `state-restore` copy a whitelist (journal/*.jsonl, *.pin, changes.log,
+  session-*.json, deploy_block-*.json; never keys, flags, heartbeats or recordings) to and from the branch
+  `scalp-state` through a temporary git worktree (the owner's checkout is never touched; the push is never forced;
+  append-only files merge as the union of their lines; test_start.pin keeps the earlier date; other differences
+  are reported, never overwritten). In PAPER, a setup whose broker fills no local journal covers runs shadow-only
+  with a startup message to run `state-restore` (fail closed: the MT-G3 / G13 slippage history would restart).
+- Feed labels (R1): each run's registrations carry the feed the run actually uses (IEX live, SIP for a historical
+  replay, SIM in the self-test); the report prints FEED_MISMATCH only when that feed differs from the backtest's.
+
+## 7. Changes after the fourth verification round
+- Journal gaps (V4-1-1, V4-2-1): a session counts as covered only when the entry's client id is on a `decision`
+  (its order), `submit`, `submit_uncertain` or `fill` line of the engine's own `journal/<date>-paper.jsonl`. The
+  -remark / -kill / -watchdog files and lines built from the broker's history (`tp_remark`, `tp_verified`, ...) name
+  the same id but prove nothing about the local record, so the startup re-mark no longer lifts the shadow on the
+  next start. An unreadable line is skipped.
+- A logged exit from the gap rule (V4-2-2): a journal lost for good (the container went before `state-save`) would
+  otherwise hold the setup in shadow for as long as the broker's history shows the session. `accept-journal-gap
+  --session D [--setup SETUP/SYM] --reason ...` writes the owner's acceptance to changes.log (MT-G41); from the next
+  start that session no longer shadows the setup (journal `journal_gap_accepted`), and its fills stay missing from
+  the MT-G3 / G13 slippage history. `state-restore` stays the first thing to try; the startup message names both.
+- New tests pin the V3-1 kill settle (a take-profit or a stray sell that fills while the kill cancels it is booked on
+  the tick that finds the account flat; unexplained shares wait MISMATCH_MIN_GAP_S before `trade_unbooked` and an
+  alert), the V3-2 startup re-mark from the broker's history, and the engine's in-process pending view (`pend`).

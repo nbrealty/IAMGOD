@@ -128,6 +128,7 @@ class Reason(str, Enum):
     ENTRY_TIMEOUT = "ENTRY_TIMEOUT"
     HEARTBEAT_STALE = "HEARTBEAT_STALE"
     OPEN_AT_KILL_TIME = "OPEN_AT_KILL_TIME"
+    SHUTDOWN = "SHUTDOWN"                  # SIGTERM: no new entries, exit the position through the normal path
 
 
 # ------------------------------------------------------------------------------------------------ market data
@@ -356,6 +357,7 @@ class DayCounters:
     blocked_symbols: set[str] = field(default_factory=set)   # broker rejections block entries (MT-G25)
     wild_pause_until: dict[str, pd.Timestamp] = field(default_factory=dict)  # MT-G22 1% minute
     daily_stopped: bool = False
+    day_trades_5d: int = 0                              # MT-G15: our own day trades, last 5 sessions incl. today
 
 
 class Journal(Protocol):

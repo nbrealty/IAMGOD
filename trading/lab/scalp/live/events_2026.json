@@ -1,0 +1,414 @@
+{
+  "_note": "Converted from the build session's source check of 2026-09-28 (official BLS, BEA, Fed, Conference Board, ISM and UMich pages). Covers 2026-09-29 to 2026-12-31. Major releases only: weekly jobless claims and Census releases (housing, durable goods, construction) are NOT listed. A release marked verified:false makes its whole date UNKNOWN, so no entries that day (MT-G20). Dates outside the range are UNKNOWN too.",
+  "covers_from": "2026-09-29",
+  "covers_through": "2026-12-31",
+  "timezone": "America/New_York",
+  "fomc": [
+    {
+      "date": "2026-01-28",
+      "statement": "14:00",
+      "press_conference": "14:30",
+      "verified": true,
+      "source": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm",
+      "note": "Date from Fed FOMC calendar page (last updated 2026-09-16). 14:00/14:30 is the standard schedule confirmed on the Fed's monthly event calendars for Sep/Oct/Dec 2026; not individually re-checked for this past meeting."
+    },
+    {
+      "date": "2026-03-18",
+      "statement": "14:00",
+      "press_conference": "14:30",
+      "verified": true,
+      "source": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm",
+      "note": "Date from Fed FOMC calendar page (last updated 2026-09-16). 14:00/14:30 is the standard schedule confirmed on the Fed's monthly event calendars for Sep/Oct/Dec 2026; not individually re-checked for this past meeting."
+    },
+    {
+      "date": "2026-04-29",
+      "statement": "14:00",
+      "press_conference": "14:30",
+      "verified": true,
+      "source": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm",
+      "note": "Date from Fed FOMC calendar page (last updated 2026-09-16). 14:00/14:30 is the standard schedule confirmed on the Fed's monthly event calendars for Sep/Oct/Dec 2026; not individually re-checked for this past meeting."
+    },
+    {
+      "date": "2026-06-17",
+      "statement": "14:00",
+      "press_conference": "14:30",
+      "verified": true,
+      "source": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm",
+      "note": "Date from Fed FOMC calendar page (last updated 2026-09-16). 14:00/14:30 is the standard schedule confirmed on the Fed's monthly event calendars for Sep/Oct/Dec 2026; not individually re-checked for this past meeting."
+    },
+    {
+      "date": "2026-07-29",
+      "statement": "14:00",
+      "press_conference": "14:30",
+      "verified": true,
+      "source": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm",
+      "note": "Date from Fed FOMC calendar page (last updated 2026-09-16). 14:00/14:30 is the standard schedule confirmed on the Fed's monthly event calendars for Sep/Oct/Dec 2026; not individually re-checked for this past meeting."
+    },
+    {
+      "date": "2026-09-16",
+      "statement": "14:00",
+      "press_conference": "14:30",
+      "verified": true,
+      "source": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm",
+      "note": "Statement confirmed 'For release at 2:00 p.m. EDT' (https://www.federalreserve.gov/newsevents/pressreleases/monetary20260916a.htm); press conference 2:30 p.m. per Fed Sept 2026 calendar. Minutes: 2026-10-07 14:00 (Fed Oct 2026 calendar)."
+    },
+    {
+      "date": "2026-10-28",
+      "statement": "14:00",
+      "press_conference": "14:30",
+      "verified": true,
+      "source": "https://www.federalreserve.gov/newsevents/2026-october.htm",
+      "note": "Fed October 2026 calendar lists '2:00 p.m. FOMC Meeting' and '2:30 p.m. FOMC Press Conference' on Oct 28. Minutes of this meeting: 2026-11-18 14:00 (Fed Nov 2026 calendar)."
+    },
+    {
+      "date": "2026-12-09",
+      "statement": "14:00",
+      "press_conference": "14:30",
+      "verified": true,
+      "source": "https://www.federalreserve.gov/newsevents/2026-december.htm",
+      "note": "Fed December 2026 calendar lists 2:00 p.m. statement and 2:30 p.m. press conference on Dec 9. Minutes of this meeting: 2026-12-30 14:00."
+    }
+  ],
+  "releases": [
+    {
+      "date": "2026-09-29",
+      "time": "10:00",
+      "name": "Consumer Confidence",
+      "agency": "Conference Board",
+      "verified": true,
+      "source": "https://www.conference-board.org/topics/consumer-confidence",
+      "note": "Official page: 'The next release is Tuesday, September 29th at 10 AM ET.'"
+    },
+    {
+      "date": "2026-09-29",
+      "time": "10:00",
+      "name": "JOLTS",
+      "agency": "BLS",
+      "verified": true,
+      "source": "https://www.bls.gov/schedule/news_release/jolts.htm"
+    },
+    {
+      "date": "2026-09-30",
+      "time": "08:30",
+      "name": "GDP (third estimate)",
+      "agency": "BEA",
+      "verified": true,
+      "source": "https://www.bea.gov/news/schedule"
+    },
+    {
+      "date": "2026-09-30",
+      "time": "08:30",
+      "name": "Personal Income and Outlays (PCE)",
+      "agency": "BEA",
+      "verified": true,
+      "source": "https://www.bea.gov/news/schedule"
+    },
+    {
+      "date": "2026-10-01",
+      "time": "10:00",
+      "name": "ISM Manufacturing PMI",
+      "agency": "ISM",
+      "verified": true,
+      "source": "https://www.prnewswire.com/news-releases/manufacturing-pmi-at-54-6-august-2026-ism-manufacturing-pmi-report-302865127.html",
+      "note": "ISM's own Aug-2026 release (distributed via PR Newswire) states the date. ismworld.org calendar is behind a captcha and could not be read."
+    },
+    {
+      "date": "2026-10-02",
+      "time": "08:30",
+      "name": "Employment Situation",
+      "agency": "BLS",
+      "verified": true,
+      "source": "https://www.bls.gov/schedule/news_release/empsit.htm"
+    },
+    {
+      "date": "2026-10-05",
+      "time": "10:00",
+      "name": "ISM Services PMI",
+      "agency": "ISM",
+      "verified": true,
+      "source": "https://www.prnewswire.com/news-releases/services-pmi-at-55-4-august-2026-ism-services-pmi-report-302868046.html",
+      "note": "ISM's own Aug-2026 services release (via PR Newswire) states the date."
+    },
+    {
+      "date": "2026-10-09",
+      "time": "10:00",
+      "name": "UMich Consumer Sentiment (preliminary)",
+      "agency": "University of Michigan",
+      "verified": true,
+      "source": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=79628",
+      "note": "Dates from the official 'Release Dates for 2026' PDF; 10:00 ET time from https://www.sca.isr.umich.edu/ ('Next data release: Friday, October 09, 2026 ... at 10am ET')."
+    },
+    {
+      "date": "2026-10-14",
+      "time": "08:30",
+      "name": "CPI",
+      "agency": "BLS",
+      "verified": true,
+      "source": "https://www.bls.gov/schedule/news_release/cpi.htm"
+    },
+    {
+      "date": "2026-10-15",
+      "time": "08:30",
+      "name": "Advance Retail Sales",
+      "agency": "Census",
+      "verified": true,
+      "source": "https://www.census.gov/retail/release_schedule.html"
+    },
+    {
+      "date": "2026-10-15",
+      "time": "08:30",
+      "name": "PPI",
+      "agency": "BLS",
+      "verified": true,
+      "source": "https://www.bls.gov/schedule/news_release/ppi.htm"
+    },
+    {
+      "date": "2026-10-23",
+      "time": "10:00",
+      "name": "UMich Consumer Sentiment (final)",
+      "agency": "University of Michigan",
+      "verified": true,
+      "source": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=79628",
+      "note": "Dates from the official 'Release Dates for 2026' PDF; 10:00 ET time from https://www.sca.isr.umich.edu/ ('Next data release: Friday, October 09, 2026 ... at 10am ET')."
+    },
+    {
+      "date": "2026-10-27",
+      "time": "10:00",
+      "name": "Consumer Confidence",
+      "agency": "Conference Board",
+      "verified": false,
+      "source": "https://www.conference-board.org/topics/consumer-confidence",
+      "note": "NOT VERIFIED as an explicit date: derived from the official rule 'at 10 a.m. ET on the last Tuesday of every month'. Same day as FOMC meeting day 1."
+    },
+    {
+      "date": "2026-10-29",
+      "time": "08:30",
+      "name": "GDP (advance estimate)",
+      "agency": "BEA",
+      "verified": true,
+      "source": "https://www.bea.gov/news/schedule"
+    },
+    {
+      "date": "2026-10-29",
+      "time": "08:30",
+      "name": "Personal Income and Outlays (PCE)",
+      "agency": "BEA",
+      "verified": true,
+      "source": "https://www.bea.gov/news/schedule"
+    },
+    {
+      "date": "2026-11-02",
+      "time": "10:00",
+      "name": "ISM Manufacturing PMI",
+      "agency": "ISM",
+      "verified": false,
+      "source": "https://www.ismworld.org/supply-management-news-and-reports/reports/rob-report-calendar/",
+      "note": "NOT VERIFIED: inferred from ISM's rule (first business day of month); official calendar page blocked by captcha. Confirm from the Oct-1 ISM release text."
+    },
+    {
+      "date": "2026-11-03",
+      "time": "10:00",
+      "name": "JOLTS",
+      "agency": "BLS",
+      "verified": true,
+      "source": "https://www.bls.gov/schedule/news_release/jolts.htm"
+    },
+    {
+      "date": "2026-11-04",
+      "time": "10:00",
+      "name": "ISM Services PMI",
+      "agency": "ISM",
+      "verified": false,
+      "source": "https://www.ismworld.org/supply-management-news-and-reports/reports/rob-report-calendar/",
+      "note": "NOT VERIFIED: third-business-day rule; also listed by financecalendar.com (non-official). Official calendar blocked by captcha."
+    },
+    {
+      "date": "2026-11-06",
+      "time": "08:30",
+      "name": "Employment Situation",
+      "agency": "BLS",
+      "verified": true,
+      "source": "https://www.bls.gov/schedule/news_release/empsit.htm"
+    },
+    {
+      "date": "2026-11-06",
+      "time": "10:00",
+      "name": "UMich Consumer Sentiment (preliminary)",
+      "agency": "University of Michigan",
+      "verified": true,
+      "source": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=79628",
+      "note": "Dates from the official 'Release Dates for 2026' PDF; 10:00 ET time from https://www.sca.isr.umich.edu/ ('Next data release: Friday, October 09, 2026 ... at 10am ET')."
+    },
+    {
+      "date": "2026-11-10",
+      "time": "08:30",
+      "name": "CPI",
+      "agency": "BLS",
+      "verified": true,
+      "source": "https://www.bls.gov/schedule/news_release/cpi.htm"
+    },
+    {
+      "date": "2026-11-13",
+      "time": "08:30",
+      "name": "PPI",
+      "agency": "BLS",
+      "verified": true,
+      "source": "https://www.bls.gov/schedule/news_release/ppi.htm"
+    },
+    {
+      "date": "2026-11-17",
+      "time": "08:30",
+      "name": "Advance Retail Sales",
+      "agency": "Census",
+      "verified": true,
+      "source": "https://www.census.gov/retail/release_schedule.html"
+    },
+    {
+      "date": "2026-11-20",
+      "time": "10:00",
+      "name": "UMich Consumer Sentiment (final)",
+      "agency": "University of Michigan",
+      "verified": true,
+      "source": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=79628",
+      "note": "Dates from the official 'Release Dates for 2026' PDF; 10:00 ET time from https://www.sca.isr.umich.edu/ ('Next data release: Friday, October 09, 2026 ... at 10am ET')."
+    },
+    {
+      "date": "2026-11-24",
+      "time": "10:00",
+      "name": "Consumer Confidence",
+      "agency": "Conference Board",
+      "verified": false,
+      "source": "https://www.conference-board.org/topics/consumer-confidence",
+      "note": "NOT VERIFIED as an explicit date: derived from the last-Tuesday rule."
+    },
+    {
+      "date": "2026-11-25",
+      "time": "08:30",
+      "name": "GDP (second estimate)",
+      "agency": "BEA",
+      "verified": true,
+      "source": "https://www.bea.gov/news/schedule"
+    },
+    {
+      "date": "2026-11-25",
+      "time": "08:30",
+      "name": "Personal Income and Outlays (PCE)",
+      "agency": "BEA",
+      "verified": true,
+      "source": "https://www.bea.gov/news/schedule"
+    },
+    {
+      "date": "2026-12-01",
+      "time": "10:00",
+      "name": "ISM Manufacturing PMI",
+      "agency": "ISM",
+      "verified": false,
+      "source": "https://www.ismworld.org/supply-management-news-and-reports/reports/rob-report-calendar/",
+      "note": "NOT VERIFIED: inferred from first-business-day rule; official calendar page blocked by captcha."
+    },
+    {
+      "date": "2026-12-01",
+      "time": "10:00",
+      "name": "JOLTS",
+      "agency": "BLS",
+      "verified": true,
+      "source": "https://www.bls.gov/schedule/news_release/jolts.htm"
+    },
+    {
+      "date": "2026-12-03",
+      "time": "10:00",
+      "name": "ISM Services PMI",
+      "agency": "ISM",
+      "verified": false,
+      "source": "https://www.ismworld.org/supply-management-news-and-reports/reports/rob-report-calendar/",
+      "note": "NOT VERIFIED: third-business-day rule; also listed by financecalendar.com (non-official)."
+    },
+    {
+      "date": "2026-12-04",
+      "time": "08:30",
+      "name": "Employment Situation",
+      "agency": "BLS",
+      "verified": true,
+      "source": "https://www.bls.gov/schedule/news_release/empsit.htm"
+    },
+    {
+      "date": "2026-12-04",
+      "time": "10:00",
+      "name": "UMich Consumer Sentiment (preliminary)",
+      "agency": "University of Michigan",
+      "verified": true,
+      "source": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=79628",
+      "note": "Dates from the official 'Release Dates for 2026' PDF; 10:00 ET time from https://www.sca.isr.umich.edu/ ('Next data release: Friday, October 09, 2026 ... at 10am ET')."
+    },
+    {
+      "date": "2026-12-10",
+      "time": "08:30",
+      "name": "CPI",
+      "agency": "BLS",
+      "verified": true,
+      "source": "https://www.bls.gov/schedule/news_release/cpi.htm"
+    },
+    {
+      "date": "2026-12-15",
+      "time": "08:30",
+      "name": "PPI",
+      "agency": "BLS",
+      "verified": true,
+      "source": "https://www.bls.gov/schedule/news_release/ppi.htm",
+      "note": "Falls after the FY2027 continuing resolution (P.L. 119-103) expires 2026-12-11; a funding lapse from 2026-12-12 could delay this release."
+    },
+    {
+      "date": "2026-12-16",
+      "time": "08:30",
+      "name": "Advance Retail Sales",
+      "agency": "Census",
+      "verified": true,
+      "source": "https://www.census.gov/retail/release_schedule.html",
+      "note": "Falls after the FY2027 continuing resolution (P.L. 119-103) expires 2026-12-11; a funding lapse from 2026-12-12 could delay this release."
+    },
+    {
+      "date": "2026-12-18",
+      "time": "10:00",
+      "name": "UMich Consumer Sentiment (final)",
+      "agency": "University of Michigan",
+      "verified": true,
+      "source": "https://data.sca.isr.umich.edu/fetchdoc.php?docid=79628",
+      "note": "Dates from the official 'Release Dates for 2026' PDF; 10:00 ET time from https://www.sca.isr.umich.edu/ ('Next data release: Friday, October 09, 2026 ... at 10am ET')."
+    },
+    {
+      "date": "2026-12-23",
+      "time": "08:30",
+      "name": "GDP (third estimate)",
+      "agency": "BEA",
+      "verified": true,
+      "source": "https://www.bea.gov/news/schedule",
+      "note": "Falls after the FY2027 continuing resolution (P.L. 119-103) expires 2026-12-11; a funding lapse from 2026-12-12 could delay this release."
+    },
+    {
+      "date": "2026-12-23",
+      "time": "08:30",
+      "name": "Personal Income and Outlays (PCE)",
+      "agency": "BEA",
+      "verified": true,
+      "source": "https://www.bea.gov/news/schedule",
+      "note": "Falls after the FY2027 continuing resolution (P.L. 119-103) expires 2026-12-11; a funding lapse from 2026-12-12 could delay this release."
+    },
+    {
+      "date": "2026-12-29",
+      "time": "10:00",
+      "name": "Consumer Confidence",
+      "agency": "Conference Board",
+      "verified": false,
+      "source": "https://www.conference-board.org/topics/consumer-confidence",
+      "note": "NOT VERIFIED and LOW CONFIDENCE: last-Tuesday rule gives Dec 29, but the Conference Board has in past years moved the December release earlier (e.g. before Christmas). Treat Dec 22 and Dec 29 as candidate dates until published."
+    }
+  ],
+  "schedule_risks": [
+    {
+      "item": "Federal funding",
+      "detail": "FY2027 continuing resolution H.R. 6500 / P.L. 119-103 (signed 2026-09-02) funds the government through 2026-12-11. No lapse on 2026-10-01. A lapse from 2026-12-12 could delay BLS/Census/BEA releases on or after that date (PPI 12-15, Retail Sales 12-16, GDP/PCE 12-23). None of the official schedule pages showed shutdown notices on 2026-09-28.",
+      "source": "https://www.whitehouse.gov/briefings-statements/2026/09/congressional-bill-h-r-6500-signed-into-law/",
+      "verified": true
+    }
+  ]
+}
