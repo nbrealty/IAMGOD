@@ -78,11 +78,12 @@ class Lab:
             if (self.dir / "checkpoints.json").exists() else set()
 
     # --- logging -------------------------------------------------------------------------------------------
-    def log(self, kind: str, **data) -> None:
-        row = {"time": ny_now().isoformat(timespec="seconds"), "kind": kind, **data}
+    def log(self, event: str, **data) -> None:
+        # `event` (not `kind`): callers pass the signal's `kind=` as data.
+        row = {"time": ny_now().isoformat(timespec="seconds"), "event": event, **data}
         with open(self.dir / "journal.jsonl", "a") as f:
             f.write(json.dumps(row, default=str) + "\n")
-        print(f"[{hhmm(ny_now())}] {kind}: {json.dumps(data, default=str)[:400]}", flush=True)
+        print(f"[{hhmm(ny_now())}] {event}: {json.dumps(data, default=str)[:400]}", flush=True)
 
     def save(self) -> None:
         self.book_path.write_text(json.dumps(self.trades, indent=1, default=str))
