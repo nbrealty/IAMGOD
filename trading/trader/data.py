@@ -54,24 +54,27 @@ class AlpacaData:
         return cls(key, secret, feed=data_cfg.get("feed") or "sip",
                    fallback_feed=data_cfg.get("fallback_feed", "iex"))
 
-    def daily_bars(self, symbols: list[str], days: int, start=None, end=None) -> Bars:
+    def daily_bars(self, symbols: list[str], days: int, start=None, end=None, adjustment: str = "all") -> Bars:
         """At least `days` sessions per symbol, ending at `end` (default now), when the feed has them.
 
         The calendar padding (1.5 x days + 10) covers weekends and holidays. `start` overrides the window start.
+        `adjustment="raw"` returns traded prices (no split/dividend adjustment) for anything strike-related
+        (Options rulebook phase O0, OPT-37); the default "all" keeps the stock books' adjusted bars.
         """
         if start is None:
             now = self._now()
             anchor = min(_as_utc(end, end_of_day=True), now) if end is not None else now
             start = anchor - timedelta(days=int(days * 1.5) + 10)
-        return self._fetch(symbols, start, end)
+        return self._fetch(symbols, start, end, adjustment)
 
-    def history(self, symbols: list[str], start, end=None) -> Bars:
+    def history(self, symbols: list[str], start, end=None, adjustment: str = "all") -> Bars:
         """Bars between two dates (inclusive) for the backtester and evals. Dates may be 'YYYY-MM-DD' strings."""
-        return self._fetch(symbols, start, end)
+        return self._fetch(symbols, start, end, adjustment)
 
     # --- internals ---------------------------------------------------------------------------
 
-    def _fetch(self, symbols: list[str], start, end) -> Bars:
+    def _fetch(self, symbols: list[str], start, end, adjustment: str = "all") -> Bars:
+        adjustment = _adjustment_name(adjustment)
         self.notes, self.feed_used = [], None
         start_utc = _as_utc(start, end_of_day=False)
         end_utc = _as_utc(end, end_of_day=True) if end is not None else None
@@ -80,12 +83,13 @@ class AlpacaData:
         crypto = [s for s in symbols if "/" in s]
         out: Bars = {}
         if stocks:
-            out.update(self._stock_bars(stocks, start_utc, end_utc))
+            out.update(self._stock_bars(stocks, start_utc, end_utc, adjustment))
         if crypto:
             out.update(self._crypto_bars(crypto, start_utc, end_utc))
         return out
 
-    def _stock_bars(self, symbols: list[str], start: datetime, end: datetime | None) -> Bars:
+    def _stock_bars(self, symbols: list[str], start: datetime, end: datetime | None,
+                    adjustment: str = "all") -> Bars:
         """Try the main feed, then the fallback once, on any exception or an empty answer."""
         feeds = [self.feed]
         if self.fallback_feed and self.fallback_feed != self.feed:
@@ -93,7 +97,7 @@ class AlpacaData:
         error: Exception | None = None
         for i, feed in enumerate(feeds):
             try:
-                bars = _split(self._stocks.get_stock_bars(self._stock_request(symbols, start, end, feed)).df)
+                bars = _split(self._stocks.get_stock_bars(self._stock_request(symbols, start, end, feed, adjustment)).df)
             except Exception as e:  # any failure: try the fallback feed
                 error = e
                 self.notes.append(f"The {feed.upper()} data request failed ({_short(e)}).")
@@ -108,7 +112,8 @@ class AlpacaData:
         tried = " and ".join(f.upper() for f in feeds)
         raise RuntimeError(f"No stock data from {tried}: {_short(error)}") from error
 
-    def _stock_request(self, symbols: list[str], start: datetime, end: datetime | None, feed: str):
+    def _stock_request(self, symbols: list[str], start: datetime, end: datetime | None, feed: str,
+                       adjustment: str = "all"):
         from alpaca.data.enums import Adjustment, DataFeed
         from alpaca.data.requests import StockBarsRequest
         from alpaca.data.timeframe import TimeFrame
@@ -117,7 +122,7 @@ class AlpacaData:
             latest = self._now() - SIP_DELAY
             end = latest if end is None or end > latest else end
         return StockBarsRequest(symbol_or_symbols=symbols, timeframe=TimeFrame.Day, start=start, end=end,
-                                adjustment=Adjustment.ALL, feed=DataFeed(feed))
+                                adjustment=Adjustment(_adjustment_name(adjustment)), feed=DataFeed(feed))
 
     def _crypto_bars(self, symbols: list[str], start: datetime, end: datetime | None) -> Bars:
         from alpaca.data.requests import CryptoBarsRequest
@@ -141,6 +146,19 @@ def _feed_name(x) -> str | None:
     """'SIP' -> 'sip'; None or blank -> None (a blank config value must not crash the fetch)."""
     text = str(x).strip().lower() if x is not None else ""
     return text or None
+
+
+ADJUSTMENTS = ("all", "raw", "split", "dividend")
+
+
+def _adjustment_name(x) -> str:
+    """'RAW' -> 'raw'; None or blank -> 'all' (the old default). Unknown names raise instead of silently
+    returning adjusted prices where raw ones were asked for (phase O0: strikes need traded prices)."""
+    text = str(getattr(x, "value", x)).strip().lower() if x is not None else ""
+    text = text or "all"
+    if text not in ADJUSTMENTS:
+        raise ValueError(f"unknown bar adjustment {x!r}; use one of {', '.join(ADJUSTMENTS)}")
+    return text
 
 
 def _fallback_note(feed: str) -> str:
