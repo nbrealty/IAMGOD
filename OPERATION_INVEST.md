@@ -53,6 +53,8 @@ also keeps `claude/investment-agents-question-hrkk10` in sync).
    a name. The hype vetoes NEWS-4 (attention spike after a run-up), NEWS-13 (lottery/MAX) and the promotion part of NEWS-18
    ("paid", "sponsored", "investor awareness": no new long for 20 sessions) are active from day one, because they only
    block new buys; each veto is still shadow-scored. Claude is told to be skeptical of anything widely promoted.
+   Scope (owner, 28 Sept 2026): the hype vetoes apply to new buys in sleeves B, C and D only, not to sleeve A's broad
+   ETF trend rebalances; if the news fetch fails, B/C/D entries are blocked that day (fail closed) but sleeve A still runs.
 9. **Crypto later (note for a future session).** The owner wants the bot in crypto eventually, but the normal stock
    market comes first. Do not enable sleeve D or build fast crypto trading until the stock books have a paper track
    record and the owner asks. When that time comes: crypto stays on Alpaca, BTC/ETH only on the owner's allowlist,
