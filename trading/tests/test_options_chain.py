@@ -288,6 +288,60 @@ def test_rate_limited_bars_batch_is_retried_not_fatal(no_sleep):
     assert sum(q.volume is None for q in still) == chain.BAR_BATCH
 
 
+class _HTTPError(Exception):
+    """Shaped like alpaca-py's APIError: `status_code` from the HTTP answer."""
+
+    def __init__(self, msg, status_code):
+        super().__init__(msg)
+        self.status_code = status_code
+
+
+class DeniedBars(FakeOptionClient):
+    def __init__(self, error, **kw):
+        super().__init__(**kw)
+        self.error = error
+
+    def get_option_bars(self, req):
+        self.bar_requests.append(req)
+        raise self.error
+
+
+def _big_snaps(n=450):
+    out = {}
+    for k in range(n):
+        sym = occ_symbol("SPY", "2026-10-30", "put", 300.0 + k)
+        out[sym] = snapshot(sym)
+    return out
+
+
+@pytest.mark.parametrize("error", [_HTTPError('{"message":"OPRA agreement is not signed"}', 403),
+                                   _HTTPError("unauthorized", 401),
+                                   RuntimeError('{"message":"OPRA agreement is not signed"}')])
+def test_opra_not_signed_is_not_retried_and_stops_all_batches(no_sleep, error):
+    """Finding #26: a 403 'OPRA agreement is not signed' used to sleep 10+30+60 s per batch (15 minutes on SPY)."""
+    snaps = _big_snaps()
+    client = DeniedBars(error, snaps=snaps)
+    quotes = fetch(client=client, contracts_client=FakeTradingClient({s: contract(s) for s in snaps}, page=10000))
+    assert len(quotes) > chain.BAR_BATCH * 2  # three batches: only the first is sent
+    assert len(client.bar_requests) == 1 and no_sleep == []  # one request, no retry waits, no pacing
+    fatal = [f for f in quotes.meta["fatal"] if "option bars" in f]
+    assert len(fatal) == 1 and "not authorized" in fatal[0] and "Alpaca dashboard" in fatal[0]
+    assert all(q.volume is None for q in quotes)
+
+
+def test_permanent_client_error_is_not_retried_but_5xx_is(no_sleep):
+    sym = occ_symbol("SPY", "2026-10-30", "put", 560)
+    bad = DeniedBars(_HTTPError("bad request", 422), volumes={sym: 1.0})
+    quotes = fetch(client=bad)
+    batches = math.ceil(len(quotes) / chain.BAR_BATCH)
+    assert len(bad.bar_requests) == batches and no_sleep == []  # every batch tried once, none retried
+    assert all("after 0 retries" in f for f in quotes.meta["fatal"] if "option bars" in f)
+    no_sleep.clear()
+    down = DeniedBars(_HTTPError("bad gateway", 502))
+    fetch(client=down)
+    assert no_sleep == list(chain.BAR_RETRY_WAITS) * batches
+
+
 def test_realistic_chain_size_request_count_and_pacing(no_sleep):
     """About 15k contracts (SPY with daily expiries): bars go in batches of 100, paced under 200/minute."""
     snaps = {}

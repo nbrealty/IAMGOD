@@ -14,6 +14,9 @@ from trader import news, news_signals as ns
 from trader.config import load_config
 
 NY = "America/New_York"
+# Decision 8 before the 28 Sept update: NEWS-4 and NEWS-13 active. The veto logic is still tested with it, since the
+# owner may list them again after they pass TEST FIRST.
+OLD_ACTIVE = {"news": {"active_vetoes": ["NEWS-4", "NEWS-13", "NEWS-18-PROMO"]}}
 UNI = ["TSLA", "AAPL", "MSFT", "NVDA", "AMZN", "META", "JPM", "KO", "PG", "XOM", "CAT", "GE"]
 N = 320
 DATES = pd.bdate_range(end="2026-09-25", periods=N)
@@ -331,7 +334,7 @@ def _attention_setup():
 def test_news4_vetoes_attention_spike_after_a_run_up_only():
     bars, items = _attention_setup()
     out = _compute(bars, items)["NEWS-4"]
-    assert out["NVDA"]["veto"] and out["NVDA"]["top_decile"] and out["NVDA"]["status"] == "active_veto"
+    assert out["NVDA"]["veto"] and out["NVDA"]["top_decile"] and out["NVDA"]["status"] == "shadow"  # TEST FIRST
     assert out["NVDA"]["shadow"] == "fade 20 sessions"
     assert out["AMZN"]["top_decile"] and not out["AMZN"]["veto"]  # a spike on a drop is not a run-up
     assert not out["KO"]["veto"]
@@ -467,7 +470,7 @@ def test_news13_max_lottery_veto_top_decile():
     rets = _returns()
     _shock(rets, "GE", 0.25, i=-10)
     out = _compute(_bars(rets), [])["NEWS-13"]
-    assert out["GE"]["veto"] and out["GE"]["status"] == "active_veto" and out["GE"]["max21"] > 0.2
+    assert out["GE"]["veto"] and out["GE"]["status"] == "shadow" and out["GE"]["max21"] > 0.2  # TEST FIRST
     assert sum(r["veto"] for r in out.values()) == 2  # 12 names -> top ceil(1.2) = 2
     _shock(rets, "GE", -0.25, i=-10)
     _shock(rets, "GE", 0.25, i=-30)  # outside the 21-session window
@@ -587,9 +590,9 @@ def test_news18_promo_counts_sessions_left():
 
 def test_active_vetoes_lists_news4_news13_and_promo():
     bars, items = _attention_setup()
-    items.append(_item("PG", LAST, "Sponsored: why P&G could triple"))
+    items.append(_item("PG", LAST, "Sponsored content: why P&G could triple"))
     sig = _compute(bars, items)
-    vetoes = ns.active_vetoes(sig, load_config().policy)
+    vetoes = ns.active_vetoes(sig, OLD_ACTIVE)
     assert any(r.startswith("NEWS-4") for r in vetoes["NVDA"])
     assert any(r.startswith("NEWS-18") for r in vetoes["PG"])
     assert all(s in UNI for s in vetoes)
@@ -744,7 +747,7 @@ def test_call_signatures_positional_and_policy_forms():
 
 def test_news_policy_reads_the_config_block():
     pol = ns.news_policy(load_config().policy)
-    assert pol["active_vetoes"] == ["NEWS-4", "NEWS-13", "NEWS-18-PROMO"]
+    assert pol["active_vetoes"] == ["NEWS-18-PROMO"]  # decision 8 update: NEWS-4/13 TEST FIRST
     assert pol["promo_block_sessions"] == 20 and "investor awareness" in pol["promo_words"]
     assert ns.news_policy(None)["active_vetoes"] == ns.ACTIVE_VETO_DEFAULT
 
@@ -807,7 +810,7 @@ def test_cache_written_during_the_last_day_is_refetched_later(tmp_path):
 
 def test_promo_near_duplicate_of_a_plain_headline_still_vetoes():
     items = [_item("KO", LAST, "Coca-Cola announces new bottling plant in Texas", et="09:00"),
-             _item("KO", LAST, "Sponsored: Coca-Cola announces new bottling plant in Texas", et="10:00")]
+             _item("KO", LAST, "Sponsored content: Coca-Cola announces new bottling plant in Texas", et="10:00")]
     sig = _compute(_bars(), items)
     assert sig["NEWS-18"]["KO"]["promo_today"] and sig["NEWS-6"]["KO"]["hl"] == 1  # count still de-duplicated
     assert any(r.startswith("NEWS-18") for r in ns.active_vetoes(sig)["KO"])
@@ -831,10 +834,10 @@ def test_promo_after_the_close_blocks_the_next_open_without_look_ahead():
     _, hist = ns.active_vetoes(_compute(_bars(), [evening]), None, {})
     assert hist["KO"]["sessions_left"] == 20
     mon = LAST + pd.offsets.BDay(1)
-    assert not _compute(_bars(), [_item("KO", mon, "Sponsored KO", et="10:00")])["NEWS-18"]["KO"]["event"]
-    assert _compute(_bars(), [_item("KO", mon, "Sponsored KO", et="08:00")])["NEWS-18"]["KO"]["promo_after_close"]
+    assert not _compute(_bars(), [_item("KO", mon, "Sponsored content KO", et="10:00")])["NEWS-18"]["KO"]["event"]
+    assert _compute(_bars(), [_item("KO", mon, "Sponsored content KO", et="08:00")])["NEWS-18"]["KO"]["promo_after_close"]
     past = DATES[-3]
-    items = [_item("KO", past, "Sponsored KO", et="18:00"), _item("PG", DATES[-2], "Sponsored PG", et="10:00")]
+    items = [_item("KO", past, "Sponsored content KO", et="18:00"), _item("PG", DATES[-2], "Sponsored content PG", et="10:00")]
     old = ns.compute(_bars(), items, UNI, past, news_start=START)["NEWS-18"]
     assert old["KO"]["promo_after_close"] and not old["PG"]["event"]
 
@@ -842,13 +845,15 @@ def test_promo_after_the_close_blocks_the_next_open_without_look_ahead():
 def test_status_labels_follow_decision_8_and_the_policy():
     rets = _returns()
     _shock(rets, "XOM", -0.12)
-    items = [_item("XOM", LAST, "Explosion reported at Exxon refinery"), _item("KO", LAST, "Sponsored KO story")]
+    items = [_item("XOM", LAST, "Explosion reported at Exxon refinery"), _item("KO", LAST, "Sponsored content KO story")]
     sig = _compute(_bars(rets), items)
     assert sig["NEWS-18"]["XOM"]["no_entry_tomorrow"] and sig["NEWS-18"]["XOM"]["status"] == "shadow"
     assert sig["NEWS-18"]["XOM"]["guard_status"] == "shadow" and "XOM" not in ns.active_vetoes(sig)
     assert sig["NEWS-18"]["KO"]["status"] == "active_veto" and sig["NEWS-18"]["KO"]["promo_status"] == "active_veto"
     assert sig["NEWS-18"]["PG"]["status"] == "shadow"
-    assert sig["NEWS-4"]["KO"]["status"] == "active_veto" and sig["NEWS-13"]["KO"]["status"] == "active_veto"
+    assert sig["NEWS-4"]["KO"]["status"] == "shadow" and sig["NEWS-13"]["KO"]["status"] == "shadow"  # TEST FIRST
+    old = ns.compute(_bars(rets), items, UNI, LAST, OLD_ACTIVE, news_start=START)
+    assert old["NEWS-4"]["KO"]["status"] == "active_veto" and old["NEWS-13"]["KO"]["status"] == "active_veto"
     off = ns.compute(_bars(rets), items, UNI, LAST, {"news": {"active_vetoes": []}}, news_start=START)
     assert all(r["status"] == "shadow" for sid in ("NEWS-4", "NEWS-13", "NEWS-18") for r in off[sid].values())
     assert off["NEWS-18"]["KO"]["promo_status"] == "shadow"
@@ -883,15 +888,18 @@ def test_hype_vetoes_survive_data_gaps_and_fail_closed_on_new_listings():
     tiny["GE"] = tiny["GE"].iloc[-3:]
     sig = _compute(tiny, [])
     assert sig["NEWS-13"]["GE"]["veto"] and sig["NEWS-13"]["GE"]["insufficient_history"]
-    reasons = ns.active_vetoes(sig)["GE"]
+    assert "GE" not in ns.active_vetoes(sig)  # decision 8 update: TEST FIRST rows never block by default
+    reasons = ns.active_vetoes(sig, OLD_ACTIVE)["GE"]
     assert any("NEWS-13 lottery check impossible" in r for r in reasons)
     assert any("NEWS-4 hype check impossible" in r for r in reasons)
 
 
 def test_promo_history_cannot_name_symbols_outside_the_universe():
     sig = _compute(_bars(), [])
-    hist = {"EVIL": {"sessions_left": 5, "updated": "2026-09-01"}, "bad key!": {"sessions_left": 5},
-            "KO": {"sessions_left": 5, "updated": "2026-09-01"}}
+    w = ns.promo_words_version(ns.DEFAULT_PROMO_WORDS)
+    hist = {"EVIL": {"sessions_left": 5, "updated": "2026-09-01", "words": w},
+            "bad key!": {"sessions_left": 5, "words": w},
+            "KO": {"sessions_left": 5, "updated": "2026-09-01", "words": w}}
     vetoes, new = ns.active_vetoes(sig, None, hist)
     assert "EVIL" not in vetoes and "bad key!" not in vetoes and "KO" in vetoes
     assert "bad key!" not in new
@@ -899,7 +907,8 @@ def test_promo_history_cannot_name_symbols_outside_the_universe():
 
 def test_promo_countdown_ignores_weekend_run_dates():
     sig = _compute(_bars(), [])
-    hist = {"KO": {"last_promo": str(LAST.date()), "sessions_left": 20, "updated": str(LAST.date())}}
+    hist = {"KO": {"last_promo": str(LAST.date()), "sessions_left": 20, "updated": str(LAST.date()),
+                   "words": ns.promo_words_version(ns.DEFAULT_PROMO_WORDS)}}
     for day in ("2026-09-26", "2026-09-27"):
         _, hist = ns.active_vetoes(sig, None, hist, as_of=day)
     assert hist["KO"]["sessions_left"] == 20
@@ -920,7 +929,7 @@ def test_items_without_id_are_counted_separately():
 
 def test_score_log_records_ids_versions_and_duplicates():
     items = [_item("KO", LAST, "Coca-Cola opens bottling plant in Texas", et="09:00", ident="a"),
-             _item("KO", LAST, "Sponsored: Coca-Cola opens bottling plant in Texas", et="10:00", ident="b"),
+             _item("KO", LAST, "Sponsored content: Coca-Cola opens bottling plant in Texas", et="10:00", ident="b"),
              _item("XYZ", LAST, "not on the allowlist", ident="c")]
     log = ns.score_log(_bars(), items, UNI, LAST)
     assert [(r["id"], r["kept"], r["promo"]) for r in log] == [("a", True, False), ("b", False, True)]
@@ -999,3 +1008,54 @@ def test_news7_all_three_windows_and_an_asymmetric_mean():
     assert out["JPM"]["s20"] == pytest.approx(-1.0) and out["KO"]["s20"] == pytest.approx(1.0)
     assert out["JPM"]["s60"] == pytest.approx(-0.5) and out["KO"]["s60"] == pytest.approx(0.5)
     assert out["JPM"]["s120"] == pytest.approx(-1 / 3, abs=1e-5) and out["KO"]["s120"] == pytest.approx(1 / 3, abs=1e-5)
+
+
+# --- decision 8 update (28 Sept 2026): the promotion veto fires on real paid-promotion wording only -----------
+
+
+@pytest.mark.parametrize("text", ["Apple paid $17bn in taxes to Ireland",
+                                  "Microsoft Copilot Crossed 30 Million Paid Seats",
+                                  "OpenAI Announces Sponsored Agents Feature",
+                                  "Nvidia sponsored by a new index fund", "Coke says it prepaid debt",
+                                  "JPMorgan paid out record dividends"])
+def test_promo_words_ignore_ordinary_paid_and_sponsored(text):
+    words = ns.news_policy(load_config().policy)["promo_words"]
+    assert not ns._phrase_hit(text, words) and not ns._phrase_hit(text, ns.DEFAULT_PROMO_WORDS)
+    sig = _compute(_bars(), [_item("KO", LAST, text)])
+    assert not sig["NEWS-18"]["KO"]["promo_today"] and "KO" not in ns.active_vetoes(sig)
+
+
+@pytest.mark.parametrize("text", ["XYZ: paid promotion by StockHype LLC", "Sponsored content: why KO could triple",
+                                  "Investor awareness campaign for KO", "KO advertorial",
+                                  "The publisher has been compensated to distribute this KO article"])
+def test_promo_words_still_catch_real_paid_promotion(text):
+    words = ns.news_policy(load_config().policy)["promo_words"]
+    assert ns._phrase_hit(text, words) and ns._phrase_hit(text, ns.DEFAULT_PROMO_WORDS)
+    sig = _compute(_bars(), [_item("KO", LAST, text)])
+    assert sig["NEWS-18"]["KO"]["promo_today"] and "KO" in ns.active_vetoes(sig, load_config().policy)
+
+
+def test_promo_history_from_an_older_phrase_list_is_dropped():
+    """Finding #24: blocks written while bare "paid"/"sponsored" matched ordinary headlines must not keep blocking
+    for 20 sessions after the list is tightened; a real promotion in today's rows still blocks."""
+    pol = load_config().policy
+    sig = _compute(_bars(), [])
+    stale = {"SPY": {"last_promo": "2026-09-20", "sessions_left": 15, "updated": "2026-09-24"},  # pre-fix entry
+             "KO": {"last_promo": "2026-09-20", "sessions_left": 15, "updated": "2026-09-24",
+                    "words": ns.promo_words_version(["paid", "sponsored"])}}
+    vetoes, new = ns.active_vetoes(sig, pol, stale)
+    assert "SPY" not in vetoes and "KO" not in vetoes and new == {}
+    real = _compute(_bars(), [_item("KO", LAST, "Sponsored content: why KO could triple")])
+    vetoes, new = ns.active_vetoes(real, pol, stale)
+    assert "KO" in vetoes and new["KO"]["words"] == ns.promo_words_version(ns.news_policy(pol)["promo_words"])
+    _, again = ns.active_vetoes(sig, pol, new, as_of="2026-09-28")  # the new entry survives its own next run
+    assert again["KO"]["sessions_left"] >= 19
+
+
+def test_news4_and_news13_are_test_first_by_default():
+    assert ns.ACTIVE_VETO_DEFAULT == ["NEWS-18-PROMO"]
+    rets = _returns()
+    _shock(rets, "GE", 0.25, i=-10)
+    sig = _compute(_bars(rets), [])
+    assert sig["NEWS-13"]["GE"]["veto"]  # still computed and logged
+    assert "GE" not in ns.active_vetoes(sig) and "GE" not in ns.active_vetoes(sig, load_config().policy)

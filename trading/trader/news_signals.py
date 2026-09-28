@@ -3,9 +3,11 @@
 Source of truth: reports/Market psychology and news signals.md, section 5 (exact rules) and section 6 (how Claude may
 use them), owner decisions 7 and 8 in OPERATION_INVEST.md, and the `news:` block of config/risk_policy.yaml.
 
-Every signal is TEST FIRST (shadow only). The one exception is owner decision 8: the hype vetoes NEWS-4 (attention
-spike after a run-up), NEWS-13 (lottery / MAX) and the promotion part of NEWS-18 are active from day one. They only
-ever block NEW longs or increases (see `active_vetoes`); nothing here creates, sizes or sends an order.
+Every signal is TEST FIRST (shadow only). The one exception is owner decision 8 (as updated 28 Sept 2026): the
+promotion part of NEWS-18 is active and blocks NEW longs or increases in sleeves B, C and D only (the engine applies
+the sleeve scope). NEWS-4 (attention spike after a run-up) and NEWS-13 (lottery / MAX) are TEST FIRST: computed,
+logged and shadow-scored, blocking only if `news.active_vetoes` lists them again. Nothing here creates, sizes or
+sends an order.
 
 Prompt-injection guard (section 6): the output holds only numbers, booleans and fixed labels. No headline text ever
 leaves this module, so Claude can at most see a count or a tone score that a hostile headline changed.
@@ -21,8 +23,8 @@ Definitions used everywhere (report section 5):
 Output of `compute`: {signal_id: {symbol: row}}. Market-wide signals (NEWS-9..12) use the key "SPY". A row that cannot
 be computed is {"skipped": "<reason>", "source": ...}. Every row records its "source" (owner decision 7: every signal
 records where its data came from, skipped or not). Every computed row has "event" (bool) and "status": "active_veto"
-only for the parts decision 8 makes binding AND that `news.active_vetoes` lists (NEWS-4, NEWS-13, NEWS-18's promotion
-block); everything else, including NEWS-18's single-headline guard, is "shadow" (section 6: shadow may not support a skip).
+only for the parts decision 8 makes binding AND that `news.active_vetoes` lists (by default NEWS-18's promotion
+block only); everything else, including NEWS-18's single-headline guard, is "shadow" (section 6: shadow may not support a skip).
 
 Fail-closed hype checks: NEWS-4 and NEWS-13 only block new longs, so when a name has a bar today but too little history
 to score it (a new listing, a data gap), the row is a veto with `insufficient_history: True` instead of a silent skip.
@@ -41,7 +43,9 @@ import pandas as pd
 BENCHMARK = "SPY"
 NY = "America/New_York"
 SIGNAL_IDS = [f"NEWS-{i}" for i in range(1, 19)]
-ACTIVE_VETO_DEFAULT = ["NEWS-4", "NEWS-13", "NEWS-18-PROMO"]  # owner decision 8
+# Owner decision 8 as updated 28 Sept 2026: only the (tightened) NEWS-18 promotion veto blocks; NEWS-4 and NEWS-13
+# are TEST FIRST (computed, logged and shadow-scored, never blocking) unless the policy lists them again.
+ACTIVE_VETO_DEFAULT = ["NEWS-18-PROMO"]
 SOURCE_NEWS = "alpaca_benzinga+alpaca_bars"
 SOURCE_BARS = "alpaca_bars"
 SOURCE_IV = "alpaca_options_iv (not logged yet)"
@@ -50,7 +54,11 @@ IV_SKIP = "needs IV history"
 Z_CAP = 5.0  # z-scores are bounded, so one hostile headline can move a number only so far
 MIN_RANK_NAMES = 10  # "top decile of the universe" needs at least 10 ranked names
 DUP_SIMILARITY = 0.6
-DEFAULT_PROMO_WORDS = ["paid", "sponsored", "investor awareness", "paid promotion", "advertorial"]
+# Real paid-promotion wording only (decision 8, 28 Sept): the bare words "paid" / "sponsored" fired on ordinary
+# headlines ("Apple paid $17bn in taxes", "30 million paid seats", "Sponsored Agents feature").
+DEFAULT_PROMO_WORDS = ["paid promotion", "paid promotional", "paid advertisement", "paid advertising",
+                       "sponsored content", "sponsored post", "sponsored article", "advertorial",
+                       "investor awareness", "been compensated", "compensated to"]
 DEFAULT_PROMO_SESSIONS = 20
 HL_MIN_STD = 0.5  # z20(hl) std floor: one headline on a name with no news history gives z = 2, not the +5 cap
 MIN_MAX21_RETURNS = 5  # MAX21 from the returns available in the last 21 sessions (a data gap must not hide a jump)
@@ -1025,19 +1033,32 @@ def _add_promo(vetoes: dict, rows: dict, history: dict) -> None:
         row = rows.get(s) if isinstance(rows.get(s), dict) else {}
         left = max(int(row.get("promo_sessions_left") or 0), int((history.get(s) or {}).get("sessions_left", 0)))
         if left > 0:
-            vetoes.setdefault(s, []).append(f"NEWS-18 promotion words (paid/sponsored): no new long, "
+            vetoes.setdefault(s, []).append(f"NEWS-18 paid-promotion wording: no new long, "
                                             f"{left} sessions left")
 
 
+def promo_words_version(words) -> str:
+    """Short fingerprint of a promotion phrase list (case and order do not matter)."""
+    import hashlib
+    key = "\n".join(sorted({str(w).strip().lower() for w in words or ()}))
+    return hashlib.sha256(key.encode()).hexdigest()[:10]
+
+
 def update_promo_history(signals: dict, promo_history: dict, policy: dict | None = None, *, as_of=None) -> dict:
-    """NEWS-18 promotion memory {symbol: {last_promo, sessions_left, updated}}; a new copy, entries at 0 removed."""
+    """NEWS-18 promotion memory {symbol: {last_promo, sessions_left, updated, words}}; a new copy, entries at 0
+    removed. `words` fingerprints the promotion phrase list that made the entry: an entry made under another list
+    (or none, i.e. before 28 Sept when bare "paid"/"sponsored" matched ordinary headlines) is dropped, and a real
+    promotion still inside the news window is found again from the headlines by today's rows."""
     pol = news_policy(policy)
+    words = promo_words_version(pol["promo_words"])
     rows = signals.get("NEWS-18") or {}
     as_of = _signals_as_of(rows) or (str(pd.Timestamp(as_of).date()) if as_of is not None else None)
     new: dict[str, dict] = {}
     for s, entry in (promo_history or {}).items():
         if not (isinstance(s, str) and _TICKER.match(s)) or not isinstance(entry, dict):
             continue  # a hand-edited or corrupt history file cannot add a symbol
+        if entry.get("words") != words:
+            continue  # made by another phrase list (finding #24: stale false positives must not keep blocking)
         entry = dict(entry)
         left = int(entry.get("sessions_left", 0))
         if as_of and entry.get("updated") and str(entry["updated"]) < as_of:
@@ -1046,10 +1067,11 @@ def update_promo_history(signals: dict, promo_history: dict, policy: dict | None
         new[s] = entry
     for s, row in rows.items():
         if isinstance(row, dict) and (row.get("promo_today") or row.get("promo_after_close")):
-            new[s] = {"last_promo": as_of, "sessions_left": pol["promo_block_sessions"], "updated": as_of}
+            new[s] = {"last_promo": as_of, "sessions_left": pol["promo_block_sessions"], "updated": as_of,
+                      "words": words}
         elif isinstance(row, dict) and int(row.get("promo_sessions_left") or 0) > new.get(s, {}).get("sessions_left", 0):
             new[s] = {"last_promo": new.get(s, {}).get("last_promo"), "sessions_left": int(row["promo_sessions_left"]),
-                      "updated": as_of}
+                      "updated": as_of, "words": words}
     return {s: e for s, e in new.items() if e.get("sessions_left", 0) > 0}
 
 

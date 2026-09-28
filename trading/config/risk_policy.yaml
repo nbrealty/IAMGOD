@@ -116,5 +116,7 @@ news:                         # reports/Market psychology and news signals.md; o
   source: alpaca_benzinga     # public data only; every signal logs its source
   active_vetoes: [NEWS-18-PROMO]   # decision 8 (updated 28 Sept): blocks new B/C/D longs only; NEWS-4 and NEWS-13 are TEST FIRST
   promo_block_sessions: 20
-  promo_words: ["paid", "sponsored", "investor awareness", "paid promotion", "advertorial"]
+  promo_words: ["paid promotion", "paid promotional", "paid advertisement", "paid advertising", "sponsored content",
+                "sponsored post", "sponsored article", "advertorial", "investor awareness", "been compensated",
+                "compensated to"]   # real paid-promotion wording only (decision 8, 28 Sept); never bare "paid"/"sponsored"
   max_headline_chars: 300     # prompt-injection guard: Claude never sees raw headlines

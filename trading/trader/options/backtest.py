@@ -39,6 +39,14 @@ QUOTED_SPREAD_SHARE = 0.025  # RPL: each leg's quoted spread = 2.5% of its price
 MIN_LEG_SPREAD = 0.01
 FEE_PER_CONTRACT = 0.04  # per contract per leg per side
 CROSSCHECK_YEARS = (2008, 2018, 2020, 2022)
+NO_CREDIT = "no positive credit after costs"
+# What each run is, printed next to it (finding #19: say which run the rulebook's RPL figures correspond to).
+RUN_NOTES = {
+    "base": "the book's exits: OPT-22 at 7 DTE plus the OPT-23 short-strike exit",
+    "hold7_no_opt23": "hold to 7 DTE, no OPT-23 exit: the run that matches the Options rulebook's RPL width "
+                      "figures (-0.076R at $2 on 2016-2026 SPY); the base with OPT-23 came out about 0.04R lower",
+    "doubled_costs": "cycles with no positive credit after doubled costs are skipped, so n differs from base",
+}
 VOL_INDEX = {"SPY": "VIX", "QQQ": "VXN", "IWM": "RVX", "DIA": "VXD"}
 REGIME_MIN_CLOSES = 260
 
@@ -185,7 +193,7 @@ def _one_cycle(expiry, closes, vix, rv, rates, params: Params, table: dict) -> d
     if params.cost_filter is not None and (q["mid"] <= 0 or q["quoted_cost"] / q["mid"] > params.cost_filter):
         return {"skipped": "OPT-13 cost filter", "expiry": expiry.date().isoformat()}
     if credit <= 0 or credit >= width:
-        return {"skipped": "no positive credit after costs", "expiry": expiry.date().isoformat()}
+        return {"skipped": NO_CREDIT, "expiry": expiry.date().isoformat()}
     return _hold(day, expiry, spot, short_k, width, credit, q, closes, vix, rv, rates, params, table)
 
 
@@ -265,19 +273,29 @@ def yearly_r(trades: list[dict]) -> dict[int, float]:
     return out
 
 
-def put_crosscheck(trades: list[dict], put_index: pd.Series | None, years=CROSSCHECK_YEARS) -> dict:
-    """OPT-37: the strategy's summed R per year next to Cboe PUT's calendar-year return, and whether signs agree."""
+def put_crosscheck(trades: list[dict], put_index: pd.Series | None, years=CROSSCHECK_YEARS,
+                   first_close=None) -> dict:
+    """OPT-37: the strategy's summed R per year next to Cboe PUT's calendar-year return, and whether signs agree.
+    `first_close` (the first date of the underlying's closes) turns a year before it into a clear note: Alpaca's
+    SIP bars start in 2016, so 2008 needs pre-2016 closes from another source."""
     s = clean_series(put_index)
     ours = yearly_r(trades)
+    start = pd.Timestamp(first_close) if first_close is not None else None
     out = {}
     for y in years:
         yr = s[s.index.year == y]
         prev = s[s.index.year == y - 1]
         put_ret = (float(yr.iloc[-1]) / float(prev.iloc[-1]) - 1) if len(yr) and len(prev) else None
         r = ours.get(y)
+        if r is not None:
+            note = None
+        elif start is not None and y < start.year:
+            note = f"n/a: the underlying's closes start {start.date()}; {y} needs pre-{start.year} closes from another source"
+        else:
+            note = "no trades that year (no underlying bars?)"
         out[str(y)] = {"put_return": put_ret, "strategy_sum_R": r,
                        "signs_agree": None if put_ret is None or r is None else (put_ret > 0) == (r > 0),
-                       "note": None if r is not None else "no trades that year (no underlying bars?)"}
+                       "note": note}
     return out
 
 
@@ -298,9 +316,16 @@ def full_report(closes: pd.Series, vix: pd.Series, *, rates=None, put_index=None
     out = {"underlying": underlying, "width_usd": width_usd, "width_pct_of_last_spot": pct,
            "method": "RPL: Black-Scholes on raw closes, vol index x skew table, 2.5% leg spreads, $0.04 fees",
            "in_sample_warning": "model-priced and in sample; never a reason to trade by itself (OPT-40)",
-           "sensitivity": sens, "put_crosscheck": put_crosscheck(res["base"]["trades"], put_index)}
+           "sensitivity": sens,
+           "put_crosscheck": put_crosscheck(res["base"]["trades"], put_index,
+                                            first_close=c.index[0] if len(c) else None),
+           "run_notes": dict(RUN_NOTES)}
     for name, r in res.items():
-        out[name] = {**r["stats"], "n_skipped": len(r["skipped"]),
+        reasons: dict[str, int] = {}
+        for sk in r["skipped"]:
+            reasons[sk["skipped"]] = reasons.get(sk["skipped"], 0) + 1
+        out[name] = {**r["stats"], "n_skipped": len(r["skipped"]), "skipped_reasons": reasons,
+                     "n_no_credit": reasons.get(NO_CREDIT, 0),
                      "avg_width_pct": _avg(t["width_pct"] for t in r["trades"]),
                      "avg_width_usd": _avg(t["width"] for t in r["trades"])}
     out["bil_E"] = out["base"]["benchmarks"]["bil_E"]
@@ -320,18 +345,23 @@ def summary_lines(rep: dict) -> list[str]:
 
     lines = [f"OPT-37 backtest {rep['underlying']} (model-priced, in sample; indicative only)",
              f"width traded: ${rep['width_usd']:g} = {f(rep['width_pct_of_last_spot'], '{:.2%}')} of the last spot"]
+    notes = rep.get("run_notes") or RUN_NOTES
     for name in ("base", "fixed_dollars", "doubled_costs", "flat_vol", "realised_vol", "opt19_regime",
                  "opt13_filter", "hold7_no_opt23"):
         s = rep[name]
+        no_credit = s.get("n_no_credit") or 0
         lines.append(f"  {name:15s} n={s['n']:3d}  E={f(s['E'])}R  win={f(s['win_rate'], '{:.0%}')}  "
                      f"worst={f(s['worst_R'], '{:+.2f}')}R  SQN={f(s['sqn'], '{:.2f}')}  "
-                     f"width=${f(s['avg_width_usd'], '{:.2f}')}")
+                     f"width=${f(s['avg_width_usd'], '{:.2f}')}"
+                     + (f"  ({no_credit} cycles skipped: no positive credit after costs)" if no_credit else ""))
+        if notes.get(name):
+            lines.append(f"  {'':15s} ^ {notes[name]}")
     lines.append(f"  BIL on collateral: E={f(rep['bil_E'])}R")
     for name, s in rep["sensitivity"].items():
         lines.append(f"  +-25% {name:14s} n={s['n']:3d}  E={f(s['E'])}R")
     for y, v in rep["put_crosscheck"].items():
         lines.append(f"  PUT {y}: PUT {f(v['put_return'], '{:+.1%}')}  ours {f(v['strategy_sum_R'], '{:+.2f}')}R  "
-                     f"agree={v['signs_agree']}")
+                     f"agree={v['signs_agree']}" + (f"  ({v['note']})" if v.get("note") else ""))
     return lines
 
 

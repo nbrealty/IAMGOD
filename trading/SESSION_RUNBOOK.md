@@ -15,9 +15,12 @@ Two books run:
   decision 6), so the stock books leave its option positions, its assigned stock and its `OPT-` orders alone.
   Say "shadow" whenever you report on it.
 
-Hype vetoes (owner decision 8) run in both stock books: a name with an attention spike after a run-up
-(NEWS-4), a lottery-like jump (NEWS-13) or "paid"/"sponsored" promotion in its headlines (NEWS-18) gets no new
-buy today, in any sleeve (sleeve A included). Each blocked buy is followed as a shadow trade and scored; a
+Hype vetoes (owner decision 8, as updated 28 Sept 2026) run in both stock books: a name with real
+paid-promotion wording in its headlines (NEWS-18, e.g. "paid promotion", "sponsored content", "investor
+awareness"; not ordinary uses of "paid" or "sponsored") gets no new buy or increase in sleeves B, C and D for
+20 sessions. Sleeve A is never vetoed. If the news fetch fails, B/C/D buys are blocked that day and sleeve A
+still runs. NEWS-4 (attention spike after a run-up) and NEWS-13 (lottery-like jump) are TEST FIRST: they are
+logged and shadow-scored but do not block. Each blocked buy is followed as a shadow trade and scored; a
 review skip of a name that is already vetoed changes nothing and is not counted as a CL-9 veto. Headlines are
 never shown to Claude or printed by any command in this file; only code-computed numbers are. A real run writes
 the headline behind each score, with the scorer version, to `state/news/score_log/<date>.jsonl` (the audit
@@ -35,6 +38,9 @@ record; never put it in a context or a summary).
 5. If a step says **stop**, skip to step 9 (the summary) and say clearly what failed.
 6. Never change `options_book.enabled` or anything else in `config/`. Book O stays in shadow until the owner
    says otherwise in writing (decision 10: no paper orders and no schedule without the owner's OK).
+   Never create, edit, copy or delete `state/options/owner_approval.json`: it is the owner's written yes
+   (OPT-40/OPT-41), even though it sits in the state folder you save. The gate report shows its hash and
+   modification time so the owner can check it.
 
 ## Step 0. Go to the trading folder and install
 
@@ -57,8 +63,13 @@ scripts/state.sh pull
 ```
 
 It prints `state: loaded trading-state ...` (or, the very first time only, `trading-state does not exist
-on the remote yet`). If it prints `state.sh: ...` with an error: **stop**. Do not run the books without their
-saved state: the rules book would not know which lots it owns.
+on the remote yet`). If it prints `state.sh: ...` with an error (for example `could not reach the state
+remote`): **stop**. Do not run the books without their saved state: the rules book would not know which lots
+it owns.
+
+`does not exist on the remote yet` is acceptable only on the owner's very first run. If the owner has not told
+you this is the first run, or `python -m trader status` (step 2) then shows earlier runs, or the paper account
+holds positions: **stop** and tell the owner the saved state is missing.
 
 ## Step 2. Look at where the books stand
 
@@ -80,8 +91,8 @@ headlines are never printed), and prints, per book, the date, equity, drawdown, 
 `hype vetoes (no new longs, decision 8): ...` line and the **pending folder**, for example
 `trading/state/claude/pending/2026-09-25` and `trading/state/rules/pending/2026-09-25`.
 
-- A `news note: news fetch failed ...` line is not a stop: the hype vetoes NEWS-4 and NEWS-13 still run on
-  prices. Mention it in the summary.
+- A `news note: news fetch failed ...` line is not a stop: that day no new B/C/D buys are made (the promotion
+  check is impossible, so decision 8 fails closed) and sleeve A still runs. Mention it in the summary.
 
 - If it fails with "Market data is not set up" or "Could not fetch daily bars": **stop** and quote the message
   (it names the variable or host to fix).
@@ -178,6 +189,9 @@ python -m trader options prepare
 ```
 
 `log-chain` saves today's SPY, QQQ and IWM option chains (OPT-35; `complete: True` or the problems it found).
+A big chain can take several minutes when Alpaca rate-limits the option bars (each failed batch is retried after
+10, 30 and 60 seconds). An `option bars not authorized` problem (for example "OPRA agreement is not signed") is
+not retried: the chain is incomplete until the owner fixes it in the Alpaca dashboard, so say so in the summary.
 `prepare` builds the day's one spread (or none, with the reasons) and writes a pending folder
 `trading/state/options/pending/<date>/` with `context.json`, `schema.json` and `instructions.md`.
 
@@ -190,6 +204,10 @@ python -m trader options run
 ```
 
 It updates the shadow book (entries, exits, skips) and never sends an order from this command line.
+`prepare` and `run` read the shared account's equity and cash once (a read-only GET, never a broker object passed
+on), so the shadow book can size a spread (OPT-8, OPT-9, OPT-31). Without keys, or if that read fails, the
+account is unknown and the shadow book opens nothing that day; say so in the summary. The OPT-13 15:45 measurement
+is `options log-chain --when 1545` followed by `options run --when 1545` (its own schedule, only with the owner's OK).
 
 - `book O is not available yet: ...` or a traceback in any of these three commands: do **not** stop. The stock
   books are not affected. Quote the first line in the summary and go on to step 7.

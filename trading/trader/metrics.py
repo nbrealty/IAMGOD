@@ -988,7 +988,17 @@ def news_veto_report(state) -> dict:
     """Decision 8: every increase a hype veto blocked is followed as a CL-9 shadow lot and scored here.
     veto_value > 0 means the veto saved money. By signal a lot with two reasons counts under both. Report only:
     these lots never feed the CL-9 latch on Claude's skip codes."""
-    lots = list(getattr(state, "news_veto_lots", []) or [])
+    every = list(getattr(state, "news_veto_lots", []) or [])
+    # Decision 8 update: NEWS-4/NEWS-13 TEST FIRST lots (not blocked, only shadow-scored) are reported apart, so
+    # the active veto's numbers describe only what code actually blocked.
+    test_first = [lt for lt in every if lt.get("kind") == "news_test_first" or lt.get("blocked") is False]
+    lots = [lt for lt in every if lt not in test_first]
+    out = _news_lot_report(lots)
+    out["test_first"] = _news_lot_report(test_first)
+    return out
+
+
+def _news_lot_report(lots: list[dict]) -> dict:
     summary = shadow.veto_summary(_Lots(lots))
     scored = [lt for lt in lots if lt.get("status") == "closed" and _f(lt.get("veto_value"), 12) is not None]
     by_signal: dict[str, dict] = {}

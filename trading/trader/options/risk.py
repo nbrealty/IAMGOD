@@ -95,6 +95,9 @@ def _leg_shape(order: dict) -> tuple[list[str], list[dict]]:
         sym = str(leg.get("symbol", ""))
         if not is_occ(sym):
             return [f"OPT-5: leg {sym!r} is not an OCC option (no equity legs)"], []
+        side, intent = str(leg.get("side") or "").lower(), str(leg.get("position_intent") or "").lower()
+        if side not in ("buy", "sell") or not intent.startswith(side + "_"):
+            out.append(f"OPT-3: leg side {side!r} does not match its position_intent {intent!r}")
         parsed.append({**parse_occ(sym), "symbol": sym, "side": _leg_side(leg),
                        "intent": str(leg.get("position_intent", "")).lower(), "ratio": leg.get("ratio_qty", 1)})
     a, b = parsed

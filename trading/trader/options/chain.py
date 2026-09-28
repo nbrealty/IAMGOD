@@ -308,11 +308,45 @@ def _contracts(contracts_client, underlying, session: date, dte_max, quotes, met
 # --- day volume (get_option_bars) ---------------------------------------------------------------------------
 
 
+_AUTH_WORDS = ("not signed", "forbidden", "unauthorized", "not authorized", "not entitled", "subscription")
+
+
+def _status_code(e) -> int | None:
+    """The HTTP status of an alpaca-py APIError (or anything with `status_code` / `response.status_code`)."""
+    try:
+        code = getattr(e, "status_code", None)
+        if code is None:
+            code = getattr(getattr(e, "response", None), "status_code", None)
+        return int(code) if code is not None else None
+    except Exception:  # noqa: BLE001 - a broken error object is treated as "no status"
+        return None
+
+
+def _auth_error(e) -> bool:
+    """401/403 or entitlement wording ("OPRA agreement is not signed"): retrying cannot help."""
+    code = _status_code(e)
+    if code in (401, 403):
+        return True
+    return code is None and any(w in str(e).lower() for w in _AUTH_WORDS)
+
+
+def _retryable(e) -> bool:
+    """Only transient errors are retried: 429, 5xx, or a network error with no HTTP answer."""
+    if _auth_error(e):
+        return False
+    code = _status_code(e)
+    if code is None:
+        return not isinstance(e, (TypeError, ValueError))
+    return code == 429 or code >= 500
+
+
 def _add_volume(client, quotes, session: date, now: datetime, meta, problems: list[str] | None = None) -> None:
     """Today's volume per contract. A missing bar means no trades (0); a failed request leaves None.
 
-    A failed batch is retried after BAR_RETRY_WAITS (Alpaca's free plan answers 429 when a big chain goes over
-    200 requests a minute), and big chains are paced. Only a batch that still fails is fatal.
+    A transient failure (429 when a big chain goes over the free plan's 200 requests a minute, 5xx, network) is
+    retried after BAR_RETRY_WAITS, and big chains are paced. Only a batch that still fails is fatal. A permanent
+    4xx is not retried, and an auth/entitlement error (401/403, e.g. "OPRA agreement is not signed") stops the
+    remaining batches at once with one fatal entry that says how to fix it (it used to cost 100 s per batch).
     """
     from alpaca.data.requests import OptionBarsRequest
     from alpaca.data.timeframe import TimeFrame
@@ -324,26 +358,40 @@ def _add_volume(client, quotes, session: date, now: datetime, meta, problems: li
     pace = BAR_PACE if len(batches) > BAR_PACE_AFTER else 0.0
     volumes: dict[str, int | None] = {}
     failed: set[str] = set()
+    abort = None
     for n, batch in enumerate(batches):
+        if abort is not None:
+            failed.update(batch)
+            continue
         if n and pace:
             _sleep(pace)
         req = OptionBarsRequest(symbol_or_symbols=batch, timeframe=TimeFrame.Day, start=start, end=now)
-        error = None
+        error, tries = None, 0
         for wait in (0.0, *BAR_RETRY_WAITS):
             if wait:
                 _sleep(wait)
             try:
+                tries += 1
                 answer = client.get_option_bars(req)
             except Exception as e:
                 error = e
+                if not _retryable(e):
+                    break
                 continue
             error = None
             volumes.update(_day_volumes(answer, session, problems))
             break
-        if error is not None:
-            failed.update(batch)
+        if error is None:
+            continue
+        failed.update(batch)
+        if _auth_error(error):
+            abort = error
+            meta["fatal"].append(f"option bars not authorized ({_short(error)}); volume unknown for all "
+                                 f"{len(symbols) - n * BAR_BATCH} remaining contracts, no more requests sent. If it "
+                                 "says 'OPRA agreement is not signed', the owner signs it in the Alpaca dashboard")
+        else:
             meta["fatal"].append(f"option bars request failed for {len(batch)} contracts after "
-                                 f"{len(BAR_RETRY_WAITS)} retries ({_short(error)})")
+                                 f"{tries - 1} retries ({_short(error)})")
     for q in quotes:
         if q.symbol not in failed:
             q.volume = volumes.get(q.symbol, 0)

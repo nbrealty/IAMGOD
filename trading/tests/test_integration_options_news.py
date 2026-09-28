@@ -110,8 +110,8 @@ def fake_orun(monkeypatch, owned):
     mod.log_chains = lambda cfg, state_dir, when: mod.calls.append(("log", when)) or {"when": when, "complete": True}
     mod.prepare_options = lambda cfg, sd, *, date=None, samples=3: mod.calls.append(("prep", date, samples)) or \
         {"candidate": None, "reasons": ["regime choppy: permission 0 (OPT-19)"]}
-    mod.run_options = lambda cfg, sd, *, decision_files=(), dry_run=True, now=None: \
-        mod.calls.append(("run", tuple(decision_files), dry_run)) or {"orders": [], "shadow": True}
+    mod.run_options = lambda cfg, sd, *, decision_files=(), dry_run=True, now=None, when=None: \
+        mod.calls.append(("run", tuple(decision_files), dry_run, when)) or {"orders": [], "shadow": True}
     mod.report_options = lambda cfg, sd: {"enabled": False, "shadow": {"n": 2, "E": -0.1},
                                           "gates": {"paper_start_ok": False},
                                           "delta_notional_OPT11": {"SPY_delta_notional": 1500.0}}
@@ -442,8 +442,9 @@ def test_force_rerun_replaces_the_days_pending_news_lots(world, tmp_path, monkey
     assert len(BookState.load("rules", tmp_path).news_veto_lots) == 1
 
 
-def test_exits_and_reductions_are_never_vetoed_but_sleeve_a_increases_are(world):
-    """Decision 8 names no sleeve exemption: a sleeve A buy in a vetoed name is held too; exits never are."""
+def test_exits_and_reductions_are_never_vetoed_and_sleeve_a_is_exempt(world):
+    """Decision 8 scope (28 Sept): B/C/D increases in a vetoed name are held; sleeve A's broad ETF rebalances and
+    every exit or reduction pass untouched."""
     cfg, bars = world
     day = engine._Day("rules", cfg, BookState(book="rules"), bars, bars["SPY"].index[-1], "2026-09-25", True)
     day.state.lots = {"C": {"AAPL": Lot(lot_id="l1", qty=10.0, entry_price=100.0, entry_date="2026-01-02", stop=90.0)},
@@ -455,8 +456,8 @@ def test_exits_and_reductions_are_never_vetoed_but_sleeve_a_increases_are(world)
     assert [t.qty for t in out] == [2.0, 5.0, 0.0, 3.0] and recs == []
     out, recs = engine._block_news(day, [Target("AAPL", "C", 20.0, stop=90.0), Target("MSFT", "C", 7.0),
                                          Target("SPY", "A", 50.0)])
-    assert [t.qty for t in out] == [10.0, 0.0, 5.0]  # held at today's quantity, a new entry becomes no position
-    assert [r["symbol"] for r in recs] == ["AAPL", "MSFT", "SPY"] and recs[0]["current_qty"] == 10.0
+    assert [t.qty for t in out] == [10.0, 0.0, 50.0]  # held at today's quantity; sleeve A's SPY buy goes
+    assert [r["symbol"] for r in recs] == ["AAPL", "MSFT"] and recs[0]["current_qty"] == 10.0
     assert "blocked by hype veto NEWS-13" in out[0].reason
 
 
@@ -508,9 +509,11 @@ def test_failed_news_computation_fails_closed(world, tmp_path, monkeypatch):
     assert any("news signals failed" in ln for ln in e["risk_log"])
 
 
-def test_real_signals_from_bars_block_a_lottery_name(world, tmp_path):
-    """No monkeypatch: a C name with a +40% day in the last 21 sessions is NEWS-13 top decile and cannot be bought."""
+def test_real_signals_from_bars_block_a_lottery_name(world, tmp_path, monkeypatch):
+    """No fake vetoes: a C name with a +40% day in the last 21 sessions is NEWS-13 top decile. With NEWS-13 listed
+    as active (as before the 28 Sept update) it cannot be bought."""
     cfg, bars = world
+    monkeypatch.setitem(cfg.policy["news"], "active_vetoes", ["NEWS-4", "NEWS-13", "NEWS-18-PROMO"])
     b = {s: df.copy() for s, df in bars.items()}
     sym = cfg.stock_universe()[0]
     df = b[sym]
@@ -601,7 +604,7 @@ def test_hype_veto_fields_are_not_evidence():
 def _promo_items(sym, when):
     t = (pd.Timestamp(when) + pd.Timedelta(hours=14)).tz_localize("America/New_York").tz_convert("UTC")
     return [{"id": "p1", "created_at": t.isoformat(), "symbols": [sym],
-             "headline": f"Sponsored: why {sym} is the fund to own", "source": "benzinga"}]
+             "headline": f"Sponsored content: why {sym} is the fund to own", "source": "benzinga"}]
 
 
 def test_real_promotion_headline_blocks_for_later_sessions_and_logs_the_score(world, tmp_path):
@@ -865,8 +868,10 @@ def test_cli_options_commands_call_the_wave2_interface(world, tmp_path, monkeypa
     assert cli.main(["options", "prepare", "--date", "2026-09-25", "--samples", "5"]) == 0
     assert cli.main(["options", "run", "--decision-file", "a.json", "--dry-run"]) == 0
     assert cli.main(["options", "run"]) == 0
+    assert cli.main(["options", "run", "--when", "1545", "--dry-run"]) == 0  # OPT-13 15:45 measurement / OPT-17
     assert cli.main(["options", "report", "--json"]) == 0
-    assert mod.calls == [("log", "1545"), ("prep", "2026-09-25", 5), ("run", ("a.json",), True), ("run", (), False)]
+    assert mod.calls == [("log", "1545"), ("prep", "2026-09-25", 5), ("run", ("a.json",), True, "close"),
+                         ("run", (), False, "close"), ("run", (), True, "1545")]
     assert '"paper_start_ok": false' in capsys.readouterr().out
 
 
@@ -894,7 +899,7 @@ def test_news_feed_survives_a_failed_fetch(world, capsys):
     def bad(*a, **k):
         raise ConnectionError("offline")
     feed = cli.news_feed(cfg, bars["SPY"].index[-1], fetch=bad, today="2026-09-25")
-    assert feed.items is None and "bars only" in feed.notes[0]
+    assert feed.items is None and "no new B/C/D longs today, sleeve A still runs" in feed.notes[0]
     got = {}
 
     def good(symbols, start, end, policy=None):
@@ -964,7 +969,7 @@ def test_cli_options_passes_bars_for_the_regime_but_never_a_broker(world, tmp_pa
     mod = fake_orun(monkeypatch, {"symbols": [], "stock": {}, "value": 0.0})
     seen = {}
 
-    def run_options(cfg, sd, *, decision_files=(), dry_run=True, now=None, bars=None, broker=None):
+    def run_options(cfg, sd, *, decision_files=(), dry_run=True, now=None, when=None, bars=None, broker=None):
         seen.update(bars=bars, broker=broker, dry_run=dry_run)
         return {"orders": []}
     mod.run_options = run_options
@@ -981,3 +986,199 @@ def test_cli_rejects_unknown_arguments_outside_the_pass_through(monkeypatch):
         cli.main(["options", "report", "--width", "5"])
     with pytest.raises(SystemExit):
         cli.main(["status", "--bogus"])
+
+
+# --- owner decision 8 update (28 Sept 2026): scope B/C/D, fail closed for B/C/D only, NEWS-4/13 TEST FIRST ---------
+
+
+def _a_syms(cfg):
+    return set(cfg.sleeves["A"]["assets"]) | {cfg.sleeves["A"]["cash"]}
+
+
+def test_lottery_name_is_test_first_by_default_logged_not_blocked(world, tmp_path):
+    """The shipped policy lists only NEWS-18-PROMO: NEWS-13 is computed and logged (shadow) but never blocks."""
+    cfg, bars = world
+    b = {s: df.copy() for s, df in bars.items()}
+    sym = cfg.stock_universe()[0]
+    for col in ("open", "high", "low", "close"):
+        b[sym].iloc[len(b[sym]) - 5:, b[sym].columns.get_loc(col)] *= 1.4
+    d = b[sym].index[-1]
+    st = BookState.load("rules", tmp_path)
+    e = run_book("rules", cfg, b, sim(cfg, st, b), None, d, tmp_path, state=st, dry_run=True, news=NewsFeed(items=[]))
+    assert sym not in e["news"]["vetoes"]
+    assert e["news"]["signals"]["NEWS-13"][sym]["veto"] and e["news"]["signals"]["NEWS-13"][sym]["status"] == "shadow"
+    assert any("TEST FIRST hype flags" in ln and sym in ln for ln in e["risk_log"])
+
+
+def test_test_first_flag_does_not_block_but_is_shadow_scored(world, tmp_path, monkeypatch):
+    """A B increase NEWS-4 flags is bought (not blocked) and followed as a NEWS_TEST_FIRST shadow lot, reported
+    apart from the active veto's numbers."""
+    cfg, bars, d, sym, _ = _rules_buy(world, tmp_path)
+    real = news_signals.active_vetoes
+
+    def fake(signals, policy=None, promo_history=None, *, as_of=None):
+        if promo_history is not None:  # the engine's active-veto call: nothing active
+            return {}, dict(promo_history)
+        pol = news_signals.news_policy(policy)
+        return {sym: ["NEWS-4 attention spike after a run-up (top decile, AR>0)"]} \
+            if "NEWS-4" in pol["active_vetoes"] else {}
+    monkeypatch.setattr(news_signals, "active_vetoes", fake)
+    st = BookState.load("rules", tmp_path)
+    b = upto(bars, d)
+    e = run_book("rules", cfg, b, sim(cfg, st, b), None, d, tmp_path, state=st, news=NewsFeed(items=[]))
+    assert sym in {o["symbol"] for o in e["orders"] if o["side"] == "buy"}  # not blocked
+    st = BookState.load("rules", tmp_path)
+    lots = [lt for lt in st.news_veto_lots if lt["symbol"] == sym]
+    assert len(lots) == 1 and lots[0]["kind"] == "news_test_first" and lots[0]["blocked"] is False
+    assert lots[0]["reason_code"] == engine.NEWS_TEST_FIRST_CODE
+    rep = metrics.news_veto_report(st)
+    assert rep["n_vetoes"] == 0 and rep["test_first"]["n_vetoes"] == 1
+    assert "NEWS-4" in rep["test_first"]["by_signal"]
+    monkeypatch.setattr(news_signals, "active_vetoes", real)
+
+
+def test_failed_news_fetch_blocks_bcd_but_sleeve_a_still_runs(world, tmp_path):
+    """Decision 8: a failed fetch (items None) fails closed for B/C/D; sleeve A's rebalances still go."""
+    cfg, bars, d, sym, base = _rules_buy(world, tmp_path)
+    a_buys = {o["symbol"] for o in base["orders"] if o["side"] == "buy"} & _a_syms(cfg)
+    st = BookState.load("rules", tmp_path)
+    b = upto(bars, d)
+    e = run_book("rules", cfg, b, sim(cfg, st, b), None, d, tmp_path, state=st, dry_run=True,
+                 news=NewsFeed(items=None, notes=["news fetch failed (ConnectionError)"]))
+    buys = {o["symbol"] for o in e["orders"] if o["side"] == "buy"}
+    assert sym not in buys and not (buys - _a_syms(cfg))
+    assert a_buys and a_buys <= buys  # sleeve A is not blocked
+    assert e["news"]["meta"]["status"] == "blocked" and e["news"]["meta"]["blocked_sleeves"] == ["B", "C", "D"]
+    assert any("news fetch failed" in ln and "sleeve A still runs" in ln for ln in e["risk_log"])
+
+
+def test_failed_news_computation_lets_sleeve_a_run(world, tmp_path, monkeypatch):
+    cfg, bars, d, sym, base = _rules_buy(world, tmp_path)
+    a_buys = {o["symbol"] for o in base["orders"] if o["side"] == "buy"} & _a_syms(cfg)
+
+    def boom(*a, **k):
+        raise RuntimeError("bad panel")
+    monkeypatch.setattr(news_signals, "compute", boom)
+    st = BookState.load("rules", tmp_path)
+    b = upto(bars, d)
+    e = run_book("rules", cfg, b, sim(cfg, st, b), None, d, tmp_path, state=st, dry_run=True, news=NewsFeed(items=[]))
+    buys = {o["symbol"] for o in e["orders"] if o["side"] == "buy"}
+    assert sym not in buys and a_buys and a_buys <= buys
+
+
+def test_failed_news_marks_the_claude_menu_and_eligibility(world, tmp_path):
+    cfg, bars, d, sym, _ = _rules_buy(world, tmp_path)
+    b = upto(bars, d)
+    st = BookState.load("claude", tmp_path)
+    out = prepare_book("claude", cfg, b, sim(cfg, st, b), d, tmp_path, state=st, news=NewsFeed(items=None))
+    ctx = json.loads(open(out["files"]["context"]).read())
+    bcd = [m for m in ctx["menus"].values() if m["sleeve"] in ("B", "C", "D")]
+    assert bcd and all(m["eligible_increase"] is False and "news fetch failed" in m["why_not_eligible"] for m in bcd)
+    a = [m for m in ctx["menus"].values() if m["sleeve"] == "A"]
+    assert not any("news fetch failed" in m["why_not_eligible"] for m in a)
+
+
+def test_rules_context_marks_planned_bcd_increases_blocked_when_news_failed(world, tmp_path):
+    cfg, bars, d, sym, _ = _rules_buy(world, tmp_path)
+    b = upto(bars, d)
+    st = BookState.load("rules", tmp_path)
+    out = prepare_book("rules", cfg, b, sim(cfg, st, b), d, tmp_path, state=st, news=NewsFeed(items=None))
+    ctx = json.loads(open(out["files"]["context"]).read())
+    assert ctx["planned_increases"] and all(p["blocked_by_hype_veto"] for p in ctx["planned_increases"])
+
+
+# --- book O from the CLI gets a read-only account figure (OPT-8/9/31), never a broker object -------------------
+
+
+class _ReadOnlyAccount:
+    def __init__(self, eq=100_000.0, cash=40_000.0, fail=False):
+        self.eq, self.cash, self.fail, self.calls = eq, cash, fail, []
+
+    def account(self):
+        self.calls.append("account")
+        if self.fail:
+            raise ConnectionError("offline")
+        return self.eq, self.cash
+
+    def __getattr__(self, name):  # anything but account() would be a write or a wider read: fail loudly
+        raise AssertionError(f"CLI must only read the account, not call {name}")
+
+
+def test_cli_options_gives_book_o_equity_and_cash_from_a_read_only_account(world, tmp_path, monkeypatch):
+    cfg, bars = world
+    mod = fake_orun(monkeypatch, {"symbols": [], "stock": {}, "value": 0.0})
+    acct = _ReadOnlyAccount()
+    mod.default_broker = lambda cfg=None: acct
+    mod.rules_pending_buys = lambda sd=None: 1_500.0
+    seen = {}
+
+    def prepare_options(cfg, sd, *, date=None, samples=3, bars=None, equity=None, uncommitted_cash=None):
+        seen["prep"] = (equity, uncommitted_cash)
+        return {}
+
+    def run_options(cfg, sd, *, decision_files=(), dry_run=True, now=None, when=None, broker=None, bars=None,
+                    equity=None, uncommitted_cash=None):
+        seen["run"] = (equity, uncommitted_cash, broker, when)
+        return {}
+    mod.prepare_options, mod.run_options = prepare_options, run_options
+    monkeypatch.setattr(cli, "STATE_DIR", tmp_path)
+    assert cli.main(["options", "prepare", "--no-bars"]) == 0
+    assert cli.main(["options", "run", "--no-bars", "--dry-run", "--when", "1545"]) == 0
+    assert seen["prep"] == (100_000.0, 38_500.0)
+    assert seen["run"] == (100_000.0, 38_500.0, None, "1545")  # no broker object is ever passed
+    mod.default_broker = lambda cfg=None: _ReadOnlyAccount(fail=True)
+    assert cli.main(["options", "prepare", "--no-bars"]) == 0
+    assert seen["prep"] == (None, None)  # a failed read: unknown, the run still finishes
+    mod.default_broker = lambda cfg=None: None
+    assert cli.main(["options", "prepare", "--no-bars"]) == 0
+    assert seen["prep"] == (None, None)
+
+
+def test_real_options_account_view_with_cli_equity_is_known(tmp_path):
+    from trader.options import run as orun
+    from trader.options import shadow as osh
+
+    view = orun.account_view(tmp_path, osh.ShadowO.load(tmp_path), "2026-09-25", equity=100_000.0,
+                             uncommitted_cash=38_500.0)
+    assert view == {"equity": 100_000.0, "uncommitted_cash": 38_500.0, "source": "arguments"}
+
+
+# --- finding #0: an O assignment O has not booked yet must not be adopted by the rules book ----------------------
+
+
+def test_unbooked_assignment_is_not_adopted_by_the_rules_book():
+    short, long = OCC_PUT, OCC_PUT2
+    o = engine._clean_o({"symbols": [short, long], "stock": {}, "value": 0.0, "legs": {short: -1.0, long: 1.0}},
+                        complete=True)
+    log = []
+    pos, suspect = separate_o({"SPY": 166.912868, long: 1.0}, o, log, host=True)  # short leg gone, +100 SPY
+    assert "SPY" in suspect and any("possible unbooked assignment" in ln for ln in log)
+    pos, suspect = separate_o({"SPY": 66.912868, short: -1.0, long: 1.0}, o, [], host=True)  # legs intact
+    assert suspect == set() and pos == {"SPY": 66.912868}
+    assert separate_o({"SPY": 166.9, long: 1.0}, o, [], host=False)[1] == set()  # only the shared account
+
+
+def test_unsettled_o_stock_sale_leaves_the_split_alone():
+    o = engine._clean_o({"symbols": [], "stock": {"SPY": 100.0}, "value": 0.0, "pending_stock": ["spy"]},
+                        complete=True)
+    log = []
+    pos, suspect = separate_o({"SPY": 166.9}, o, log, host=True)  # O's sale filled, O has not booked it
+    assert "SPY" in suspect and any("unsettled stock order" in ln for ln in log)
+
+
+def test_rules_run_leaves_spy_lots_alone_on_an_unbooked_assignment(world, tmp_path, monkeypatch):
+    """End to end (the verifier's probe): the rules book's SPY lots do not grow by 100 when O's short put is
+    assigned before O's ledger books it."""
+    cfg, bars = world
+    d = bars["SPY"].index[-1]
+    b = upto(bars, d)
+    fake_orun(monkeypatch, {"symbols": [OCC_PUT, OCC_PUT2], "stock": {}, "value": 0.0,
+                            "legs": {OCC_PUT: -1.0, OCC_PUT2: 1.0}})
+    st = BookState.load("rules", tmp_path)
+    st.sim = {"cash": 100_000.0, "positions": {"SPY": 66.912868}}
+    st.lots = {"A": {"SPY": Lot(lot_id="a1", qty=66.912868, entry_price=500.0, entry_date="2026-01-02")}}
+    br = sim(cfg, st, b, cls=SharedPaper, o_positions={"SPY": 100.0, OCC_PUT2: 1.0})
+    e = run_book("rules", cfg, b, br, None, d, tmp_path, state=st, dry_run=True, news=NewsFeed(items=[]))
+    assert st.lots["A"]["SPY"].qty == pytest.approx(66.912868)
+    assert "SPY" not in {o["symbol"] for o in e["orders"]}
+    assert any("possible unbooked assignment" in ln for ln in e["risk_log"])

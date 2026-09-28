@@ -39,10 +39,13 @@ Claude's decisions come from a scheduled **Claude Code session**, not from API c
 6. `python -m trader status` and `python -m trader report`, then `scripts/state.sh push` saves the state.
 
 **Hype and news (owner decision 8).** Every run fetches recent headlines (Alpaca / Benzinga, public data) and
-code turns them into numbers (news signals NEWS-1 to NEWS-18, `trader/news_signals.py`). Three of them are
-active from day one and only ever block buys, in both books and every sleeve: NEWS-4 (an attention spike after a run-up),
-NEWS-13 (lottery-like jumps) and the promotion part of NEWS-18 ("paid", "sponsored", "investor awareness":
-no new long for 20 sessions). A blocked buy is followed as a shadow trade, so `report` shows whether blocking
+code turns them into numbers (news signals NEWS-1 to NEWS-18, `trader/news_signals.py`). One of them blocks
+buys, in both books and only in sleeves B, C and D: the promotion part of NEWS-18 (real paid-promotion wording
+such as "paid promotion", "sponsored content" or "investor awareness", never a bare "paid" or "sponsored": no new
+long for 20 sessions). If the news fetch fails, B/C/D buys are blocked that day and sleeve A still runs. NEWS-4
+(an attention spike after a run-up) and NEWS-13 (lottery-like jumps) are TEST FIRST since the owner's 28 Sept
+update: logged, shadow-scored and backtested (`python -m trader.backtest --hype-vetoes test-first`), never
+blocking. A blocked buy is followed as a shadow trade, so `report` shows whether blocking
 paid. Claude never sees a headline: only numbers and fixed labels (`news_signals.<ID>[SYMBOL].<field>`),
 marked shadow, which it may mention but never use as a reason to trade. Its prompt tells it to be skeptical:
 promotion or hype is never a reason to buy.
@@ -113,10 +116,10 @@ rules book: the real rules book's state is tied to Alpaca, and a book cannot swi
 | `sleeve-reset S --book B` | Owner: allow a blocked sleeve's entries again. |
 | `veto-reset` / `deviation-reset` | Owner: lift the automatic limits on the review's skips / the Claude book's deviations after they scored badly. |
 | `promote S --book B --i-am-the-owner` / `demote ...` | Owner: raise or lower a sleeve's weight cap; shows the promotion gate first. |
-| `python -m trader.backtest --start 2017-01-01 [--set KEY=VALUE] [--out FILE]` | Rules-only backtest with costs and next-open fills; never calls Claude; refuses settings that loosen risk. |
+| `python -m trader.backtest --start 2017-01-01 [--set KEY=VALUE] [--hype-vetoes policy\|test-first\|off] [--out FILE]` | Rules-only backtest with costs and next-open fills; never calls Claude; refuses settings that loosen risk. Hype vetoes as live by default; `test-first` also applies NEWS-4/NEWS-13 (slower: signals are computed every session). |
 | `options log-chain [--when close\|1545]` | Book O: save today's SPY/QQQ/IWM option chains (OPT-35). |
 | `options prepare [--date D] [--samples N]` | Book O: build the month's one spread (or none) and write its skip-only menu. |
-| `options run [--decision-file PATH ...] [--dry-run]` | Book O: update the shadow book (entries, exits, skips). Never sends an order from the command line. |
+| `options run [--when close\|1545] [--decision-file PATH ...] [--dry-run]` | Book O: update the shadow book (entries, exits, skips); `--when 1545` is the OPT-13 15:45 measurement / OPT-17 run. Reads the account's equity and cash read-only; never sends an order from the command line. |
 | `options report [--json]` | Book O: OPT-38 results, gates OPT-40/41/42, amount invested per trade, OPT-11 delta. |
 | `options backtest ...` / `options calibrate-skew ...` | Book O: the OPT-37 backtester / refit the skew table (arguments passed through). |
 | `news fetch [--days N]` | Headline counts per symbol (never the headlines themselves). |
@@ -181,8 +184,11 @@ state/<book>/journal.jsonl  every run: regime, Claude's answers, risk decisions,
 - Only one data source, so "two price sources disagree" cannot be checked.
 - The daily routine is not scheduled yet: it needs a successful dry run and the owner's OK.
 - Book O sends no paper orders: it stays in shadow until gate OPT-41 passes and the owner says yes. The
-  15:45 ET chain log (`options log-chain --when 1545`) needs its own schedule, also only with the owner's OK.
-- News signals other than the three hype vetoes are TEST FIRST: logged and shown as shadow, never traded.
+  15:45 ET chain log and run (`options log-chain --when 1545`, then `options run --when 1545`) need their own
+  schedule, also only with the owner's OK.
+- News signals other than the NEWS-18 promotion veto are TEST FIRST: logged and shown as shadow, never traded.
+- The stock backtester models the hype vetoes from bars only (NEWS-4 without its headline term, NEWS-13). It
+  cannot model the NEWS-18 promotion veto (no headline history), so live blocks slightly more than it does.
 - A run fetches 70 calendar days of headlines (`--news-days`), about 45 sessions: enough for NEWS-4 and
   NEWS-18. NEWS-10 and NEWS-12 need 252 sessions of news, so in live runs they stay skipped or partial (they are
   shadow only; no money depends on them). A longer window is possible but refetches the whole window every day.

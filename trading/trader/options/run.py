@@ -353,11 +353,36 @@ def startup_checks(acct: dict | None, positions: list[dict] | None, other_stock:
 
 def owner_approval(state_dir, key: str) -> dict:
     """The owner's written yes: `state_dir/options/owner_approval.json` {key: {approved: true, date, note}}.
-    Only a literal true with a date and a non-empty note counts."""
-    rec = (_read_json(_dir(state_dir) / BOOK / APPROVAL_FILE, {}) or {}).get(key) or {}
+    Only a literal true with a date and a non-empty note counts.
+
+    The file sits in the state folder that scheduled sessions write, so a session could write it (SESSION_RUNBOOK
+    forbids that). Its provenance, `file` = {path, sha256, modified}, goes into every gate report, so the owner can
+    check the yes is the one they wrote before relying on it."""
+    path = _dir(state_dir) / BOOK / APPROVAL_FILE
+    rec = (_read_json(path, {}) or {}).get(key) or {}
     ok = rec.get("approved") is True and bool(str(rec.get("date") or "").strip()) and \
         bool(str(rec.get("note") or "").strip())
-    return {"ok": ok, "record": rec}
+    return {"ok": ok, "record": rec, "file": approval_provenance(path)}
+
+
+def approval_provenance(path) -> dict | None:
+    """{path, sha256 (first 16 hex), modified (UTC ISO)} of the approval file, or None when it does not exist."""
+    import hashlib
+    from datetime import datetime, timezone
+
+    p = Path(path)
+    try:
+        data, mtime = p.read_bytes(), p.stat().st_mtime
+    except OSError:
+        return None
+    return {"path": str(p), "sha256": hashlib.sha256(data).hexdigest()[:16],
+            "modified": datetime.fromtimestamp(mtime, timezone.utc).isoformat(timespec="seconds")}
+
+
+def _approval_item(state_dir, key: str) -> dict:
+    a = owner_approval(state_dir, key)
+    return _item(a["ok"], {"what": f"owner_approval.json {key}", "file": a["file"],
+                           "check": "the owner confirms this file hash is the yes they wrote (never a session)"})
 
 
 def _item(ok: bool, detail) -> dict:
@@ -411,17 +436,38 @@ def separation_check(state_dir=None, prefix: str = "OPT-") -> dict:
                     problems.append(f"{book} cancel prefixes {pre} are empty or overlap {prefix!r}")
         if not callable(getattr(eng, "o_owned", None)):
             problems.append("engine does not read o_owned for the stock books")
-        o_owned(state_dir)
+        owned = o_owned(state_dir)
+        for key in ("legs", "pending_stock"):
+            if key not in owned:
+                problems.append(f"o_owned gives no {key!r}: the stock books cannot see an unbooked assignment")
+        problems += _separation_selftest(eng)
     except Exception as e:  # noqa: BLE001 - the gate fails closed
         problems.append(f"check failed: {type(e).__name__}: {e}"[:160])
     return {"ok": not problems, "problems": problems}
+
+
+def _separation_selftest(eng) -> list[str]:
+    """Behaviour, not signatures: O's short leg gone with 100 new SPY shares (an assignment O has not booked yet),
+    and an unsettled O stock sale, must both leave the rules book's SPY alone (suspect: no reconcile, no orders)."""
+    short, long = "SPY261120P00631000", "SPY261120P00629000"
+    o = eng._clean_o({"symbols": [short, long], "stock": {}, "value": 0.0, "legs": {short: -1.0, long: 1.0}},
+                     complete=True)
+    _, suspect = eng.separate_o({"SPY": 166.9, long: 1.0}, o, [], host=True)
+    out = [] if "SPY" in suspect else ["separate_o lets the rules book adopt an unbooked assignment's shares"]
+    o = eng._clean_o({"symbols": [], "stock": {"SPY": 100.0}, "value": 0.0, "pending_stock": ["SPY"]}, complete=True)
+    _, suspect = eng.separate_o({"SPY": 166.9}, o, [], host=True)  # the sale filled: all 166.9 are the rules
+    if "SPY" not in suspect:
+        out.append("separate_o splits SPY while book O's stock sale is unsettled")
+    return out
 
 
 def opt41_status(cfg, state_dir, shadow: osh.ShadowO) -> dict:
     """OPT-41 paper-start gate. Every item must pass; the count of complete chains uses the after-close run."""
     sd = _dir(state_dir)
     n_chain = chain_log.complete_sessions(sd, when="close")
-    cycles = osh.completed_cycles(shadow.evaluations)
+    # A run whose account was unknown could never open a shadow spread (OPT-8/9/31 block it), so it is not a
+    # shadow evaluation of the cycle: only rows with a known account count toward OPT-41's shadow cycles.
+    cycles = osh.completed_cycles([r for r in shadow.evaluations if _account_known_row(r)])
     ratio = osh.credit_ratio_check(shadow.evaluations, cycles)
     ntr = osh.no_trade_rate(shadow.evaluations)
     items = {
@@ -431,9 +477,32 @@ def opt41_status(cfg, state_dir, shadow: osh.ShadowO) -> dict:
         "model_credit_ratio": _item(ratio["ok"], ratio),
         "no_trade_rate_reported": _item(ntr["rate"] is not None, ntr),
         "separation_built": _item(*_ok_detail(separation_check(sd, str(_policy(cfg).get("order_prefix", "OPT-"))))),
-        "owner_yes": _item(owner_approval(sd, "paper_start")["ok"], "owner_approval.json paper_start"),
+        "owner_yes": _approval_item(sd, "paper_start"),
     }
     return {"items": items, "paper_start_ok": all(v["ok"] for v in items.values())}
+
+
+_UNKNOWN_ACCOUNT_MARKS = ("equity is zero or unknown", "O P&L or equity unknown")
+
+
+def _account_known_row(row: dict) -> bool:
+    """An evaluation row made with book O's equity known (older rows: judged by their menu reasons)."""
+    if not isinstance(row, dict) or row.get("account_known") is False:
+        return False
+    return not any(m in str(r) for r in row.get("reasons") or () for m in _UNKNOWN_ACCOUNT_MARKS)
+
+
+# TEST FIRST pieces that are not built yet. They are reported (OPT-40 status and the options report) so the gap is a
+# tracked TODO, not a silent absence. Each one fails closed: nothing here can place an order or pass a gate.
+TEST_FIRST_NOT_BUILT = {
+    "OPT-17_1015_vs_1545": "OPT-17: the logged comparison of a 10:15 ET order run with the 15:45 ET run is not "
+                           "built (no 10:15 ET snapshot is taken)",
+    "OPT-20_ii": "OPT-20 (ii): 'enter after volatility spikes' is not built (the rulebook gives no rule text)",
+    "OPT-39_signals": "OPT-39: the put spread on every B signal and the call spread on every C signal are not "
+                      "built (needs the stock books' signals)",
+    "OPT-40_i_alpaca_bars": "OPT-40 (i): the backtest run on real Alpaca option bars since Feb 2024 is not built, "
+                            "so the alpaca_option_bars_run item fails and promotion is blocked",
+}
 
 
 def opt40_status(cfg, state_dir, shadow: osh.ShadowO, ledger: OptionsBook, now=None) -> dict:
@@ -462,9 +531,12 @@ def opt40_status(cfg, state_dir, shadow: osh.ShadowO, ledger: OptionsBook, now=N
                                       {"backtest": base, "shadow": st["E"], "bil": st["benchmarks"]["bil_E"]}),
         "alpaca_option_bars_run": _item(*_alpaca_bars_item(bt, base)),
         "one_promotion_per_quarter": _item(*_quarter_item(sd, now)),
-        "owner_sign_off": _item(owner_approval(sd, "promotion")["ok"], "owner_approval.json promotion"),
+        "owner_sign_off": _approval_item(sd, "promotion"),
     }
+    not_built = {k: v for k, v in TEST_FIRST_NOT_BUILT.items()
+                 if not (k == "OPT-40_i_alpaca_bars" and items["alpaca_option_bars_run"]["ok"])}
     return {"items": items, "promotion_ok": all(v["ok"] for v in items.values()),
+            "test_first_not_built": not_built,
             "note": "At most one promotion per quarter; the cap may rise to 0.5% of E only (OPT-8)."}
 
 
@@ -873,11 +945,17 @@ def _read_broker(broker, ledger: OptionsBook, sd: Path, p: dict, entry: dict) ->
     except Exception as e:  # noqa: BLE001 - activities are informational (paper posts them a day late)
         entry["notes"].append(f"option activities unreadable: {str(e)[:120]}")
     other_raw = other_books_stock(sd)
+    pend = rules_pending_stock(sd)
     if positions is not None:
-        booked = book_assignments(positions, ledger, other_raw, entry["date"], activities)
+        # The assignment check uses the LOWEST the rules book's holding can be: its booked lots plus its unbooked
+        # sells (a sell that filled before the rules run booked it), never its unbooked buys. Otherwise a same-day
+        # rules sale hides an assignment. book_assignments caps at the short-leg shortfall, so an unfilled sell
+        # cannot over-book.
+        other_lo = {s: other_raw.get(s, 0.0) + min(0.0, pend.get(s, 0.0)) for s in set(other_raw) | set(pend)}
+        booked = book_assignments(positions, ledger, other_lo, entry["date"], activities)
         if booked:
             entry["assignments"] = booked
-    other, notes = explain_pending(positions or [], other_raw, rules_pending_stock(sd), ledger.o_stock)
+    other, notes = explain_pending(positions or [], other_raw, pend, ledger.o_stock)
     entry["notes"] += notes
     blocks += startup_checks(acct, positions or [], other, ledger.o_stock)
     if positions is not None:
@@ -885,6 +963,7 @@ def _read_broker(broker, ledger: OptionsBook, sd: Path, p: dict, entry: dict) ->
                                   maintenance_margin=acct.get("maintenance_margin"),
                                   check_margin=bool(ledger.open_lots()), policy=p)
         blocks += inc["incidents"] + inc["mismatches"]
+        entry["notes"] += list(inc.get("notes") or [])
         entry["incidents"] = {k: inc[k] for k in ("incidents", "mismatches", "stock_excess")}
         if inc["incidents"]:
             entry["cleanup_plan"] = ob.cleanup_plan(inc, ledger.open_lots(), entry["date"], p, o_stock=ledger.o_stock)
@@ -1060,7 +1139,8 @@ def _evaluate(cfg, shadow: osh.ShadowO, day, when, snap, quotes, spots, label, a
            "candidate": bool((entry.get("shadow_entry") or {}).get("lot_id"))
            or bool(exps and _cycle_entered(shadow.book, exps[0])),
            "opt13_blocked": bool(pair and pair["cost_share"] > float(p["max_quoted_cost_pct"]) + 1e-9),
-           "reasons": reasons[:5], "pair": pair, **mc, "opt20": osh.opt20_record(snap)}
+           "reasons": reasons[:5], "account_known": eq is not None, "pair": pair, **mc,
+           "opt20": osh.opt20_record(snap)}
     osh.add_evaluation(shadow, row)
     entry["evaluation"] = {k: row[k] for k in ("in_window", "eligible", "opt13_blocked", "ratio")}
 
@@ -1167,6 +1247,7 @@ def _paper_run(cfg, sd, broker, ledger: OptionsBook, paper: dict, day, when, quo
             exits.append((lot, reason))
             due.setdefault(lot.lot_id, {"reason": reason, "date": _iso(day)})
     paper["exits_due"] = due
+    _owner_exit_alerts(exits, entry.get("cleanup_plan") or [], day, orders_ok, gate, entry)
     if not orders_ok:
         if exits:
             entry["notes"].append(f"{len(exits)} paper exit(s) due but orders are not allowed "
@@ -1182,6 +1263,33 @@ def _paper_run(cfg, sd, broker, ledger: OptionsBook, paper: dict, day, when, quo
         for lot, reason in exits:
             _paper_exit(broker, ledger, paper, lot, reason, day, quotes, spots, gate, p, entry)
         _submit_intents(broker, ledger, paper, day, quotes, spots, account, blocks, gate, p, entry)
+
+
+OWNER_EXIT_ALERT_DTE = 5  # OPT-15: exits at DTE <= 5 are forced; if O cannot send them the owner must know
+
+
+def _owner_exit_alerts(exits, plan: list[dict], day, orders_ok: bool, gate: dict, entry: dict) -> None:
+    """OPT-15 / OPT-26: an explicit owner alert (not only a note) when O cannot close risk it holds. Orders stay
+    locked (OPT-1 enabled, OPT-41 gate): whether risk-reducing closes may bypass them is an owner decision.
+    Alerts: a paper exit at DTE <= 5 that orders may not send; an OPT-26 clean-up step that orders may not send;
+    an urgent orphan long (DTE <= alert_dte) still waiting for stock to go flat."""
+    alerts = entry.setdefault("alerts", {}).setdefault("paper", [])
+    why = f"enabled={gate.get('enabled')}, gate={gate.get('paper_start_ok')}, dry run or no broker"
+    if not orders_ok:
+        for lot, reason in exits:
+            days = ob.dte(lot.expiry, day)
+            if days <= OWNER_EXIT_ALERT_DTE:
+                alerts.append(f"OPT-15 owner alert: lot {lot.lot_id} exit due ({reason}) at DTE {days} but O may "
+                              f"not send orders ({why}); close it by hand or allow O's orders")
+    for step in plan:
+        act, sym = step.get("action"), step.get("symbol")
+        if act in ("sell_stock", "sell_to_close_long") and not orders_ok:
+            alerts.append(f"OPT-26 owner alert: clean-up {act} {sym} {step.get('qty')} is due but O may not send "
+                          f"orders ({why})")
+        elif act == "wait_stock_flat" and step.get("urgent"):
+            alerts.append(f"OPT-26 owner alert: orphan long {sym} is near expiry and waits for unexplained "
+                          f"{str(sym)[:-15]} stock to go flat; never let it expire "
+                          f"in the money")
 
 
 def _intent_blocks(ledger: OptionsBook, day, p: dict, br: dict | None) -> list[str]:
@@ -1457,6 +1565,7 @@ def report_options(cfg, state_dir=None) -> dict:
                                 for u in osh.VARIANT_UNDERLYINGS},
                      "OPT-20_i": osh.opt38_stats(opt20_ok),
                      "OPT-39_signals": "B/C signal spreads not built (needs the stock books' signals)"},
+        "test_first_not_built": dict(TEST_FIRST_NOT_BUILT),
         "invested_per_trade": {"paper": ledger.invested_per_trade(), "shadow": shadow.book.invested_per_trade()},
         "committed_max_loss": {"paper": ledger.committed_max_loss(), "shadow": shadow.book.committed_max_loss()},
         "delta_notional_OPT11": _delta_notional(shadow.book, sd),
@@ -1495,7 +1604,9 @@ def _delta_notional(ledger: OptionsBook, sd) -> dict:
 def o_owned(state_dir=None) -> dict:
     """What the stock books must never reconcile, value, cancel or trade (non-negotiable 5, owner decision 6):
     O's OCC symbols (open lots and unsettled orders), the stock O owns after an assignment, O's value in the
-    shared account (committed MaxLoss + P&L, from the latest logged chain) and O's client-order-id prefix."""
+    shared account (committed MaxLoss + P&L, from the latest logged chain) and O's client-order-id prefix.
+    `legs` are the signed contracts O's ledger expects at the broker and `pending_stock` O's unsettled stock orders,
+    so the stock books can see an assignment or a stock sale O has not booked yet (engine.separate_o)."""
     sd = _dir(state_dir)
     ledger = OptionsBook.load(sd)
     syms = {s for l in ledger.open_lots() for s in (l.short_leg.symbol, l.long_leg.symbol)}
@@ -1511,4 +1622,11 @@ def o_owned(state_dir=None) -> dict:
         prefix = str(_policy(load_config()).get("order_prefix", "OPT-"))
     except Exception:  # noqa: BLE001 - the default prefix is the rulebook's
         pass
-    return {"symbols": syms, "stock": dict(ledger.o_stock), "value": float(value), "order_prefix": prefix}
+    legs: dict[str, float] = {}  # signed contracts O's ledger expects at the broker (short -, long +)
+    for l in ledger.open_lots():
+        legs[l.short_leg.symbol] = legs.get(l.short_leg.symbol, 0.0) - float(l.short_leg.qty)
+        legs[l.long_leg.symbol] = legs.get(l.long_leg.symbol, 0.0) + float(l.long_leg.qty)
+    pending_stock = sorted({str(r.get("symbol")) for r in _load_paper(sd).get("pending", [])
+                            if r.get("symbol") and not is_occ(str(r.get("symbol")))})
+    return {"symbols": syms, "stock": dict(ledger.o_stock), "value": float(value), "order_prefix": prefix,
+            "legs": {k: v for k, v in legs.items() if abs(v) > 1e-9}, "pending_stock": pending_stock}

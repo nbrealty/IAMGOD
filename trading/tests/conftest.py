@@ -26,6 +26,22 @@ def make_bars(n=900, drift=0.0004, vol=0.01, seed=0, start_price=100.0, end=None
                         index=idx)
 
 
+@pytest.fixture(autouse=True)
+def _no_live_alpaca(tmp_path, monkeypatch):
+    """Tests are hermetic: never the live Alpaca news API or the owner's paper account, never trading/state.
+    Tests that exercise these paths pass explicit fake clients, cache dirs and brokers."""
+    from trader import news
+    from trader.options import run as orun
+
+    monkeypatch.setattr(news, "STATE_DIR", tmp_path / "state")
+
+    def _blocked(*a, **k):
+        raise RuntimeError("tests must not reach the live Alpaca news API")
+
+    monkeypatch.setattr(news, "_default_client", _blocked)
+    monkeypatch.setattr(orun, "default_broker", lambda *a, **k: None)
+
+
 @pytest.fixture
 def cfg():
     return load_config()

@@ -860,7 +860,7 @@ def test_stock_path_rejects_occ_symbols(cfg, bars):
     bars[S741] = next(iter(bars.values()))  # a price exists, so only the allowlist can stop it
     res = RiskEngine(cfg).apply([Target(S741, "C", 1, 1.0)], {}, {S741: -1}, bars, 10000, brk)
     assert res.orders == []
-    assert any(S741 in line and "not on the allowlist" in line for line in res.log), res.log
+    assert any(S741 in line and "OPT-2" in line for line in res.log), res.log
     assert cfg.policy["account"]["options"] is False
 
 
@@ -1082,3 +1082,43 @@ def test_debit_spread_sign_and_size(policy):
     assert not ok and any("closing a debit spread" in r for r in reasons)
     ok, reasons = _check(_open_order(policy, legs=close, intent="close", limit_price=-5.0), policy)
     assert not ok and any("above the width" in r for r in reasons)
+
+
+# --- OPT-3: a leg's side must match its position intent (findings2 #2) ---------------------------------------
+
+
+@pytest.mark.parametrize("breaker", ["swap", "missing"])
+def test_paper_validator_rejects_side_that_disagrees_with_intent(policy, breaker):
+    policy["options_book"]["enabled"] = True
+    good = _open_order(policy)
+    assert _check(good, policy, mode="paper", gate_ok=True, quotes=chain(), spot=SPOT)[0]
+    legs = [dict(l) for l in good["legs"]]
+    if breaker == "swap":
+        legs[0]["side"], legs[1]["side"] = legs[1]["side"], legs[0]["side"]
+    else:
+        legs[1].pop("side")
+    ok, reasons = _check({**good, "legs": legs}, policy, mode="paper", gate_ok=True, quotes=chain(), spot=SPOT)
+    assert not ok and any("does not match its position_intent" in r for r in reasons), reasons
+
+
+# --- OPT-2: the stock path rejects OCC symbols explicitly (findings2 #5) -------------------------------------
+
+
+def test_stock_path_rejects_occ_even_if_on_the_allowlist(cfg, bars, monkeypatch):
+    from trader.models import Target
+    from trader.risk import RiskEngine, breaker_status
+    brk = breaker_status(cfg, 10000, 10000, 0.0, 0.0, False, False)
+    bars = dict(bars)
+    bars[S741] = next(iter(bars.values()))
+    allow = cfg.allowlist() + [S741]
+    monkeypatch.setattr(type(cfg), "allowlist", lambda self: allow)
+    res = RiskEngine(cfg).apply([Target(S741, "C", 1, 1.0)], {}, {}, bars, 10000, brk)
+    assert [o for o in res.orders if o.symbol == S741] == []
+    assert any(S741 in line and "OPT-2" in line for line in res.log), res.log
+
+
+def test_broker_order_problem_rejects_occ_symbols():
+    from trader.broker import order_problem
+    from trader.models import Order
+    assert "OPT-2" in (order_problem(Order(S741, "buy", 1.0, 5.0)) or "")
+    assert order_problem(Order("SPY", "buy", 1.0, 500.0)) is None

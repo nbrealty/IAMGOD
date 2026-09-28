@@ -3,8 +3,16 @@
 Replays each session with the live code path of the rules book, never Claude:
 settle yesterday's orders at today's open (EX-4, next-open fills) with the EX-5 cost model -> mark to today's
 close -> breakers (RISK-9..13, M-11) -> regime -> EX-7 data checks -> rules sleeve weights -> `build_plans` ->
-`RiskEngine.apply` -> orders into a simulated broker. Lots, R and costs go through `ledger`; statistics come
-from `metrics`. Signals only ever see bars dated on or before the session (each day gets a trailing `window`).
+hype vetoes (decision 8, `_hype_vetoes`) -> `RiskEngine.apply` -> orders into a simulated broker. Lots, R and
+costs go through `ledger`; statistics come from `metrics`. Signals only ever see bars dated on or before the session (each day gets a trailing `window`).
+
+Hype vetoes (owner decision 8): by default (`--hype-vetoes policy`) the backtest applies whichever of NEWS-4 and
+NEWS-13 `news.active_vetoes` lists, exactly as the live rules book does (engine `_block_news`: a B/C/D increase in a
+vetoed name is held at its current quantity; exits, reductions and sleeve A pass). NEWS-4 runs without its headline
+term (the live path after a failed news fetch). NEWS-18-PROMO needs headlines and is NOT modelled, so the backtest
+slightly understates blocking whenever it is active. `--hype-vetoes test-first` also applies NEWS-4 and NEWS-13 when
+the policy keeps them TEST FIRST (decision 8 update: "logged and backtested, not blocking"), and `off` applies none.
+Every result records the mode in `params.hype_vetoes`.
 
 CLI (run from `trading/`):
     python -m trader.backtest --start 2017-01-01 --end 2026-09-25 [--set k=v ...] [--out path]
@@ -27,7 +35,7 @@ import json
 import math
 import pickle
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import numpy as np
@@ -50,6 +58,8 @@ SLEEVES = ("A", "B", "C", "D")
 CLOSE_SYMBOLS = ("SPY", "IEF", "EFA", "DBC", "VNQ", "BIL")  # M-1 benchmark closes kept on every row
 DATA_START = "2016-01-01"  # SIP daily history starts 2016-01-04
 VALIDATE_TAIL = 20  # bars handed to the EX-7 checks (staleness and the last move need only the recent tail)
+HYPE_MODES = ("policy", "test-first", "off")
+HYPE_BAR_IDS = ("NEWS-4", "NEWS-13")  # computable from bars alone; NEWS-18-PROMO needs headlines
 
 
 # --- overrides (M-12 iii) --------------------------------------------------------------------------------
@@ -205,6 +215,10 @@ class BacktestResult:
         s, b = self.summary, self.benchmarks
         lines = [f"Backtest {self.start} to {self.end} (rules book, next-open fills, EX-5 costs; "
                  f"params {self.params.get('version')})"]
+        hv = self.params.get("hype_vetoes") or {}
+        if hv:
+            lines.append(f"  Hype vetoes ({hv.get('mode')}): applied {', '.join(hv.get('applied') or []) or 'none'}; "
+                         f"{hv.get('blocked', 0)} B/C/D increases held; {hv.get('note')}")
         lines.append(f"  Book: CAGR {_pct(s.get('cagr'))}, vol {_pct(s.get('vol'))}, Sharpe {s.get('sharpe')}, "
                      f"max drawdown {_pct(s.get('max_drawdown'))}, final equity ${s.get('final_equity'):,.0f}")
         for name, label in (("spy", "SPY"), ("sixty_forty", "60/40"), ("gtaa5", "GTAA-5")):
@@ -312,6 +326,54 @@ def _block_problem_increases(targets: list[Target], lots, blocked: set[str], log
     return out
 
 
+def hype_setup(cfg: Config, mode: str = "policy") -> dict:
+    """Which decision-8 hype vetoes this replay applies, and what it cannot model."""
+    if mode not in HYPE_MODES:
+        raise ValueError(f"hype_vetoes must be one of {HYPE_MODES}, not {mode!r}")
+    from . import news_signals
+    active = list(news_signals.news_policy(cfg.policy)["active_vetoes"])
+    if mode == "off":
+        applied = []
+    elif mode == "test-first":
+        applied = list(HYPE_BAR_IDS)
+    else:
+        applied = [i for i in HYPE_BAR_IDS if i in active]
+    missing = [i for i in active if i not in HYPE_BAR_IDS]
+    note = ("NEWS-4 runs without its headline term" if "NEWS-4" in applied else "")
+    if missing and mode != "off":
+        note = (note + "; " if note else "") + (f"{', '.join(missing)} is live but not modelled (needs headlines), "
+                                                "so live blocks slightly more than this backtest")
+    if mode == "off" and active:
+        note = f"live applies {', '.join(active)}; this run applies none"
+    return {"mode": mode, "policy_active": active, "applied": applied, "not_modelled": missing if mode != "off"
+            else list(active), "note": note or "none active", "blocked": 0}
+
+
+def _hype_vetoes(cfg: Config, view: Bars, targets: list[Target], lots, d, applied: list[str], news_uni: list[str],
+                 universe, regime_label, log: list[str]) -> tuple[list[Target], int]:
+    """Decision 8 as engine `_block_news` applies it: a B/C/D increase in a vetoed name is held at the current lot
+    quantity; exits, reductions and sleeve A pass. Signals come from bars only (`news_signals.compute` with no
+    headlines and no `news_start`, the live path after a failed fetch), dated on or before `d`. A failed
+    computation blocks every B/C/D increase that day (fail closed, like the engine)."""
+    if not applied:
+        return targets, 0
+    from . import engine, news_signals
+    try:
+        sig = news_signals.compute(view, [], news_uni, d, cfg.policy, c_universe=universe, regime_label=regime_label)
+        vetoes = news_signals.active_vetoes(sig, {**cfg.policy, "news": {**(cfg.policy.get("news") or {}),
+                                                                        "active_vetoes": list(applied)}})
+    except Exception as e:  # noqa: BLE001 - fail closed for B/C/D, as engine._news_step does
+        vetoes = {t.symbol: [f"news signals failed ({type(e).__name__})"] for t in targets}
+    out, n = [], 0
+    for t in targets:
+        if t.symbol in vetoes and t.sleeve in engine.NEWS_VETO_SLEEVES and engine._is_increase(t, lots):
+            t = replace(t, qty=engine._lot_qty(lots, t.sleeve, t.symbol), reason=f"{t.reason} (blocked by hype veto)")
+            log.append(f"{t.sleeve}/{t.symbol}: increase blocked by hype veto ({'; '.join(vetoes[t.symbol])})")
+            n += 1
+        out.append(t)
+    return out, n
+
+
 class _Demotion:
     """M-11 from closed trades, recomputed only when the trade count changes (the bootstrap is not free)."""
 
@@ -327,13 +389,14 @@ class _Demotion:
 
 def run_backtest(cfg: Config, bars: Bars, start, end=None, *, starting_cash: float = 100_000,
                  overrides=None, window: int = 900, allow_risk_changes: bool = False,
-                 progress=None) -> BacktestResult:
+                 progress=None, hype_vetoes: str = "policy") -> BacktestResult:
     """Replay the rules book over the benchmark's sessions in [start, end]. Never calls Claude.
 
     Each session d: settle orders from d-1 at d's open (+ cost) -> account, reconcile, marks, equity row ->
     breakers (same functions and latches as the engine) -> regime -> data checks -> weights -> `build_plans`
-    -> `RiskEngine.apply(book="rules")` -> orders queued for d+1's open. Orders still open after the last
-    session are reported, not filled.
+    -> hype vetoes (`hype_vetoes`: "policy" mirrors the live book, "test-first" also applies NEWS-4/NEWS-13,
+    "off" none) -> `RiskEngine.apply(book="rules")` -> orders queued for d+1's open. Orders still open after the
+    last session are reported, not filled.
     """
     from . import engine
     base_cfg = cfg
@@ -356,6 +419,8 @@ def run_backtest(cfg: Config, bars: Bars, start, end=None, *, starting_cash: flo
     demotion_of = _Demotion(cfg.policy)
     universe, canaries = cfg.stock_universe(), cfg.playbook["regime"]["canaries"]
     min_notional = cfg.policy["turnover"].get("min_order_notional", 25)
+    hype = hype_setup(cfg, hype_vetoes)
+    news_uni = engine.news_universe(cfg)
     log: list[str] = []
     latches: list[dict] = []
     orders: list[dict] = []
@@ -414,6 +479,9 @@ def run_backtest(cfg: Config, bars: Bars, start, end=None, *, starting_cash: flo
         plans = engine.build_plans(cfg, view, state.lots, weights, equity, regime, d)
         proposed = [t for p in plans.values() for t in p.targets.values()]
         proposed = _block_problem_increases(proposed, state.lots, problem_symbols(problems), day_log)
+        proposed, held = _hype_vetoes(cfg, view, proposed, state.lots, d, hype["applied"], news_uni, universe,
+                                      regime.label, day_log)
+        hype["blocked"] += held
 
         # 12-13. Risk, orders (queued for the next open), ledger.
         result = risk.apply(proposed, state.lots, positions, view, equity, breakers,
@@ -433,7 +501,7 @@ def run_backtest(cfg: Config, bars: Bars, start, end=None, *, starting_cash: flo
             progress(f"{day}: equity ${equity:,.0f} ({n + 1}/{len(dates)} sessions)")
 
     return _result(cfg, base_cfg, state, dates, float(starting_cash), overrides, allow_risk_changes, latches, log,
-                   orders)
+                   orders, hype)
 
 
 # --- results ------------------------------------------------------------------------------------------------
@@ -459,7 +527,8 @@ def _yearly(series: pd.Series) -> dict[str, float]:
     return {str(y): round(float(ends[y] / base[y] - 1), 4) for y in ends.index}
 
 
-def _result(cfg, base_cfg, state, dates, starting_cash, overrides, allow_risk_changes, latches, log, orders):
+def _result(cfg, base_cfg, state, dates, starting_cash, overrides, allow_risk_changes, latches, log, orders,
+            hype=None):
     frame = metrics.history_frame(state.equity_history)
     equity = frame["equity"]
     bench = metrics.benchmarks(state.equity_history)
@@ -505,7 +574,8 @@ def _result(cfg, base_cfg, state, dates, starting_cash, overrides, allow_risk_ch
         exposure=exposure, turnover=turnover, trades=trades, fills=list(fills), latches=latches,
         yearly={"book": _yearly(equity), "spy": _yearly(frame["c_SPY"]) if "c_SPY" in frame else {}},
         params={"overrides": {k: v for k, v in ov.items()}, "allow_risk_changes": allow_risk_changes,
-                "version": params_version(cfg), "baseline_version": params_version(base_cfg)},
+                "version": params_version(cfg), "baseline_version": params_version(base_cfg),
+                "hype_vetoes": hype or {}},
         open_lots=open_lots, pending_orders=len(state.pending_orders), reconcile_events=recon, orders=orders,
         log=log)
 
@@ -556,6 +626,9 @@ def main(argv=None, *, data=None) -> int:
     p.add_argument("--window", type=int, default=900, help="trailing sessions each day sees")
     p.add_argument("--out", default=None, help="write the full result as JSON here")
     p.add_argument("--refresh", action="store_true", help="ignore the bar cache")
+    p.add_argument("--hype-vetoes", choices=HYPE_MODES, default="policy",
+                   help="decision-8 hype vetoes: 'policy' = as live (bars-computable ones news.active_vetoes lists), "
+                        "'test-first' = also NEWS-4 and NEWS-13, 'off' = none")
     a = p.parse_args(argv)
     cfg = load_config()
     try:
@@ -568,13 +641,16 @@ def main(argv=None, *, data=None) -> int:
     bars = load_history(cfg, fetch_start.date().isoformat(), end, data=data, refresh=a.refresh)
     cash = a.cash or float(cfg.playbook.get("simulation", {}).get("starting_cash", 100_000))
     res = run_backtest(cfg, bars, a.start, a.end, starting_cash=cash, overrides=a.overrides, window=a.window,
-                       allow_risk_changes=a.allow_risk_changes, progress=print)
+                       allow_risk_changes=a.allow_risk_changes, progress=print, hype_vetoes=a.hype_vetoes)
     # M-13: every parameter set tried is logged, so the number of trials behind a change can be counted
     log_experiment({"date": pd.Timestamp.now(tz="America/New_York").date().isoformat(),
-                    "kind": "backtest-params", "version": res.params["version"],
+                    "kind": "backtest-params",  # a non-default hype mode is its own trial (M-13)
+                    "version": res.params["version"] + ("" if a.hype_vetoes == "policy" else f"+hype:{a.hype_vetoes}"),
                     "baseline_version": res.params["baseline_version"], "overrides": res.params["overrides"],
                     "window": [res.start, res.end],
-                    "reason": "backtest: " + (" ".join(a.overrides) or "baseline")}, STATE_DIR)
+                    "hype_vetoes": a.hype_vetoes,
+                    "reason": "backtest: " + (" ".join(a.overrides) or "baseline")
+                              + ("" if a.hype_vetoes == "policy" else f" (hype vetoes {a.hype_vetoes})")}, STATE_DIR)
     print(res.headline())
     if a.out:
         out = Path(a.out)

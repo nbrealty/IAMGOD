@@ -26,6 +26,7 @@ from . import strategies
 from .config import Config
 from .data import Bars
 from .models import Lot, Order, Target
+from .options.models import is_occ
 
 STOPPED_SLEEVES = ("B", "C", "D")
 SPECULATIVE_SLEEVES = ("C", "D")  # RISK-7
@@ -610,6 +611,9 @@ class RiskEngine:
         if cur and cur.stop is not None and self.p["per_trade"]["never_widen_stop"]:
             stop = cur.stop if stop is None else max(stop, cur.stop)  # RISK-3
         increase = qty > cur_qty
+        if is_occ(t.symbol):  # OPT-2: account.options is false for books A-D; only book O trades options
+            day.log.append(f"{tag}: rejected, OCC option symbol (OPT-2: the stock path never trades options)")
+            return
         if increase and t.symbol not in day.allow:
             day.log.append(f"{tag}: rejected, not on the allowlist")
             return

@@ -770,8 +770,16 @@ def _protection_gaps(legs, typ) -> list[str]:
     return []
 
 
-def margin_problem(maintenance_margin, lots, policy: dict | None = None) -> str | None:
-    """OPT-27: Alpaca's maintenance margin must equal width x 100 x contracts within $1 per contract."""
+MARGIN_SHARED_NOTE = ("OPT-27 exact margin match skipped: the shared account holds the other books' stock, whose "
+                      "requirement is in Alpaca's account-wide figure; only 'at least the spread margin' is checked")
+
+
+def margin_problem(maintenance_margin, lots, policy: dict | None = None, *, has_stock: bool = False) -> str | None:
+    """OPT-27: Alpaca's maintenance margin must equal width x 100 x contracts within $1 per contract.
+
+    Alpaca reports ONE maintenance margin for the whole account. When the shared account also holds stock (the
+    rules book's ETFs, owner decision 6), that figure includes the stock's requirement, so exact equality cannot be
+    checked: `has_stock` keeps only the lower bound (the spread requirement must at least be there)."""
     open_lots = [l for l in lots if _is_open(l) and l.status != "pending_entry"]
     expected = sum(float(l.width) * MULTIPLIER * int(l.contracts) for l in open_lots)
     n = sum(int(l.contracts) for l in open_lots)
@@ -779,6 +787,10 @@ def margin_problem(maintenance_margin, lots, policy: dict | None = None) -> str 
     if m is None:
         return "OPT-27: maintenance margin unknown" if n else None
     tol = float(ob_policy(policy)["margin_tolerance_per_contract"]) * max(n, 1)
+    if has_stock:
+        if m < expected - tol - 1e-9:
+            return f"OPT-27: maintenance margin {m:,.2f} below width x 100 x contracts {expected:,.2f}"
+        return None
     if abs(m - expected) > tol + 1e-9:
         return f"OPT-27: maintenance margin {m:,.2f} differs from width x 100 x contracts {expected:,.2f}"
     return None
@@ -796,11 +808,13 @@ def detect_incidents(positions, lots, *, other_books_stock: dict | None = None, 
     other = {k: num(v, 0.0) for k, v in (other_books_stock or {}).items()}
     opt_qty: dict[str, float] = {}
     stock_excess: dict[str, float] = {}
+    has_stock = False
     for pos in positions or []:
         sym, q = str(pos.get("symbol", "")), _pos_qty(pos)
         if is_occ(sym):
             opt_qty[sym] = opt_qty.get(sym, 0.0) + q
         elif q:
+            has_stock = True
             ex = q - other.get(sym, 0.0)
             if abs(ex) > 1e-9:
                 stock_excess[sym] = stock_excess.get(sym, 0.0) + ex
@@ -808,11 +822,15 @@ def detect_incidents(positions, lots, *, other_books_stock: dict | None = None, 
                  for sym, q in stock_excess.items()]
     incidents += [f"OPT-26: {x}" for x in orphan_legs(opt_qty)]
     mismatches = _ledger_mismatches(opt_qty, lots, stock_excess, o_stock)
+    notes: list[str] = []
     if check_margin:
-        m = margin_problem(maintenance_margin, lots, policy)
+        m = margin_problem(maintenance_margin, lots, policy, has_stock=has_stock)
         if m:
             mismatches.append(m)
+        elif has_stock:
+            notes.append(MARGIN_SHARED_NOTE)
     return {"freeze": bool(incidents or mismatches), "incidents": incidents, "mismatches": mismatches,
+            "notes": notes,
             "stock_excess": stock_excess, "option_qty": opt_qty,
             "o_stock": {k: num(v, 0.0) for k, v in (o_stock or {}).items()}}
 

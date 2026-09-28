@@ -232,3 +232,87 @@ def test_cli_logs_each_parameter_set_tried(cfg_small, data, tmp_path, monkeypatc
     assert rows[0]["overrides"] == {} and rows[0]["reason"] == "backtest: baseline"
     assert rows[1]["overrides"] and "sleeves.B.rsi_entry=5" in rows[1]["reason"]
     assert rows[0]["version"] != rows[1]["version"] and rows[1]["baseline_version"] == rows[0]["version"]
+
+
+# --- decision 8 hype vetoes (finding #11/#30: the backtest must trade what the live rules book trades) -----------
+
+
+@pytest.fixture(scope="module")
+def spiked(cfg_small, data):
+    """QQQ jumps 10% on 2026-07-27, so its MAX21 tops the news universe (4 B ETFs + 6 C names) when sleeve B
+    buys it on the 2026-08-06 RSI(2) dip."""
+    out = dict(data)
+    q = data["QQQ"].copy()
+    k = q.index.searchsorted(pd.Timestamp("2026-07-27"))
+    q.iloc[k:, :4] = q.iloc[k:, :4] * 1.10
+    out["QQQ"] = q
+    return out
+
+
+def _qqq_buys(res):
+    return [o["date"] for o in res.orders if o["side"] == "buy" and o["symbol"] == "QQQ"]
+
+
+def _with_active(cfg, active):
+    pol = copy.deepcopy(cfg.policy)
+    pol["news"]["active_vetoes"] = list(active)
+    return Config(playbook=cfg.playbook, policy=pol)
+
+
+def test_hype_veto_blocks_the_increase_the_live_book_would_block(cfg_small, spiked):
+    off = bt.run_backtest(cfg_small, spiked, "2026-08-03", "2026-08-12", window=WINDOW, hype_vetoes="off")
+    assert _qqq_buys(off) == ["2026-08-06"]
+    # the policy lists NEWS-13 as active -> the default mode applies it, like engine._block_news
+    live = bt.run_backtest(_with_active(cfg_small, ["NEWS-13", "NEWS-18-PROMO"]), spiked, "2026-08-03",
+                           "2026-08-12", window=WINDOW)
+    assert _qqq_buys(live) == []
+    assert live.params["hype_vetoes"]["applied"] == ["NEWS-13"] and live.params["hype_vetoes"]["blocked"] == 1
+    assert any("B/QQQ: increase blocked by hype veto (NEWS-13" in line for line in live.log)
+    assert "NEWS-18-PROMO" in live.params["hype_vetoes"]["not_modelled"]
+    assert "Hype vetoes (policy): applied NEWS-13" in live.headline()
+
+
+def test_test_first_hype_vetoes_follow_the_policy_unless_asked(cfg_small, spiked):
+    """Decision 8 update: NEWS-4/NEWS-13 are TEST FIRST, so the default replay does not block on them (as live),
+    while --hype-vetoes test-first backtests them."""
+    default = bt.run_backtest(_with_active(cfg_small, ["NEWS-18-PROMO"]), spiked, "2026-08-03", "2026-08-12",
+                              window=WINDOW)
+    assert _qqq_buys(default) == ["2026-08-06"]
+    hv = default.params["hype_vetoes"]
+    assert hv["mode"] == "policy" and hv["applied"] == [] and hv["not_modelled"] == ["NEWS-18-PROMO"]
+    tf = bt.run_backtest(_with_active(cfg_small, ["NEWS-18-PROMO"]), spiked, "2026-08-03", "2026-08-12",
+                         window=WINDOW, hype_vetoes="test-first")
+    assert _qqq_buys(tf) == [] and tf.params["hype_vetoes"]["applied"] == ["NEWS-4", "NEWS-13"]
+    with pytest.raises(ValueError):
+        bt.run_backtest(cfg_small, spiked, "2026-08-03", "2026-08-12", window=WINDOW, hype_vetoes="maybe")
+
+
+def test_hype_veto_fails_closed_like_the_engine(cfg_small, data, monkeypatch):
+    from trader import news_signals
+
+    def boom(*a, **k):
+        raise RuntimeError("no panel")
+    monkeypatch.setattr(news_signals, "compute", boom)
+    res = bt.run_backtest(cfg_small, data, "2026-08-03", "2026-08-12", window=WINDOW, hype_vetoes="test-first")
+    assert _qqq_buys(res) == []  # the B entry is held
+    assert any("news signals failed (RuntimeError)" in line for line in res.log)
+
+
+def test_cli_passes_the_hype_mode(cfg_small, data, tmp_path, monkeypatch, capsys):
+    seen = {}
+    real = bt.run_backtest
+
+    def spy(*a, **k):
+        seen.update(k)
+        return real(*a, **k)
+    monkeypatch.setattr(bt, "run_backtest", spy)
+    monkeypatch.setattr(bt, "load_config", lambda: cfg_small)
+    monkeypatch.setattr(bt, "STATE_DIR", tmp_path)
+    args = ["--start", "2026-09-14", "--end", "2026-09-18", "--window", "300"]
+    assert bt.main(args, data=FakeData(data)) == 0
+    assert seen["hype_vetoes"] == "policy"
+    assert bt.main(args + ["--hype-vetoes", "off"], data=FakeData(data)) == 0
+    assert seen["hype_vetoes"] == "off"
+    assert "Hype vetoes (off)" in capsys.readouterr().out
+    rows = [json.loads(x) for x in (tmp_path / "experiments.jsonl").read_text().splitlines()]
+    assert len(rows) == 2 and rows[1]["version"].endswith("+hype:off")  # a different trial, logged

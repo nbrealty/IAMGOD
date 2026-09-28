@@ -22,6 +22,7 @@ from typing import Any, Protocol
 import pandas as pd
 
 from .models import Order
+from .options.models import is_occ, parse_occ
 
 NY = "America/New_York"
 # Statuses after which an order can no longer fill (a partial fill stays filled).
@@ -39,7 +40,8 @@ class Broker(Protocol):
     def positions(self) -> dict[str, float]: ...
 
     def cancel_open_orders(self, prefixes: Any = None) -> list[str] | None:
-        """None cancels every open order; prefixes cancel only this book's orders (owner decision 6)."""
+        """Prefixes cancel only this book's orders (owner decision 6). None cancels every open order in the
+        simulator; the Alpaca broker refuses None unless `all_orders=True` (its account is shared with O)."""
 
     def submit(self, orders: list[Order], client_prefix: str, *, date: Any = None,
                suffix: str | None = None) -> list[dict]:
@@ -96,6 +98,8 @@ def order_problem(o: Order) -> str | None:
     """Why an order must not be sent (checked before any broker call), or None."""
     if not o.symbol:
         return "missing symbol"
+    if is_occ(o.symbol):
+        return "OPT-2: the stock path never sends option (OCC) symbols"
     if o.side not in ("buy", "sell"):
         return f"unknown side {o.side!r}"
     if not _finite(o.qty) or float(o.qty) <= 0:
@@ -183,12 +187,17 @@ PAPER_HOST = "paper-api.alpaca.markets"
 OPTION_ACTIVITY_TYPES = ("OPASN", "OPEXC", "OPEXP")
 _OPEN_INTENTS = ("buy_to_open", "sell_to_open")
 _CLOSE_INTENTS = ("buy_to_close", "sell_to_close")
+MLEG_MIN_OPEN_DTE = 1  # the broker lock never opens a 0DTE or expired spread; options.risk applies OPT-5's 25
 
 
-def mleg_problems(order: dict, *, enabled: bool, gate_ok: bool, paper: bool, prefix: str = "OPT-") -> list[str]:
+def mleg_problems(order: dict, *, enabled: bool, gate_ok: bool, paper: bool, prefix: str = "OPT-",
+                  today: Any = None, min_open_dte: int = MLEG_MIN_OPEN_DTE) -> list[str]:
     """Why this mleg order must not be sent (a second lock after options.risk): OPT-1 enabled and paper host,
-    OPT-41 gate, OPT-42 no live, OPT-3 two legs 1:1 with matching intents, OPT-14 LIMIT/DAY/whole contracts and
-    the sign (open a credit spread = negative limit, close it = positive limit), owner decision 6 prefix."""
+    OPT-41 gate, OPT-42 no live, OPT-3 two OCC legs 1:1 on one root, expiry and type (a vertical) with different
+    strikes and matching intents, OPT-14 LIMIT/DAY/whole contracts and the sign (open a credit spread = negative
+    limit, close it = positive limit), owner decision 6 prefix. With `today`, an open whose expiry is fewer than
+    `min_open_dte` calendar days away (0DTE, expired) is refused too (OPT-5 floor; options.risk holds the full
+    policy floor, this lock only stops the worst case if a caller ever skips it)."""
     out = []
     if not enabled:
         out.append("OPT-1: options_book.enabled is false; no orders")
@@ -205,13 +214,49 @@ def mleg_problems(order: dict, *, enabled: bool, gate_ok: bool, paper: bool, pre
     q = _num(order.get("qty"))
     if q is None or q <= 0 or q != math.floor(q):
         out.append("OPT-14: qty must be a whole number of contracts > 0")
-    return out + _mleg_leg_problems(order)
+    return out + _mleg_leg_problems(order, today=today, min_open_dte=min_open_dte)
 
 
-def _mleg_leg_problems(order: dict) -> list[str]:
+def _mleg_shape_problems(legs: list, *, opening: bool, today: Any, min_open_dte: int) -> list[str]:
+    """OPT-3: both legs are OCC option symbols on the same root, expiry and type, at different strikes;
+    OPT-5: an open is not 0DTE or expired (when `today` is known)."""
+    syms = [str(l.get("symbol") or "") for l in legs]
+    bad = [s for s in syms if not is_occ(s)]
+    if bad:
+        return [f"OPT-3: leg symbol {bad[0]!r} is not an OCC option symbol"]
+    a, b = (parse_occ(s) for s in syms)
+    out = []
+    if a["underlying"] != b["underlying"]:
+        out.append("OPT-3: legs must share one underlying")
+    if a["expiry"] != b["expiry"]:
+        out.append("OPT-3: legs must share one expiry")
+    if a["type"] != b["type"]:
+        out.append("OPT-3: legs must be the same type (put/put or call/call)")
+    if a["strike"] == b["strike"]:
+        out.append("OPT-3: legs must have different strikes")
+    if opening and today is not None:
+        try:
+            days = (pd.Timestamp(a["expiry"]).date() - pd.Timestamp(today).date()).days
+        except (TypeError, ValueError):
+            days = None
+        if days is None or days < max(1, int(min_open_dte)):
+            out.append(f"OPT-5: opening a spread {days} days before expiry (floor {max(1, int(min_open_dte))})")
+    return out
+
+
+def _mleg_leg_problems(order: dict, *, today: Any = None, min_open_dte: int = MLEG_MIN_OPEN_DTE) -> list[str]:
     legs = order.get("legs") or []
     if len(legs) != 2:
         return ["OPT-3: exactly 2 legs"]
+    intents0 = {str(l.get("position_intent", "")).lower() for l in legs}
+    shape = _mleg_shape_problems(legs, opening=intents0 == set(_OPEN_INTENTS), today=today,
+                                 min_open_dte=min_open_dte)
+    if shape:
+        return shape
+    for l in legs:  # the side sent must agree with the intent both locks judged (buy_to_* = buy, sell_to_* = sell)
+        s, i = str(l.get("side") or "").lower(), str(l.get("position_intent") or "").lower()
+        if s not in ("buy", "sell") or not i.startswith(s + "_"):
+            return [f"OPT-3: leg side {s!r} does not match position_intent {i!r}"]
     intents = {str(l.get("position_intent", "")).lower() for l in legs}
     if any(_num(l.get("ratio_qty", 1)) != 1 for l in legs):
         return ["OPT-3: ratio must be 1:1"]
@@ -285,10 +330,12 @@ def _mleg_request(order: dict):
     from alpaca.trading.enums import OrderClass, OrderSide, PositionIntent, TimeInForce
     from alpaca.trading.requests import LimitOrderRequest, OptionLegRequest
 
-    legs = [OptionLegRequest(symbol=l["symbol"], ratio_qty=1,
-                             side=OrderSide.BUY if str(l.get("side")).lower() == "buy" else OrderSide.SELL,
-                             position_intent=PositionIntent(str(l["position_intent"]).lower()))
-            for l in order["legs"]]
+    legs = []
+    for l in order["legs"]:
+        pi = PositionIntent(str(l["position_intent"]).lower())
+        # The side comes from the intent (never a missing/mismatched 'side' field defaulting to SELL).
+        side = OrderSide.BUY if pi.value.startswith("buy_") else OrderSide.SELL
+        legs.append(OptionLegRequest(symbol=l["symbol"], ratio_qty=1, side=side, position_intent=pi))
     return LimitOrderRequest(qty=int(order["qty"]), order_class=OrderClass.MLEG, time_in_force=TimeInForce.DAY,
                              limit_price=round(float(order["limit_price"]), 2), legs=legs,
                              client_order_id=str(order["client_order_id"]), extended_hours=False)
@@ -342,15 +389,21 @@ class AlpacaPaperBroker:
             out[sym] = float(p.qty)
         return out
 
-    def cancel_open_orders(self, prefixes: Any = None) -> list[str] | None:
-        """Cancel open orders. `prefixes=None` keeps the old behaviour (every open order in the account).
+    def cancel_open_orders(self, prefixes: Any = None, *, all_orders: bool = False) -> list[str] | None:
+        """Cancel open orders.
 
         With prefixes (owner decision 6, shared account) only orders whose client_order_id starts with one of
         them are cancelled, one by one, so a book never cancels another book's orders. An empty list cancels
         nothing. Returns the cancelled client ids; failures are kept in `last_cancel_errors` (the next
         `order_fills` shows what really happened to those orders).
+
+        Cancelling every order in the account (O's `OPT-` orders included) needs an explicit `all_orders=True`;
+        a call with no prefixes and no flag raises instead of silently breaching decision 6.
         """
         if prefixes is None:
+            if not all_orders:
+                raise ValueError("cancel_open_orders needs prefixes (owner decision 6: the paper account is "
+                                 "shared with book O); pass all_orders=True to cancel every open order")
             self._client.cancel_orders()
             return None
         wanted = clean_prefixes(prefixes)
@@ -435,15 +488,21 @@ class AlpacaPaperBroker:
                  "symbol": _get(r, "symbol"), "qty": _num(_get(r, "qty")), "date": _get(r, "date"),
                  "price": _num(_get(r, "price")), "side": _get(r, "side")} for r in rows]
 
-    def submit_mleg(self, order: dict, *, enabled: bool, gate_ok: bool, prefix: str = "OPT-") -> dict:
+    def submit_mleg(self, order: dict, *, enabled: bool, gate_ok: bool, prefix: str = "OPT-",
+                    today: Any = None) -> dict:
         """Send ONE multi-leg LIMIT DAY option order (OPT-3, OPT-14). Refuses (status "refused", nothing sent)
         unless options_book.enabled, the OPT-41 gate and a paper host (OPT-1) all hold, and the order passes the
-        basic OPT-14 shape and sign check. The caller must run options.risk.validate_spread_order first.
+        basic OPT-3/OPT-14 shape and sign check (one vertical on OCC legs) and, for an open, the 0DTE floor.
+        `today` defaults to the New York date now (the order goes out now). The caller must run
+        options.risk.validate_spread_order first.
         """
         cid = str(order.get("client_order_id") or "")
         base = {"client_order_id": cid, "qty": order.get("qty"), "limit_price": order.get("limit_price"),
                 "legs": [l.get("symbol") for l in order.get("legs") or []]}
-        why = mleg_problems(order, enabled=enabled, gate_ok=gate_ok, paper=self.is_paper(), prefix=prefix)
+        if today is None:
+            today = pd.Timestamp.now(tz=NY).date()
+        why = mleg_problems(order, enabled=enabled, gate_ok=gate_ok, paper=self.is_paper(), prefix=prefix,
+                            today=today)
         if why:
             return {**base, "status": "refused", "id": None, "error": "; ".join(why)}
         try:
@@ -685,11 +744,13 @@ class SimBroker:
                 rows.append(fill_row(cid, "unknown"))
         return rows
 
-    def cancel_open_orders(self, prefixes: Any = None) -> list[str] | None:
+    def cancel_open_orders(self, prefixes: Any = None, *, all_orders: bool = False) -> list[str] | None:
         """Fill what is due first (those fills already happened), then cancel the rest.
 
-        `prefixes` works as in AlpacaPaperBroker: None cancels every open order; otherwise only orders whose
-        client_order_id starts with one of the prefixes (an empty list cancels nothing) and the ids are returned.
+        `prefixes` works as in AlpacaPaperBroker, except that None cancels every open order here without
+        `all_orders` (the simulator's state belongs to one book; `all_orders` is accepted for parity). Otherwise
+        only orders whose client_order_id starts with one of the prefixes (an empty list cancels nothing) and the
+        ids are returned.
         """
         self._fill_due()
         wanted = None if prefixes is None else clean_prefixes(prefixes)

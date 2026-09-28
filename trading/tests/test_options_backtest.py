@@ -117,6 +117,27 @@ def test_put_crosscheck_signs_and_missing_years():
     assert out["2020"]["strategy_sum_R"] is None and out["2020"]["signs_agree"] is None
     assert out["2008"]["put_return"] is None
     assert bt.put_crosscheck(trades, None)["2018"]["put_return"] is None
+    # finding #19: a year before the closes start says why, instead of a bare "no trades"
+    early = bt.put_crosscheck(trades, put, first_close="2016-01-04")
+    assert "pre-2016 closes from another source" in early["2008"]["note"]
+    assert early["2020"]["note"].startswith("no trades that year")
+
+
+def test_summary_labels_the_runs_and_counts_no_credit_skips(data):
+    """Finding #19: the report says the base includes OPT-23, which run the rulebook's RPL figure is, and how
+    many cycles doubled costs dropped (its n is a different sample)."""
+    closes, vix = data
+    rep = bt.full_report(closes, vix, width_usd=2.0)
+    for name in ("base", "doubled_costs", "hold7_no_opt23"):
+        assert sum(rep[name]["skipped_reasons"].values()) == rep[name]["n_skipped"]
+        assert rep[name]["n_no_credit"] == rep[name]["skipped_reasons"].get(bt.NO_CREDIT, 0)
+    text = "\n".join(bt.summary_lines(rep))
+    assert "OPT-23 short-strike exit" in text and "rulebook's RPL" in text
+    assert "n differs from base" in text
+    if rep["doubled_costs"]["n_no_credit"]:
+        assert f"{rep['doubled_costs']['n_no_credit']} cycles skipped: no positive credit" in text
+    rep["doubled_costs"]["n_no_credit"] = 36
+    assert "36 cycles skipped: no positive credit after costs" in "\n".join(bt.summary_lines(rep))
 
 
 def test_full_report_prints_every_required_run(data, tmp_path):

@@ -35,7 +35,7 @@ from .decisions import apply_review  # noqa: F401  (re-exported: the review live
 from .ledger import reconcile, update_lots  # noqa: F401  (re-exported for old callers)
 from .llm import BOOK_ROLE, ClaudeError, decision_tags, jsonable, prompt_version
 from .models import Lot, SleevePlan, Target
-from .options.models import is_occ
+from .options.models import is_occ, parse_occ
 from .regime import Regime, classify, classify_kwargs
 from .risk import RiskEngine, breaker_status
 from .schemas import (ACTION_CODES, CONTEXT_SCHEMA, DEVIATION_CODES, RESTRICTED_SKIP_CODES, SKIP_CODES,
@@ -324,13 +324,14 @@ def build_context(book: str, cfg: Config, state: BookState, bars: Bars, equity: 
     ctx["positions"] = positions
     ctx["rule_signals"] = rule_signals
     vetoed = dict((news or {}).get("vetoes") or {})
+    news_block = str(((news or {}).get("meta") or {}).get("blocked") or "")
     if book == "claude":
-        ctx["menus"] = _menus(cfg, state, bars, plans, prices, E, regime.permissions, eligible, vetoed)
+        ctx["menus"] = _menus(cfg, state, bars, plans, prices, E, regime.permissions, eligible, vetoed, news_block)
     else:
         ctx["planned_increases"] = [
             {"sleeve": t.sleeve, "symbol": t.symbol, "current_qty": _r(_lot_qty(state.lots, t.sleeve, t.symbol), 6),
              "target_qty": _r(t.qty, 6), "target_pct_equity": pct(t.qty, t.symbol), "stop": _r(t.stop, 4),
-             "reason": t.reason, "blocked_by_hype_veto": t.symbol in vetoed}
+             "reason": t.reason, "blocked_by_hype_veto": t.symbol in vetoed or bool(news_block)}
             for t in _plan_targets(plans) if t.sleeve in ("B", "C", "D") and _is_increase(t, state.lots)]
     if news is not None:
         ctx["news_meta"] = dict(news.get("meta") or {})
@@ -365,7 +366,7 @@ def build_context(book: str, cfg: Config, state: BookState, bars: Bars, equity: 
 
 
 def _menus(cfg: Config, state: BookState, bars: Bars, plans: dict[str, SleevePlan], prices: dict, equity: float,
-           permissions: dict, eligible: dict | None, vetoed: dict | None = None) -> dict:
+           permissions: dict, eligible: dict | None, vetoed: dict | None = None, news_block: str = "") -> dict:
     """CL-10/CL-14 menus per 'S:SYM': the numbers behind each size and stop choice (guide 2)."""
     eligible = eligible if eligible is not None else decisions.eligibility(cfg, bars, permissions)
     rules = {f"{t.sleeve}:{t.symbol}": t for t in _plan_targets(plans)}
@@ -385,6 +386,8 @@ def _menus(cfg: Config, state: BookState, bars: Bars, plans: dict[str, SleevePla
         why = "" if ok else _not_eligible_why(cfg, sleeve, sym, bars, permissions)
         if sleeve in NEWS_VETO_SLEEVES and sym in (vetoed or {}):
             ok, why = False, decisions.HYPE_VETO_LABEL + ", no new long today (decision 8): " + "; ".join(vetoed[sym])
+        elif sleeve in NEWS_VETO_SLEEVES and news_block:
+            ok, why = False, news_block
         try:
             stops = decisions.stop_menu(sleeve, bars.get(sym), cfg.policy, lot)
         except (KeyError, IndexError, ValueError, TypeError):
@@ -419,8 +422,14 @@ def _clean_o(raw: Any, *, complete: bool, note: str = "") -> dict:
     value = _r(value, 2) if value is not None else None
     if raw and value is None:
         complete = False  # O says it owns something but gives no value: the rules equity cannot be trusted
+    legs = {}
+    for sym, q in (raw.get("legs") or {}).items():
+        v = _r(q, 6)
+        if v is not None and abs(v) > EPS:
+            legs[str(sym).upper()] = v
     return {"symbols": sorted({str(s).upper() for s in (raw.get("symbols") or ())}), "stock": stock,
             "value": value, "order_prefix": str(raw.get("order_prefix") or O_PREFIX_DEFAULT),
+            "legs": legs, "pending_stock": sorted({str(s).upper() for s in (raw.get("pending_stock") or ())}),
             "complete": bool(complete), "note": note}
 
 
@@ -438,7 +447,12 @@ def _o_from_ledger(state_dir: Path, why: str) -> dict:
         return _clean_o({}, complete=not exists, note=f"{note}; ledger unreadable ({type(e).__name__}: {e})")
     live = list(ob.open_lots())  # safer: without run.py a spread's shadow flag is not trusted
     syms = {leg.symbol for lot in live for leg in (lot.short_leg, lot.long_leg)}
-    raw = {"symbols": syms, "stock": dict(ob.o_stock or {}), "value": None if (live or ob.o_stock) else 0.0}
+    legs: dict[str, float] = {}
+    for lot in live:
+        legs[lot.short_leg.symbol] = legs.get(lot.short_leg.symbol, 0.0) - float(lot.short_leg.qty)
+        legs[lot.long_leg.symbol] = legs.get(lot.long_leg.symbol, 0.0) + float(lot.long_leg.qty)
+    raw = {"symbols": syms, "stock": dict(ob.o_stock or {}), "value": None if (live or ob.o_stock) else 0.0,
+           "legs": legs}
     return _clean_o(raw, complete=not (live or ob.o_stock), note=note)
 
 
@@ -460,7 +474,9 @@ def separate_o(positions: dict, o: dict, log: list[str], *, host: bool) -> tuple
     removed for every book; on the shared (host) account O's assigned stock is also subtracted.
 
     Returns (positions, suspect symbols). A symbol where the broker holds less stock than O owns cannot be
-    split between the books, so it is suspect (no orders, no reconcile) today."""
+    split between the books, so it is suspect (no orders, no reconcile) today. So is the underlying of an O short
+    leg the broker holds less of than O's ledger (a possible assignment O has not booked yet: the new shares are
+    O's, not this book's), and a symbol with an unsettled O stock order (the split is unknown until O books it)."""
     out, dropped, suspect = {}, [], set()
     o_syms = set(o.get("symbols") or ())
     for sym, q in (positions or {}).items():
@@ -472,6 +488,22 @@ def separate_o(positions: dict, o: dict, log: list[str], *, host: bool) -> tuple
         log.append(f"{len(dropped)} option position(s) belong to book O and are left alone (OPT-2, decision 6)")
     if not host:
         return out, suspect
+    held = {str(s).upper(): (decisions._num(q) or 0.0) for s, q in (positions or {}).items() if is_occ(s)}
+    for occ, exp in (o.get("legs") or {}).items():
+        if exp < 0 and held.get(occ, 0.0) > exp + 1e-6:  # O's short leg smaller or gone at the broker
+            try:
+                u = parse_occ(occ)["underlying"]
+            except ValueError:
+                continue
+            if u not in suspect:
+                log.append(f"{u}: book O's short leg {occ} is {held.get(occ, 0.0):g} at the broker vs {exp:g} in O's "
+                           "ledger: possible unbooked assignment, the stock books leave it alone today")
+            suspect.add(u)
+    for u in o.get("pending_stock") or ():
+        u = str(u).upper()
+        if u not in suspect:
+            log.append(f"{u}: book O has an unsettled stock order; the stock books leave it alone today")
+        suspect.add(u)
     for sym, shares in (o.get("stock") or {}).items():
         have = decisions._num(out.get(sym, 0.0))
         if have is None:
@@ -571,10 +603,17 @@ def _record_equity(day: "_Day", closes: dict, bench: str) -> tuple[float, float]
 
 # --- news signals and the active hype vetoes (owner decision 8, news report section 6) -----------------
 
-# Decision 8 names no exemption: a hype veto blocks a new buy or increase in every sleeve, A included (CL-7 only
-# limits what Claude may skip; it does not limit code). Exits, reductions and stops are never vetoed.
-NEWS_VETO_SLEEVES = ("A", "B", "C", "D")
+# Owner decision 8 scope (OPERATION_INVEST.md, 28 Sept 2026): the hype vetoes block new buys and increases in
+# sleeves B, C and D only, never sleeve A's broad ETF trend rebalances. If the news fetch or the signal computation
+# fails, B/C/D increases are blocked that day (fail closed) and sleeve A still runs. Exits, reductions and stops are
+# never vetoed.
+NEWS_VETO_SLEEVES = ("B", "C", "D")
 NEWS_VETO_CODE = "NEWS_HYPE_VETO"  # stored on the shadow lot; not a Claude reason code (section 6)
+# Decision 8 update (28 Sept): NEWS-4 and NEWS-13 are TEST FIRST. When the policy does not list them as active, a
+# B/C/D increase they flag is NOT blocked; it is followed as a shadow lot under this code (what the veto would have
+# saved), so the owner can judge them before they ever block.
+NEWS_TEST_FIRST_CODE = "NEWS_TEST_FIRST"
+NEWS_TEST_FIRST_IDS = ("NEWS-4", "NEWS-13")
 _SAFE_KEY = re.compile(r"^[A-Za-z0-9_\-]{1,40}$")
 _SAFE_TEXT = re.compile(r"^[A-Za-z0-9 _.:%+\-/()=<>,]*$")
 NEWS_NOTE = ("shadow: code-computed numbers and fixed labels only (no headline text). You may cite these in "
@@ -648,13 +687,12 @@ def _clean_vetoes(vetoes: dict, allowed: set[str]) -> dict[str, list[str]]:
 
 
 def _news_step(day: "_Day", feed: NewsFeed | None) -> None:
-    """Step 5b: NEWS-1..18 for today and the active vetoes (NEWS-4, NEWS-13, NEWS-18 promotion).
+    """Step 5b: NEWS-1..18 for today and the active vetoes (by default only the NEWS-18 promotion veto; NEWS-4 and
+    NEWS-13 are TEST FIRST and only flag shadow lots unless `news.active_vetoes` lists them).
 
     `feed` None is the old call (tests, evals): nothing is computed and the run says so. The CLI always passes a
-    NewsFeed. A feed without headlines (a failed fetch: items None) still runs NEWS-4 without its headline term
-    and NEWS-13 on bars, so the hype checks never switch off in a real run. If the computation itself fails,
-    every increase is blocked today (the hype check is impossible, so it fails closed, like news_signals'
-    short-history rows)."""
+    NewsFeed. A failed fetch (items None) or a failed computation sets `day.news_block`: the promotion check is
+    impossible, so new B/C/D longs are blocked today (fail closed) while sleeve A still runs (decision 8)."""
     cfg, st = day.cfg, day.state
     if feed is None:
         day.log.append("hype vetoes not checked: no news feed was passed to the engine (the CLI always passes one)")
@@ -664,18 +702,27 @@ def _news_step(day: "_Day", feed: NewsFeed | None) -> None:
     items = list(feed.items) if feed.items is not None else []
     start = feed.start if feed.items is not None else None
     notes = [_safe_text(n, 200) or "news note withheld (not plain text)" for n in feed.notes or []]
+    if feed.items is None:
+        day.news_block = ("news fetch failed: no new B/C/D longs today, sleeve A still runs (decision 8)")
+        day.log.append(day.news_block)
     try:
         signals = news_signals.compute(day.bars, items, uni, day.as_of, cfg.policy, news_start=start,
                                        c_universe=cfg.stock_universe(), regime_label=day.regime.label)
         vetoes, history = news_signals.active_vetoes(signals, cfg.policy, dict(st.news_promo_history or {}),
                                                      as_of=day.as_of)
-    except Exception as e:  # noqa: BLE001 - fail closed, never silently open
-        day.block_increases = f"news signals failed ({type(e).__name__}: {e}): no new longs today (decision 8)"
-        day.log.append(day.block_increases)
-        day.news = {"meta": {"status": "failed", "note": NEWS_NOTE, "notes": notes + [day.block_increases]},
+        active = set(news_signals.news_policy(cfg.policy)["active_vetoes"])
+        test_first = [i for i in NEWS_TEST_FIRST_IDS if i not in active]
+        flagged = news_signals.active_vetoes(signals, {"active_vetoes": test_first}) if test_first else {}
+    except Exception as e:  # noqa: BLE001 - fail closed for B/C/D, never silently open
+        day.news_block = (f"news signals failed ({type(e).__name__}: {e}): no new B/C/D longs today, sleeve A "
+                          "still runs (decision 8)")
+        day.log.append(day.news_block)
+        day.news = {"meta": {"status": "failed", "note": NEWS_NOTE, "notes": notes + [day.news_block],
+                             "blocked": day.news_block, "blocked_sleeves": list(NEWS_VETO_SLEEVES)},
                     "signals": {}, "vetoes": {}}
         return
     day.news_vetoes = _clean_vetoes(vetoes, allowed)
+    day.news_test_first = _clean_vetoes(flagged, allowed)
     day.news_history = history
     try:  # section 6 audit record: headline text and scorer version per score, for a file only (_save_score_log)
         day.score_log = list(news_signals.score_log(day.bars, items, uni, day.as_of, cfg.policy))
@@ -684,15 +731,37 @@ def _news_step(day: "_Day", feed: NewsFeed | None) -> None:
     pol = news_signals.news_policy(cfg.policy)
     day.news = {"meta": {"status": "shadow", "note": NEWS_NOTE, "as_of": day.date, "source": pol["source"],
                          "headlines": len(items) if feed.items is not None else None,
-                         "active_vetoes": list(pol["active_vetoes"]), "notes": notes},
+                         "active_vetoes": list(pol["active_vetoes"]), "veto_sleeves": list(NEWS_VETO_SLEEVES),
+                         "notes": notes},
                 "signals": _compact_signals(signals, allowed), "vetoes": day.news_vetoes}
+    if day.news_block:
+        day.news["meta"].update(status="blocked", blocked=day.news_block, blocked_sleeves=list(NEWS_VETO_SLEEVES))
+    if day.news_test_first:
+        day.log.append("TEST FIRST hype flags (not blocking, shadow-scored): " + ", ".join(sorted(day.news_test_first)))
     if day.news_vetoes:
         day.log.append("hype vetoes (decision 8, no new longs): " + ", ".join(sorted(day.news_vetoes)))
 
 
+def _test_first_records(day: "_Day", proposed: list[Target]) -> list[dict]:
+    """Decision 8 update: a B/C/D increase that a TEST FIRST signal (NEWS-4, NEWS-13) flags is not blocked; it gets
+    a shadow record (reason_code NEWS_TEST_FIRST) so the veto it would have made is scored. A name an active veto
+    already blocks is scored by that veto's own lot (its reasons gain the test-first ones instead)."""
+    out = []
+    for t in proposed:
+        reasons = day.news_test_first.get(t.symbol)
+        if (not reasons or t.sleeve not in NEWS_VETO_SLEEVES or t.symbol in day.news_vetoes
+                or not _is_increase(t, day.state.lots)):
+            continue
+        out.append({"date": day.date, "sleeve": t.sleeve, "symbol": t.symbol, "fraction": 1.0,
+                    "rule_qty": float(t.qty), "current_qty": _lot_qty(day.state.lots, t.sleeve, t.symbol),
+                    "stop": t.stop, "reason_code": NEWS_TEST_FIRST_CODE, "prediction_id": "",
+                    "news_reasons": list(reasons), "blocked": False})
+    return out
+
+
 def _block_news(day: "_Day", proposed: list[Target], quiet: bool = False) -> tuple[list[Target], list[dict]]:
-    """Step 12, decision 8: an increase in a vetoed name (any sleeve) is held at today's quantity. Exits,
-    reductions and stops pass untouched. Returns (targets, one veto record per blocked increase)."""
+    """Step 12, decision 8: an increase in a vetoed name in sleeves B, C or D is held at today's quantity. Sleeve A,
+    exits, reductions and stops pass untouched. Returns (targets, one veto record per blocked increase)."""
     if not day.news_vetoes:
         return list(proposed), []
     out, records = [], []
@@ -708,7 +777,8 @@ def _block_news(day: "_Day", proposed: list[Target], quiet: bool = False) -> tup
             day.log.append(f"{t.sleeve}/{t.symbol}: increase blocked by hype veto ({'; '.join(reasons)})")
         records.append({"date": day.date, "sleeve": t.sleeve, "symbol": t.symbol, "fraction": 1.0,
                         "rule_qty": float(t.qty), "current_qty": cur, "stop": t.stop,
-                        "reason_code": NEWS_VETO_CODE, "prediction_id": "", "news_reasons": list(reasons)})
+                        "reason_code": NEWS_VETO_CODE, "prediction_id": "", "blocked": True,
+                        "news_reasons": list(reasons) + list(day.news_test_first.get(t.symbol) or ())})
     return out, records
 
 
@@ -729,7 +799,9 @@ def _store_news(state: BookState, day: "_Day", records: list[dict], tags: dict) 
                                if not (lt.get("date") == day.date and lt.get("status") == "pending_entry")]
     for lot in shadow.open_veto_lots(_NewsLots(state), records, day.date, tags=tags):
         rec = next((r for r in records if r["sleeve"] == lot["sleeve"] and r["symbol"] == lot["symbol"]), {})
-        lot.update({"kind": "news_veto", "news_reasons": list(rec.get("news_reasons") or [])})
+        blocked = rec.get("reason_code", NEWS_VETO_CODE) != NEWS_TEST_FIRST_CODE
+        lot.update({"kind": "news_veto" if blocked else "news_test_first", "blocked": blocked,
+                    "news_reasons": list(rec.get("news_reasons") or [])})
     if day.news_history is not None:
         state.news_promo_history = day.news_history
 
@@ -774,6 +846,8 @@ class _Day:
     o: dict = field(default_factory=dict)  # what book O owns in the shared account (o_owned)
     o_host: bool = False  # this book shares its Alpaca account with book O (decision 6)
     block_increases: str = ""  # non-empty: every increase (all sleeves) is blocked today, with this reason
+    news_block: str = ""  # non-empty: news fetch/signals failed, B/C/D increases blocked today (decision 8)
+    news_test_first: dict = field(default_factory=dict)  # symbol -> TEST FIRST reasons (NEWS-4/13, never block)
     hold_symbols: set = field(default_factory=set)  # symbols with possibly open old orders: no new orders today
     score_log: list = field(default_factory=list)  # section 6 audit rows (headline text): a file only, never context
     news: dict = field(default_factory=dict)  # {meta, signals, vetoes} for the context and the journal
@@ -910,6 +984,8 @@ def _prepare_day(book: str, cfg: Config, bars: Bars, broker: Broker, as_of: pd.T
     day.bad = problem_symbols(day.problems) | set(suspect)
     if day.block_increases:
         day.problems.append(f"all symbols: {day.block_increases}")
+    if day.news_block:
+        day.problems.append(f"sleeves {'/'.join(NEWS_VETO_SLEEVES)}: {day.news_block}")
 
     # 7. weights
     promoted = tuple(st.promoted_sleeves)
@@ -949,7 +1025,8 @@ def _prepare_day(book: str, cfg: Config, bars: Bars, broker: Broker, as_of: pd.T
         day.eligible = decisions.eligibility(cfg, bars, day.regime.permissions)
         for s in NEWS_VETO_SLEEVES:  # decision 8: a vetoed name is not an eligible increase today
             if s in day.eligible:
-                day.eligible[s] = {sym for sym in day.eligible[s] if sym not in day.news_vetoes}
+                day.eligible[s] = (set() if day.news_block else
+                                   {sym for sym in day.eligible[s] if sym not in day.news_vetoes})
 
     # 10. context
     day.context = build_context(
@@ -1196,14 +1273,17 @@ def _risk(day: _Day, proposed: list[Target], weights: dict, book: str):
 
 def _block_bad_data(day: _Day, proposed: list[Target], quiet: bool = False) -> list[Target]:
     """EX-7: never open or add to a position whose data failed the checks (exits and holds still go).
-    `day.block_increases` (an unknown book-O value, a failed hype check) blocks every increase the same way."""
+    `day.block_increases` (an unknown book-O value) blocks every increase the same way; `day.news_block` (a failed
+    news fetch or hype check) blocks increases in sleeves B, C and D only (decision 8: sleeve A still runs)."""
     safe = []
     for t in proposed:
+        news_hit = bool(day.news_block) and t.sleeve in NEWS_VETO_SLEEVES
         if _is_increase(t, day.state.lots) and (
-                t.symbol in day.bad or day.block_increases):
+                t.symbol in day.bad or day.block_increases or news_hit):
             if not quiet:
                 day.log.append(f"{t.sleeve}/{t.symbol}: increase blocked, "
-                               + ("data problem" if t.symbol in day.bad else day.block_increases))
+                               + ("data problem" if t.symbol in day.bad else
+                                  day.block_increases or day.news_block))
             continue
         safe.append(t)
     return safe
@@ -1312,7 +1392,7 @@ def run_book(book: str, cfg: Config, bars: Bars, broker: Broker, advisor, as_of:
     # of a vetoed name can neither hide the veto's shadow lot nor earn CL-9 credit for a block code makes anyway.
     pre = _plan_targets(day.plans) if book == "rules" else list(out.proposed)
     _, news_vetoes = _block_news(day, pre)
-    news_vetoes = _vetoes_risk_allows(day, news_vetoes, pre, out.weights, book)
+    news_vetoes = _vetoes_risk_allows(day, news_vetoes + _test_first_records(day, pre), pre, out.weights, book)
     if book == "rules" and out.vetoes:
         out.vetoes = _drop_hype_blocked(day, out.vetoes)
         out.vetoes = _vetoes_risk_allows(day, out.vetoes, _plan_targets(day.plans), out.weights)

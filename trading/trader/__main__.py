@@ -94,8 +94,9 @@ def fetch_bars(cfg):
 
 
 def news_feed(cfg, as_of, days: int = NEWS_DAYS, fetch=None, today: str | None = None) -> NewsFeed:
-    """Today's headlines for the hype vetoes (decision 8). A failed fetch is not fatal: the engine still runs
-    NEWS-4 (without its headline term) and NEWS-13 on bars, and NEWS-18 uses the stored promotion memory."""
+    """Today's headlines for the hype vetoes (decision 8). A failed fetch is not fatal to the run: the engine blocks
+    new B/C/D longs for the day (fail closed) and sleeve A still runs; the TEST FIRST NEWS-4/NEWS-13 rows are still
+    computed on bars for the shadow record."""
     from .news import fetch_news
 
     ts = pd.Timestamp(as_of)
@@ -105,7 +106,7 @@ def news_feed(cfg, as_of, days: int = NEWS_DAYS, fetch=None, today: str | None =
     try:
         items = (fetch or fetch_news)(news_universe(cfg), start, end, policy=cfg.policy)
     except Exception as e:  # noqa: BLE001
-        why = f"news fetch failed ({type(e).__name__}); hype vetoes NEWS-4 and NEWS-13 run on bars only"
+        why = f"news fetch failed ({type(e).__name__}); no new B/C/D longs today, sleeve A still runs (decision 8)"
         print(f"  news note: {why}: {e}")
         return NewsFeed(items=None, notes=[why])
     print(f"news: {len(items)} headline(s) from {start} to {end} (alpaca_benzinga; headlines are never printed)")
@@ -482,11 +483,24 @@ def print_news_vetoes(v: dict) -> None:
     """Decision 8: what the hype vetoes blocked, and whether blocking paid (veto_value > 0 = money saved)."""
     if not v.get("n_vetoes"):
         print("hype vetoes (decision 8): none blocked an increase yet")
+        _print_test_first(v)
         return
     print(f"hype vetoes (decision 8): {v['n_vetoes']} blocked, {v['n_scored']} scored, sum value "
           f"{_fmt(v.get('sum_value'))} R (${_fmt(v.get('sum_value_usd'))}), hit rate {_fmt(v.get('hit_rate'))}")
     for sid, g in sorted((v.get("by_signal") or {}).items()):
         print(f"  {sid}: {g['n_vetoes']} blocked, {g['n_scored']} scored, sum {_fmt(g.get('sum_value'))} R")
+    _print_test_first(v)
+
+
+def _print_test_first(v: dict) -> None:
+    """Decision 8 update: NEWS-4/NEWS-13 are TEST FIRST; what they would have blocked, shadow-scored."""
+    tf = v.get("test_first") or {}
+    if not tf.get("n_vetoes"):
+        return
+    print(f"TEST FIRST hype flags (NEWS-4/NEWS-13, not blocking): {tf['n_vetoes']} flagged increases, "
+          f"{tf['n_scored']} scored, sum value {_fmt(tf.get('sum_value'))} R (> 0 = a block would have saved money)")
+    for sid, g in sorted((tf.get("by_signal") or {}).items()):
+        print(f"  {sid}: {g['n_vetoes']} flagged, {g['n_scored']} scored, sum {_fmt(g.get('sum_value'))} R")
 
 
 def print_options_report(rep: dict) -> None:
@@ -634,6 +648,32 @@ def _bars_kw(fn, cfg, args) -> dict:
     return {"bars": bars}
 
 
+def _o_account_kw(fn, orun) -> dict:
+    """Book O's E and uncommitted cash (OPT-8, OPT-9, OPT-31) from a READ-ONLY account read (GET /account), when
+    the function takes them. The broker object itself is never passed on, so the shadow run cannot settle, check
+    or send anything; without keys (or on any error) nothing is passed and the run reports the account unknown."""
+    import inspect
+
+    try:
+        takes = "equity" in inspect.signature(fn).parameters
+    except (TypeError, ValueError):
+        takes = False
+    if not takes:
+        return {}
+    try:
+        br = orun.default_broker()
+        if br is None:
+            return {}
+        eq, cash = br.account()  # read-only
+        eq, cash = float(eq), float(cash)
+    except Exception as e:  # noqa: BLE001 - an unknown account blocks shadow entries; it never stops the run
+        print(f"  book O note: account read failed ({type(e).__name__}); equity unknown, no shadow entries")
+        return {}
+    if not (eq > 0 and cash == cash):
+        return {}
+    return {"equity": eq, "uncommitted_cash": max(0.0, cash - float(orun.rules_pending_buys(STATE_DIR)))}
+
+
 def cmd_options(args) -> int:
     """Book O (reports/Options rulebook.md). SHADOW: nothing here sends an order while options_book.enabled is
     false, and the order code also needs gate OPT-41 (trader.options.run enforces both)."""
@@ -651,10 +691,12 @@ def cmd_options(args) -> int:
         out = orun.log_chains(cfg, STATE_DIR, args.when)
     elif args.action == "prepare":
         out = orun.prepare_options(cfg, STATE_DIR, date=args.date, samples=args.samples or 3,
-                                   **_bars_kw(orun.prepare_options, cfg, args))
+                                   **_bars_kw(orun.prepare_options, cfg, args),
+                                   **_o_account_kw(orun.prepare_options, orun))
     elif args.action == "run":
         out = orun.run_options(cfg, STATE_DIR, decision_files=tuple(args.decision_file or ()), dry_run=args.dry_run,
-                               **_bars_kw(orun.run_options, cfg, args))
+                               when=args.when, **_bars_kw(orun.run_options, cfg, args),
+                               **_o_account_kw(orun.run_options, orun))
     else:
         out = orun.report_options(cfg, STATE_DIR)
     if getattr(args, "json", False):
@@ -810,7 +852,7 @@ def main(argv=None) -> int:
         pr.set_defaults(func=lambda a, _p=promote: cmd_promote(a, _p))
     o = sub.add_parser("options", help="book O (options, SHADOW): log-chain, prepare, run, report, backtest")
     o.add_argument("action", choices=["log-chain", "prepare", "run", "report", "backtest", "calibrate-skew"])
-    o.add_argument("--when", choices=["close", "1545"], default="close", help="log-chain: which snapshot (OPT-35)")
+    o.add_argument("--when", choices=["close", "1545"], default="close", help="log-chain / run: which snapshot (OPT-35; 1545 = the OPT-13 15:45 measurement / OPT-17 run)")
     o.add_argument("--date", default=None, help="prepare: the session date (default: today)")
     o.add_argument("--samples", type=int, default=None, help="prepare: independent review files wanted (default 3)")
     o.add_argument("--decision-file", action="append", metavar="PATH", help="run: a review file (repeatable)")

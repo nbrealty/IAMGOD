@@ -164,9 +164,14 @@ def order(cid, oid):
     return SimpleNamespace(client_order_id=cid, id=oid)
 
 
-def test_cancel_without_prefixes_keeps_old_behaviour():
-    c = FakeTradingClient()
-    assert AlpacaPaperBroker("k", "s", [], client=c).cancel_open_orders() is None
+def test_cancel_without_prefixes_refuses_unless_all_orders_is_explicit():
+    # owner decision 6: the paper account is shared with book O, so a bare call must not cancel O's orders
+    c = FakeTradingClient([order("OPT-20261016-open-a", "1")])
+    b = AlpacaPaperBroker("k", "s", [], client=c)
+    with pytest.raises(ValueError, match="decision 6"):
+        b.cancel_open_orders()
+    assert c.cancel_all == 0 and c.cancelled_ids == []
+    assert b.cancel_open_orders(all_orders=True) is None
     assert c.cancel_all == 1 and c.cancelled_ids == []
 
 
@@ -251,9 +256,53 @@ def test_mleg_problems_catch_bad_orders(o, why):
     assert any(why in p for p in mleg_problems(o, enabled=True, gate_ok=True, paper=True))
 
 
+def _with_legs(o, a, b):
+    legs = [dict(o["legs"][0], symbol=a), dict(o["legs"][1], symbol=b)]
+    return {**o, "legs": legs}
+
+
+@pytest.mark.parametrize("intent", ["open", "close"])
+@pytest.mark.parametrize("a,b,why", [
+    ("SPY261120P00631000", "SPY261218P00629000", "one expiry"),       # mixed expiry (a calendar)
+    ("SPY261120P00631000", "SPY261120C00629000", "same type"),        # put + call
+    ("SPY261120P00631000", "SPY", "not an OCC option symbol"),        # equity leg
+    ("SPY261120P00631000", "QQQ261120P00629000", "one underlying"),   # mixed root
+    ("SPY261120P00631000", "SPY261120P00631000", "different strikes"),
+])
+def test_mleg_problems_reject_non_vertical_legs(intent, a, b, why):
+    # finding #4: the broker's second lock must stop these even if a caller skips options.risk
+    o = _with_legs(mleg_order(limit=-0.25 if intent == "open" else 0.25, intent=intent), a, b)
+    assert any(why in p for p in mleg_problems(o, enabled=True, gate_ok=True, paper=True))
+    c = FakeTradingClient()
+    res = AlpacaPaperBroker("k", "s", [], client=c).submit_mleg(o, enabled=True, gate_ok=True, today="2026-10-16")
+    assert res["status"] == "refused" and c.submitted == []
+
+
+def test_mleg_problems_refuse_0dte_or_expired_opens_but_not_closes():
+    kw = {"enabled": True, "gate_ok": True, "paper": True}
+    assert mleg_problems(mleg_order(), today="2026-11-19", **kw) == []   # 1 DTE passes the broker floor
+    for day in ("2026-11-20", "2026-11-23"):                              # 0DTE, expired
+        assert any("OPT-5" in p for p in mleg_problems(mleg_order(), today=day, **kw))
+        c = FakeTradingClient()
+        res = AlpacaPaperBroker("k", "s", [], client=c).submit_mleg(mleg_order(), enabled=True, gate_ok=True,
+                                                                    today=day)
+        assert res["status"] == "refused" and c.submitted == []
+    # an exit on expiry day must still go out
+    assert mleg_problems(mleg_order(limit=0.25, intent="close"), today="2026-11-20", **kw) == []
+    assert any("OPT-5" in p for p in mleg_problems(mleg_order(), today="2026-11-10", min_open_dte=25, **kw))
+
+
+def test_submit_mleg_uses_the_clock_when_no_date_is_given():
+    c = FakeTradingClient()
+    res = AlpacaPaperBroker("k", "s", [], client=c).submit_mleg(
+        _with_legs(mleg_order(), "SPY200117P00300000", "SPY200117P00295000"), enabled=True, gate_ok=True)
+    assert res["status"] == "refused" and "OPT-5" in res["error"] and c.submitted == []
+
+
 def test_submit_mleg_sends_one_limit_day_mleg_order():
     c = FakeTradingClient()
-    res = AlpacaPaperBroker("k", "s", [], client=c).submit_mleg(mleg_order(), enabled=True, gate_ok=True)
+    res = AlpacaPaperBroker("k", "s", [], client=c).submit_mleg(mleg_order(), enabled=True, gate_ok=True,
+                                                                today="2026-10-16")
     assert res["status"] == "accepted" and len(c.submitted) == 1
     req = c.submitted[0].to_request_fields()
     assert req["order_class"].value == "mleg" and req["type"].value == "limit" and req["time_in_force"].value == "day"
@@ -846,6 +895,17 @@ def test_opt41_passes_only_with_every_item(cfg, sd):
     g = run.gate_status(cfg, sd, shadow=sh)
     assert g["paper_start_ok"] is True
     assert g["orders_allowed"] is False  # options_book.enabled is still false (owner decision 10)
+    # finding #7: the yes lives in the state folder sessions write, so the gate report shows where it came from
+    f = g["opt41"]["items"]["owner_yes"]["detail"]["file"]
+    import hashlib
+    raw = (sd / "options" / run.APPROVAL_FILE).read_bytes()
+    assert f["sha256"] == hashlib.sha256(raw).hexdigest()[:16] and f["modified"] and f["path"].endswith(
+        run.APPROVAL_FILE)
+
+
+def test_owner_approval_provenance_is_none_without_a_file(sd):
+    a = run.owner_approval(sd, "paper_start")
+    assert a["ok"] is False and a["file"] is None
 
 
 def test_opt41_counts_and_ratios(cfg, sd):
@@ -873,13 +933,19 @@ def test_opt40_needs_backtest_shadow_and_owner(cfg, sd):
     sh.book.closed = [{"R": 0.1, "R_paper": 0.1, "max_loss": 170, "width": 2.0, "contracts": 1, "lot_id": f"S-{i}",
                        "date": "2026-11-13", "entry_date": "2026-10-16", "tags": {"bil_rate": 0.04}, **lot_rec}
                       for i in range(30)]
-    items = run.opt40_status(cfg, sd, sh, OptionsBook())["items"]
+    st40 = run.opt40_status(cfg, sd, sh, OptionsBook())
+    items = st40["items"]
     # OPT-40 (i): the run on real Alpaca option bars is not built, so the item fails closed
     assert {k for k, v in items.items() if not v["ok"]} == {"owner_sign_off", "alpaca_option_bars_run"}
+    # finding #20: the unbuilt TEST FIRST pieces are listed as explicit TODOs, not silently absent
+    assert set(st40["test_first_not_built"]) == {"OPT-17_1015_vs_1545", "OPT-20_ii", "OPT-39_signals",
+                                                 "OPT-40_i_alpaca_bars"}
     bt["alpaca_option_bars"] = {"E": 0.03, "n": 25}
     (sd / "options" / "backtest" / "latest.json").write_text(json.dumps(bt))
-    items = run.opt40_status(cfg, sd, sh, OptionsBook())["items"]
+    st40 = run.opt40_status(cfg, sd, sh, OptionsBook())
+    items = st40["items"]
     assert {k for k, v in items.items() if not v["ok"]} == {"owner_sign_off"}
+    assert "OPT-40_i_alpaca_bars" not in st40["test_first_not_built"]
     # at most one promotion per quarter
     approve(sd, "promotion_history", date="x")
     d = json.loads((sd / "options" / run.APPROVAL_FILE).read_text())
@@ -1069,6 +1135,7 @@ def test_report_has_opt38_invested_gates_and_feed_note(cfg, sd):
     assert r["invested_per_trade"]["shadow"][0]["invested"] > 0
     assert "indicative" in r["feed_note"] and r["gates"]["opt42"]["live_ok"] is False
     assert r["variants"]["OPT-39"]["QQQ"]["n"] == 1 and r["variants"]["OPT-25"]["hold7"]["n"] == 1
+    assert {"OPT-17_1015_vs_1545", "OPT-20_ii", "OPT-39_signals"} <= set(r["test_first_not_built"])  # finding #20
     assert (sd / "options" / "report.json").exists()
 
 
@@ -1086,7 +1153,8 @@ def test_opt38_stats_edge_cases():
 
 
 def test_o_owned_empty_and_with_assigned_stock(sd):
-    assert run.o_owned(sd) == {"symbols": set(), "stock": {}, "value": 0.0, "order_prefix": "OPT-"}
+    assert run.o_owned(sd) == {"symbols": set(), "stock": {}, "value": 0.0, "order_prefix": "OPT-", "legs": {},
+                               "pending_stock": []}
     led = OptionsBook(o_stock={"SPY": 100.0})
     led.save(sd)
     assert run.o_owned(sd)["stock"] == {"SPY": 100.0}
@@ -1372,3 +1440,151 @@ def test_opt41_items_are_checked_not_asserted(cfg, sd, monkeypatch):
     from trader import engine
     monkeypatch.setattr(engine, "_own_prefixes", lambda book, date: ("OPT-",))
     assert not run.separation_check(sd)["ok"]
+
+
+# --- OPT-3: the broker lock checks each leg's side against its intent (findings2 #2) ---------------------------
+
+
+def _legs_swapped(o):
+    a, b = (dict(l) for l in o["legs"])
+    a["side"], b["side"] = b["side"], a["side"]
+    return {**o, "legs": [a, b]}
+
+
+def _leg_side_missing(o):
+    a, b = (dict(l) for l in o["legs"])
+    b.pop("side")
+    return {**o, "legs": [a, b]}
+
+
+@pytest.mark.parametrize("bad", [_legs_swapped, _leg_side_missing])
+def test_mleg_problems_reject_side_that_disagrees_with_intent(bad):
+    assert mleg_problems(mleg_order(), enabled=True, gate_ok=True, paper=True) == []
+    for intent in ("open", "close"):
+        o = mleg_order(limit=-0.25 if intent == "open" else 0.25, intent=intent)
+        assert any("does not match position_intent" in p
+                   for p in mleg_problems(bad(o), enabled=True, gate_ok=True, paper=True))
+        c = FakeTradingClient()
+        res = AlpacaPaperBroker("k", "s", [], client=c).submit_mleg(bad(o), enabled=True, gate_ok=True,
+                                                                    today="2026-10-16")
+        assert res["status"] == "refused" and c.submitted == []
+
+
+def test_mleg_request_side_comes_from_the_intent():
+    from trader.broker import _mleg_request
+    req = _mleg_request(_leg_side_missing(_legs_swapped(mleg_order()))).to_request_fields()
+    assert {(l["side"].value, l["position_intent"].value) for l in req["legs"]} == \
+        {("sell", "sell_to_open"), ("buy", "buy_to_open")}
+
+
+# --- OPT-15 / OPT-26: an owner alert when O cannot close what it holds (findings2 #6) ---------------------------
+
+
+def test_blocked_exit_near_expiry_raises_owner_alert(cfg, sd):
+    led = OptionsBook()
+    cand = {"underlying": "SPY", "expiry": "2026-11-20", "type": "put", "spot": 660.0,
+            "short": {"symbol": "SPY261120P00631000", "strike": 631.0},
+            "long": {"symbol": "SPY261120P00629000", "strike": 629.0}}
+    led.open_spread(cand, {"contracts": 1, "credit_per_share": 0.3}, "2026-10-19", shadow=False)
+    led.save(sd)
+    b = FakeBroker()
+    e = run.run_options(cfg, sd, now=close_utc("2026-11-16"), regime_label="bull_calm", broker=b, dry_run=False)
+    assert b.submitted == [] and b.singles == []
+    assert any("OPT-15 owner alert" in a for a in e["alerts"]["paper"]), e["alerts"]
+
+
+def test_owner_alerts_for_blocked_cleanup_and_urgent_orphan_wait():
+    entry = {"alerts": {"paper": []}}
+    plan = [{"action": "sell_stock", "symbol": "SPY", "qty": 100, "urgent": True},
+            {"action": "wait_stock_flat", "symbol": "SPY261120P00629000", "qty": 1, "urgent": True}]
+    run._owner_exit_alerts([], plan, "2026-11-18", False, {"enabled": False, "paper_start_ok": True}, entry)
+    alerts = entry["alerts"]["paper"]
+    assert any("clean-up sell_stock SPY" in a for a in alerts)
+    assert any("orphan long SPY261120P00629000" in a and "SPY stock" in a for a in alerts)
+    entry = {"alerts": {"paper": []}}
+    run._owner_exit_alerts([], plan[:1], "2026-11-18", True, {}, entry)
+    assert entry["alerts"]["paper"] == []
+
+
+# --- review fixes: shared account (owner decision 6) ----------------------------------------------------------------
+
+
+def _rules_holds(sd, qty, pending_sell=0.0):
+    st = BookState(book="rules")
+    st.lots = {"A": {"SPY": Lot(qty=qty, entry_price=600, entry_date="2026-10-01", stop=0)}}
+    if pending_sell:
+        st.pending_orders = [{"client_order_id": "R2026-SPY-sell-1", "symbol": "SPY", "side": "sell",
+                              "qty": pending_sell, "settled_qty": 0.0, "signal_close": 660.0}]
+    st.save(sd)
+
+
+@pytest.mark.parametrize("broker_spy", [130.0, 160.0])  # the rules sale filled / not filled yet
+def test_assignment_is_booked_when_the_rules_book_sold_the_same_day(cfg, sd, broker_spy):
+    """Finding #3: rules ledger 60 SPY with an unbooked sell of 30, O's short put assigned. Filled sale -> the broker
+    holds 130 (60 - 30 + 100); unfilled -> 160. Both must book exactly one contract to O's o_stock, and the
+    clean-up must sell O's stock, not send the owner an unexplained-stock review."""
+    _rules_holds(sd, 60.0, pending_sell=30.0)
+    led = open_paper_lot(sd)
+    long = led.open_lots()[0].long_leg.symbol
+    b = FakeBroker(positions=[{"symbol": long, "qty": 1.0}, {"symbol": "SPY", "qty": broker_spy}],
+                   acct={"maintenance_margin": 200.0 + 0.3 * broker_spy * 660.0})
+    entry = {"date": DAY, "notes": []}
+    run._read_broker(b, led, sd, run._policy(cfg), entry)
+    assert [a["contracts"] for a in entry["assignments"]] == [1] and led.o_stock == {"SPY": 100.0}
+    assert not any("not owned" in x and "SPY" in x and "+100" not in x for x in entry["broker_blocks"])
+    assert entry["incidents"]["stock_excess"] == {"SPY": 100.0}  # exactly O's assigned shares
+    assert entry["cleanup_plan"][0]["action"] == "sell_stock"
+    assert "owner_review_stock" not in [s_["action"] for s_ in entry["cleanup_plan"]]
+
+
+def test_opt27_margin_with_rules_stock_in_the_shared_account(cfg, sd):
+    """Findings #1/#16: Alpaca's maintenance margin is account-wide; the rules book's stock adds its requirement.
+    With stock present only the lower bound is checked; a margin below the spread requirement still blocks."""
+    _rules_holds(sd, 75.0)
+    led = open_paper_lot(sd)
+    s_sym, l_sym = led.open_lots()[0].short_leg.symbol, led.open_lots()[0].long_leg.symbol
+    pos = [{"symbol": s_sym, "qty": -1.0}, {"symbol": l_sym, "qty": 1.0},
+           {"symbol": "SPY", "qty": 75.0, "market_value": 49_500.0}]
+    p = run._policy(cfg)
+    for margin, blocked in ((200.0 + 0.3 * 49_500.0, False), (200.0, False), (150.0, True)):
+        entry = {"date": DAY, "notes": []}
+        run._read_broker(FakeBroker(positions=pos, acct={"maintenance_margin": margin}), led, sd, p, entry)
+        assert any("OPT-27: maintenance margin" in x for x in entry["broker_blocks"]) is blocked, (margin, entry)
+        if not blocked:
+            assert entry["broker_blocks"] == [] and any("exact margin match skipped" in n for n in entry["notes"])
+    # a spread-only account keeps the exact $1-per-contract rule
+    only = pos[:2]
+    assert ob.margin_problem(9_110.0, led.open_lots(), p) is not None
+    assert ob.detect_incidents(only, led.open_lots(), maintenance_margin=9_110.0, check_margin=True,
+                               policy=p)["mismatches"]
+    assert not ob.detect_incidents(only, led.open_lots(), maintenance_margin=200.5, check_margin=True,
+                                   policy=p)["mismatches"]
+    assert ob.margin_problem(9_110.0, led.open_lots(), p, has_stock=True) is None
+    assert "below" in ob.margin_problem(100.0, led.open_lots(), p, has_stock=True)
+
+
+def test_o_owned_reports_ledger_legs_and_pending_stock_orders(sd):
+    """Finding #0: the stock books need O's expected legs and O's unsettled stock orders."""
+    led = open_paper_lot(sd)
+    led.save(sd)
+    s_sym, l_sym = led.open_lots()[0].short_leg.symbol, led.open_lots()[0].long_leg.symbol
+    out = run.o_owned(sd)
+    assert out["legs"] == {s_sym: -1.0, l_sym: 1.0} and out["pending_stock"] == []
+    paper = run._load_paper(sd)
+    paper["pending"].append({"client_order_id": "OPT-asn", "intent": "stock_sale", "symbol": "SPY", "qty": 100,
+                             "lot_id": led.open_lots()[0].lot_id, "legs": []})
+    run._save_paper(sd, paper)
+    assert run.o_owned(sd)["pending_stock"] == ["SPY"]
+
+
+def test_separation_check_exercises_the_unbooked_assignment_case(sd):
+    assert run.separation_check(sd)["ok"], run.separation_check(sd)
+
+
+def test_opt41_shadow_cycles_ignore_runs_with_an_unknown_account():
+    """Finding #15: a run with no account could never open a shadow spread, so it is not a shadow cycle."""
+    known = {"date": "2026-10-16", "reasons": [], "account_known": True}
+    assert run._account_known_row(known)
+    assert not run._account_known_row({**known, "account_known": False})
+    assert not run._account_known_row({"date": "2026-10-16", "reasons": ["equity is zero or unknown"]})
+    assert not run._account_known_row({"date": "2026-10-16", "reasons": ["OPT-31: O P&L or equity unknown; x"]})

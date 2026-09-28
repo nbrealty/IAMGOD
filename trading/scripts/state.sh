@@ -43,13 +43,26 @@ ignore_cache() {
   done
 }
 
+# Does the state remote have the branch? `ls-remote --exit-code` exits 2 only when the branch is missing; any
+# other failure (network, auth, bad URL) must stop the session, never read as "no saved state yet": the books
+# would then start with no lots while the paper account holds positions.
+remote_has_branch() {
+  local rc=0
+  git -C "$DIR" ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1 || rc=$?
+  case "$rc" in
+    0) return 0 ;;
+    2) return 1 ;;
+    *) die "could not reach the state remote (git ls-remote exit $rc: network or auth failure). Do not run the books; stop and tell the owner." ;;
+  esac
+}
+
 pull() {
   mkdir -p "$DIR"
   if own_repo; then
     local current
     current="$(git -C "$DIR" symbolic-ref --short -q HEAD || true)"
     [ "$current" = "$BRANCH" ] || die "$DIR is on branch '$current', expected '$BRANCH'"
-    if git -C "$DIR" ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+    if remote_has_branch; then
       git -C "$DIR" pull --quiet --ff-only origin "$BRANCH" \
         || die "could not fast-forward $DIR to origin/$BRANCH (local state has commits the remote lacks, or conflicts). Stop and tell the owner."
       echo "state: updated $DIR from $BRANCH ($(git -C "$DIR" log -1 --format='%h %s'))"
@@ -67,7 +80,7 @@ pull() {
   git -C "$DIR" symbolic-ref HEAD "refs/heads/$BRANCH"
   git -C "$DIR" remote add origin "$url"
   own_repo || die "could not create a separate git repository in $DIR"
-  if git -C "$DIR" ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+  if remote_has_branch; then
     git -C "$DIR" fetch --quiet origin "$BRANCH" || die "could not fetch $BRANCH from the remote"
     # Files already in the folder that the branch also has would be overwritten: refuse instead.
     git -C "$DIR" checkout --quiet -b "$BRANCH" FETCH_HEAD \

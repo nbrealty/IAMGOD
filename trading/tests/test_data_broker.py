@@ -685,7 +685,10 @@ def test_alpaca_account_positions_cancel_and_name():
     assert b.name == "alpaca-paper" and SimBroker.name == "sim"
     assert b.account() == (100123.45, 5000.5)
     assert b.positions() == {"SPY": 10.0, "BTC/USD": 0.25}
-    b.cancel_open_orders()
+    with pytest.raises(ValueError):  # owner decision 6: a bare cancel would hit book O's orders too
+        b.cancel_open_orders()
+    assert client.cancelled == 0
+    b.cancel_open_orders(all_orders=True)
     assert client.cancelled == 1
 
 
