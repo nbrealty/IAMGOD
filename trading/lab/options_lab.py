@@ -45,6 +45,7 @@ STEPS = (0.03, 0.06, 0.10, 0.15, 0.25, 0.40)
 TERMINAL = {"filled", "canceled", "expired", "rejected", "done_for_day", "replaced", "stopped", "suspended"}
 LIVE = ("pending_open", "open", "pending_close")
 TAKE_PROFIT, STOP = 0.5, 0.5
+BACKSTOP = 0.8  # credit spreads stop on the underlying crossing the short strike; this value stop is the backstop
 MAX_QUOTE_SPREAD = 0.20  # a leg with a bid-ask wider than this ($) is not traded
 
 
@@ -187,10 +188,13 @@ class Lab:
         net = round(abs(mid), 2)
         if net <= 0.05:
             return None, "net price too small to trade"
-        per_contract_loss = (width - net) * 100 if credit else net * 100
+        structural = (width - net) * 100 if credit else net * 100
         per_contract_gain = net * 100 if credit else (width - net) * 100
-        if per_contract_loss <= 0:
+        if structural <= 0:
             return None, "bad quotes (no risk?)"
+        # Budget the exit too: closing costs about half of each leg's quoted spread (research playbook, section 8).
+        exit_cost = ((long["ask"] - long["bid"]) + (short["ask"] - short["bid"])) / 2 * 100
+        per_contract_loss = structural + exit_cost
         qty = int(MAX_LOSS_PER_TRADE // per_contract_loss)
         room = MAX_LOSS_TOTAL - sum(t["max_loss"] for t in self.trades if t["status"] in LIVE)
         qty = min(qty, int(room // per_contract_loss))
@@ -199,7 +203,8 @@ class Lab:
         return {"underlying": sym, "kind": kind, "expiry": expiry.isoformat(), "type": typ, "credit": credit,
                 "long": long["symbol"], "short": short["symbol"], "long_strike": long["strike"],
                 "short_strike": short["strike"], "width": width, "qty": qty, "net": net,
-                "max_loss": round(per_contract_loss * qty, 2), "max_gain": round(per_contract_gain * qty, 2),
+                "max_loss": round(per_contract_loss * qty, 2), "structural_max_loss": round(structural * qty, 2),
+                "exit_cost_budget": round(exit_cost * qty, 2), "max_gain": round(per_contract_gain * qty, 2),
                 "short_delta": short["delta"], "long_delta": long["delta"]}, "ok"
 
     # --- orders ------------------------------------------------------------------------------------------------
@@ -289,6 +294,16 @@ class Lab:
         px = 0.01 if last else (min(mid - step, natural - extra) if hard else mid - step)  # we receive
         return round(max(0.01, px), 2)
 
+    def underlying_price(self, sym: str) -> float | None:
+        from alpaca.data.enums import DataFeed
+        from alpaca.data.requests import StockLatestTradeRequest
+
+        try:
+            return float(self.stocks.get_stock_latest_trade(StockLatestTradeRequest(symbol_or_symbols=sym,
+                                                                                    feed=DataFeed.IEX))[sym].price)
+        except Exception:
+            return None
+
     def spread_mid(self, t: dict) -> tuple[float, float] | None:
         from alpaca.data.enums import OptionsFeed
         from alpaca.data.requests import OptionLatestQuoteRequest
@@ -374,10 +389,17 @@ class Lab:
             max_loss = t["width"] - entry if t["credit"] else entry
             reason = t.get("exit_reason")  # once an exit is decided it is never undecided
             if reason is None:
+                spot = self.underlying_price(t["underlying"])
+                crossed = spot is not None and t["credit"] and (
+                    spot < t["short_strike"] if t["type"] == "put" else spot > t["short_strike"])
+                value_stop = -pnl >= (BACKSTOP if t["credit"] else STOP) * max_loss
+                # A stop must show on two checks in a row, so one bad quote cannot close a trade.
+                t["stop_hits"] = t.get("stop_hits", 0) + 1 if (crossed or value_stop) else 0
                 if pnl >= TAKE_PROFIT * max_gain:
                     reason = "take profit (50% of max gain)"
-                elif -pnl >= STOP * max_loss:
-                    reason = "stop (50% of max loss)"
+                elif t["stop_hits"] >= 2:
+                    reason = (f"stop: {t['underlying']} {spot:.2f} crossed the short strike {t['short_strike']}"
+                              if crossed else f"stop ({int((BACKSTOP if t['credit'] else STOP) * 100)}% of max loss)")
                 elif now >= TIME_EXIT:
                     reason = "time exit before the close"
             t["last_value"], t["last_pnl"] = value, round(pnl * 100 * t["qty"], 2)
