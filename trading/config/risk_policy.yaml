@@ -88,3 +88,33 @@ measurement:
     sqn_floor: -1.0
   predictions_min_resolved: 50  # M-7
   going_live_min_sessions: 252  # G-1
+options_book:                 # book O only (reports/Options rulebook.md); books A-D keep account.options: false
+  enabled: false              # OPT-1: only the owner turns paper orders on, after gate OPT-41; shadow runs regardless
+  underlyings: [SPY]          # OPT-4; QQQ and IWM are shadow-only variants (OPT-39)
+  order_prefix: "OPT-"        # owner decision 6: shared account, every O order is tagged
+  max_budgeted_loss_per_trade_pct: 0.0025   # OPT-8: MaxLoss + quoted cost at entry
+  max_open_budgeted_loss_pct: 0.010         # OPT-9
+  max_open_spreads: 3
+  max_new_per_week: 1
+  require_assignment_cover: true            # OPT-9: uncommitted cash >= sum(short strike x 100 x qty)
+  max_delta_notional_pct: 0.20              # OPT-10
+  max_short_vega_pct: 0.0005
+  target_short_delta: [0.15, 0.25]          # OPT-17/18: |delta| of the short put
+  target_dte: 35
+  entry_dte: {first: 36, last: 30}          # OPT-18
+  min_dte_entry: 25                         # OPT-5
+  exit_dte: 7                               # OPT-22
+  alert_dte: 2
+  leg_filter: {min_oi: 500, min_volume: 50, max_spread_pct: 0.05, max_spread_abs: 0.05, quote_after_et: "15:45"}  # OPT-12
+  max_quoted_cost_pct: 0.20                 # OPT-13
+  exit_ladder: {try1: mid, try2: natural, step_abs: 0.05, cap: width}  # OPT-15
+  entry_recheck: {max_spx_move_pct: 0.01}   # OPT-17
+  permission: {bull_calm: 1.0, bull_volatile: 0.5, choppy: 0, bear: 0, panic: 0}  # OPT-19
+  breakers: {daily_loss_pct: 0.005, dd_halve: 0.01, dd_halt: 0.02}                # OPT-30, OPT-31
+  fees_per_contract: 0.0                    # paper; the cost model adds quoted cost (OPT-16)
+news:                         # reports/Market psychology and news signals.md; owner decisions 7 and 8
+  source: alpaca_benzinga     # public data only; every signal logs its source
+  active_vetoes: [NEWS-4, NEWS-13, NEWS-18-PROMO]   # decision 8: block new longs only, both books, still shadow-scored
+  promo_block_sessions: 20
+  promo_words: ["paid", "sponsored", "investor awareness", "paid promotion", "advertorial"]
+  max_headline_chars: 300     # prompt-injection guard: Claude never sees raw headlines
