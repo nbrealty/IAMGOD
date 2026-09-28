@@ -52,7 +52,11 @@ also keeps `claude/investment-agents-question-hrkk10` in sync).
    a name. The hype vetoes NEWS-4 (attention spike after a run-up), NEWS-13 (lottery/MAX) and the promotion part of NEWS-18
    ("paid", "sponsored", "investor awareness": no new long for 20 sessions) are active from day one, because they only
    block new buys; each veto is still shadow-scored. Claude is told to be skeptical of anything widely promoted.
-9. **Hold everything until the options build is done:** no paper orders and no daily schedule without the owner's OK.
+9. **Crypto later (note for a future session).** The owner wants the bot in crypto eventually, but the normal stock
+   market comes first. Do not enable sleeve D or build fast crypto trading until the stock books have a paper track
+   record and the owner asks. When that time comes: crypto stays on Alpaca, BTC/ETH only on the owner's allowlist,
+   decision 8 (no promoted or new coins) applies in full, and rulebook D-1 to D-5 plus the speculative cap RISK-7 hold.
+10. **Hold everything until the options build is done:** no paper orders and no daily schedule without the owner's OK.
 
 ## What to build (the owner said: build the BUILD NOW rules)
 
