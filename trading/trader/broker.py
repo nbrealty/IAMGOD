@@ -5,6 +5,12 @@ crypto orders are GTC. EX-2: every order is a market order, so exits always go o
 EX-4: `order_fills` reports what really filled (quantity, average price, date) so the ledger books lots at
 fill prices, not at the signal close. It replaces the rulebook's `fills_since()` (Implementation plan phase 1,
 item 4): looking up each pending order by its client id also catches partial fills on orders still open.
+
+Book O (reports/Options rulebook.md, phase O4) shares the rules book's paper account (owner decision 6), so
+`cancel_open_orders(prefixes=...)` cancels only one book's orders. The options additions (`submit_mleg`,
+`mleg_fills`, `positions_detail`, `option_activities`, `options_account`, and `submit_single` for the OPT-26
+clean-up sells) are used only by `trader/options/run.py`; `submit_mleg` and `submit_single` refuse unless O is
+enabled, the OPT-41 gate passed and the host is paper.
 """
 from __future__ import annotations
 
@@ -32,7 +38,8 @@ class Broker(Protocol):
 
     def positions(self) -> dict[str, float]: ...
 
-    def cancel_open_orders(self) -> None: ...
+    def cancel_open_orders(self, prefixes: Any = None) -> list[str] | None:
+        """None cancels every open order; prefixes cancel only this book's orders (owner decision 6)."""
 
     def submit(self, orders: list[Order], client_prefix: str, *, date: Any = None,
                suffix: str | None = None) -> list[dict]:
@@ -157,6 +164,136 @@ def _get(obj: Any, attr: str) -> Any:
     return obj.get(attr) if isinstance(obj, dict) else getattr(obj, attr, None)
 
 
+def _int_or_none(x: Any) -> int | None:
+    v = _num(x)
+    return int(v) if v is not None else None
+
+
+def clean_prefixes(prefixes: Any) -> tuple[str, ...]:
+    """Owner decision 6: the client-id prefixes a book owns. A bare string is one prefix; blanks are dropped
+    (an empty prefix would match every order in the shared account)."""
+    if isinstance(prefixes, str):
+        prefixes = [prefixes]
+    return tuple(str(p) for p in (prefixes or []) if str(p or "").strip())
+
+
+# --- book O (options) order checks ------------------------------------------------------------------
+
+PAPER_HOST = "paper-api.alpaca.markets"
+OPTION_ACTIVITY_TYPES = ("OPASN", "OPEXC", "OPEXP")
+_OPEN_INTENTS = ("buy_to_open", "sell_to_open")
+_CLOSE_INTENTS = ("buy_to_close", "sell_to_close")
+
+
+def mleg_problems(order: dict, *, enabled: bool, gate_ok: bool, paper: bool, prefix: str = "OPT-") -> list[str]:
+    """Why this mleg order must not be sent (a second lock after options.risk): OPT-1 enabled and paper host,
+    OPT-41 gate, OPT-42 no live, OPT-3 two legs 1:1 with matching intents, OPT-14 LIMIT/DAY/whole contracts and
+    the sign (open a credit spread = negative limit, close it = positive limit), owner decision 6 prefix."""
+    out = []
+    if not enabled:
+        out.append("OPT-1: options_book.enabled is false; no orders")
+    if not gate_ok:
+        out.append("OPT-41: paper-start gate has not passed")
+    if not paper:
+        out.append("OPT-1/OPT-42: refusing a non-paper base URL")
+    if not str(order.get("client_order_id") or "").startswith(prefix or "OPT-"):
+        out.append(f"owner decision 6: client_order_id must start with {prefix!r}")
+    if str(order.get("type", "limit")).lower() != "limit" or str(order.get("time_in_force", "day")).lower() != "day":
+        out.append("OPT-14: LIMIT and DAY only")
+    if order.get("extended_hours"):
+        out.append("OPT-14: no extended hours")
+    q = _num(order.get("qty"))
+    if q is None or q <= 0 or q != math.floor(q):
+        out.append("OPT-14: qty must be a whole number of contracts > 0")
+    return out + _mleg_leg_problems(order)
+
+
+def _mleg_leg_problems(order: dict) -> list[str]:
+    legs = order.get("legs") or []
+    if len(legs) != 2:
+        return ["OPT-3: exactly 2 legs"]
+    intents = {str(l.get("position_intent", "")).lower() for l in legs}
+    if any(_num(l.get("ratio_qty", 1)) != 1 for l in legs):
+        return ["OPT-3: ratio must be 1:1"]
+    lp = _num(order.get("limit_price"))
+    if lp is None or lp == 0:
+        return ["OPT-14: limit_price missing or zero"]
+    intent = str(order.get("intent") or "").lower()
+    # Paper orders are bull put credit spreads only (options.risk), so an open is a credit and a close a debit.
+    if intents == set(_OPEN_INTENTS):
+        if intent not in ("", "open"):
+            return ["order intent does not match its *_TO_OPEN legs"]
+        return [] if lp < 0 else ["OPT-14: opening a credit spread needs a negative limit_price"]
+    if intents == set(_CLOSE_INTENTS):
+        if intent not in ("", "close"):
+            return ["order intent does not match its *_TO_CLOSE legs"]
+        return [] if lp > 0 else ["OPT-14: closing a credit spread needs a positive limit_price"]
+    return ["OPT-3: leg intents must be one *_TO_OPEN pair or one *_TO_CLOSE pair"]
+
+
+def single_problems(order: dict, *, enabled: bool, gate_ok: bool, paper: bool, prefix: str = "OPT-") -> list[str]:
+    """Why an OPT-26 clean-up order must not be sent. Only two kinds exist: SELL O's assigned stock (whole shares)
+    or SELL_TO_CLOSE an orphan long option. Both are LIMIT DAY, paper only, enabled + gate, `OPT-` prefix.
+    Nothing here can open a position or create short stock."""
+    out = []
+    if not enabled:
+        out.append("OPT-1: options_book.enabled is false; no orders")
+    if not gate_ok:
+        out.append("OPT-41: paper-start gate has not passed")
+    if not paper:
+        out.append("OPT-1/OPT-42: refusing a non-paper base URL")
+    if not str(order.get("client_order_id") or "").startswith(prefix or "OPT-"):
+        out.append(f"owner decision 6: client_order_id must start with {prefix!r}")
+    if str(order.get("type", "limit")).lower() != "limit" or str(order.get("time_in_force", "day")).lower() != "day":
+        out.append("OPT-14: LIMIT and DAY only")
+    if order.get("extended_hours"):
+        out.append("OPT-14: no extended hours")
+    q = _num(order.get("qty"))
+    if q is None or q <= 0 or q != math.floor(q):
+        out.append("OPT-26: qty must be a whole number > 0")
+    lp = _num(order.get("limit_price"))
+    if lp is None or lp <= 0:
+        out.append("OPT-26: limit_price must be positive")
+    if str(order.get("side", "")).lower() != "sell":
+        out.append("OPT-26: clean-up orders only sell (O's stock, or an orphan long option)")
+    sym = str(order.get("symbol") or "")
+    if not sym:
+        out.append("OPT-26: symbol missing")
+    occ = len(sym) > 15 and sym[-9] in "CP" and sym[-8:].isdigit()
+    if occ and str(order.get("position_intent", "")).lower() != "sell_to_close":
+        out.append("OPT-26: an option clean-up order must be SELL_TO_CLOSE")
+    if not occ and order.get("position_intent"):
+        out.append("OPT-26: a stock clean-up order carries no position intent")
+    return out
+
+
+def _single_request(order: dict):
+    """alpaca-py LimitOrderRequest for one OPT-26 clean-up order (stock sale or SELL_TO_CLOSE option)."""
+    from alpaca.trading.enums import OrderSide, PositionIntent, TimeInForce
+    from alpaca.trading.requests import LimitOrderRequest
+
+    kw = {}
+    if order.get("position_intent"):
+        kw["position_intent"] = PositionIntent(str(order["position_intent"]).lower())
+    return LimitOrderRequest(symbol=str(order["symbol"]), qty=int(order["qty"]), side=OrderSide.SELL,
+                             time_in_force=TimeInForce.DAY, limit_price=round(float(order["limit_price"]), 2),
+                             client_order_id=str(order["client_order_id"]), extended_hours=False, **kw)
+
+
+def _mleg_request(order: dict):
+    """alpaca-py LimitOrderRequest with OrderClass.MLEG and one OptionLegRequest per leg (ratio 1)."""
+    from alpaca.trading.enums import OrderClass, OrderSide, PositionIntent, TimeInForce
+    from alpaca.trading.requests import LimitOrderRequest, OptionLegRequest
+
+    legs = [OptionLegRequest(symbol=l["symbol"], ratio_qty=1,
+                             side=OrderSide.BUY if str(l.get("side")).lower() == "buy" else OrderSide.SELL,
+                             position_intent=PositionIntent(str(l["position_intent"]).lower()))
+            for l in order["legs"]]
+    return LimitOrderRequest(qty=int(order["qty"]), order_class=OrderClass.MLEG, time_in_force=TimeInForce.DAY,
+                             limit_price=round(float(order["limit_price"]), 2), legs=legs,
+                             client_order_id=str(order["client_order_id"]), extended_hours=False)
+
+
 def _is_not_found(e: Exception) -> bool:
     """Alpaca's own "order not found" answer (code 40410000). Any other 404 (a wrong URL, a proxy error page)
     proves nothing about the order, so it must not end a pending order."""
@@ -205,8 +342,159 @@ class AlpacaPaperBroker:
             out[sym] = float(p.qty)
         return out
 
-    def cancel_open_orders(self) -> None:
-        self._client.cancel_orders()
+    def cancel_open_orders(self, prefixes: Any = None) -> list[str] | None:
+        """Cancel open orders. `prefixes=None` keeps the old behaviour (every open order in the account).
+
+        With prefixes (owner decision 6, shared account) only orders whose client_order_id starts with one of
+        them are cancelled, one by one, so a book never cancels another book's orders. An empty list cancels
+        nothing. Returns the cancelled client ids; failures are kept in `last_cancel_errors` (the next
+        `order_fills` shows what really happened to those orders).
+        """
+        if prefixes is None:
+            self._client.cancel_orders()
+            return None
+        wanted = clean_prefixes(prefixes)
+        self.last_cancel_errors: list[str] = []
+        if not wanted:
+            return []
+        done = []
+        for o in self._open_orders():
+            cid = str(_get(o, "client_order_id") or "")
+            if not cid.startswith(wanted):
+                continue
+            try:
+                self._client.cancel_order_by_id(str(_get(o, "id")))
+                done.append(cid)
+            except Exception as e:  # already filled or cancelled: settle it next run
+                self.last_cancel_errors.append(f"{cid}: {e}")
+        return done
+
+    def _open_orders(self) -> list:
+        from alpaca.trading.enums import QueryOrderStatus
+        from alpaca.trading.requests import GetOrdersRequest
+
+        return list(self._client.get_orders(GetOrdersRequest(status=QueryOrderStatus.OPEN, limit=500)) or [])
+
+    # --- book O (options) additions: read-only views, and an mleg submit gated by OPT-1/OPT-41 -----------
+
+    def is_paper(self) -> bool:
+        """OPT-1: True only when the client talks to Alpaca's paper host. Unknown hosts count as not paper."""
+        base = getattr(self._client, "_base_url", None)
+        return PAPER_HOST in str(getattr(base, "value", base) or "")
+
+    def options_account(self) -> dict:
+        """OPT-6/OPT-27 inputs: equity, cash, maintenance margin, option levels and the account configuration.
+
+        Never raises: a failed read leaves the field None and adds a line to `problems` (the checks then fail).
+        """
+        out = {"paper": self.is_paper(), "equity": None, "cash": None, "maintenance_margin": None,
+               "options_trading_level": None, "options_approved_level": None, "max_options_trading_level": None,
+               "status": None, "problems": []}
+        try:
+            a = self._client.get_account()
+            for k in ("equity", "cash", "maintenance_margin"):
+                out[k] = _num(_get(a, k))
+            for k in ("options_trading_level", "options_approved_level"):
+                out[k] = _int_or_none(_get(a, k))
+            out["status"] = status_str(_get(a, "status"))
+        except Exception as e:
+            out["problems"].append(f"account read failed: {e}")
+        try:
+            c = self._client.get_account_configurations()
+            out["max_options_trading_level"] = _int_or_none(_get(c, "max_options_trading_level"))
+        except Exception as e:
+            out["problems"].append(f"account configuration read failed: {e}")
+        return out
+
+    def positions_detail(self) -> list[dict]:
+        """Every position in the shared account, OCC option symbols included, with a signed quantity
+        (short < 0): [{symbol, qty, side, asset_class, avg_entry_price, market_value}]. Raises on a failed read."""
+        out = []
+        for p in self._client.get_all_positions():
+            sym = self._crypto.get(_get(p, "symbol"), _get(p, "symbol"))
+            side = status_str(_get(p, "side"))
+            side = side.split(".", 1)[1] if side.startswith("positionside.") else side
+            q = _num(_get(p, "qty")) or 0.0
+            q = -abs(q) if side == "short" else q
+            out.append({"symbol": sym, "qty": q, "side": side or ("short" if q < 0 else "long"),
+                        "asset_class": status_str(_get(p, "asset_class")),
+                        "avg_entry_price": _num(_get(p, "avg_entry_price")),
+                        "market_value": _num(_get(p, "market_value"))})
+        return out
+
+    def option_activities(self, after: Any = None, types=OPTION_ACTIVITY_TYPES) -> list[dict]:
+        """OPT-26: assignment/exercise/expiry activities (OPASN, OPEXC, OPEXP). Paper posts them the next day.
+
+        alpaca-py 0.44 has no typed call for activities, so this uses the client's raw GET. Raises on failure.
+        """
+        params = {"activity_types": ",".join(types)}
+        if after is not None:
+            params["after"] = str(after)
+        rows = self._client.get("/account/activities", params) or []
+        return [{"id": _get(r, "id"), "activity_type": str(_get(r, "activity_type") or ""),
+                 "symbol": _get(r, "symbol"), "qty": _num(_get(r, "qty")), "date": _get(r, "date"),
+                 "price": _num(_get(r, "price")), "side": _get(r, "side")} for r in rows]
+
+    def submit_mleg(self, order: dict, *, enabled: bool, gate_ok: bool, prefix: str = "OPT-") -> dict:
+        """Send ONE multi-leg LIMIT DAY option order (OPT-3, OPT-14). Refuses (status "refused", nothing sent)
+        unless options_book.enabled, the OPT-41 gate and a paper host (OPT-1) all hold, and the order passes the
+        basic OPT-14 shape and sign check. The caller must run options.risk.validate_spread_order first.
+        """
+        cid = str(order.get("client_order_id") or "")
+        base = {"client_order_id": cid, "qty": order.get("qty"), "limit_price": order.get("limit_price"),
+                "legs": [l.get("symbol") for l in order.get("legs") or []]}
+        why = mleg_problems(order, enabled=enabled, gate_ok=gate_ok, paper=self.is_paper(), prefix=prefix)
+        if why:
+            return {**base, "status": "refused", "id": None, "error": "; ".join(why)}
+        try:
+            req = _mleg_request(order)
+        except Exception as e:  # never sent
+            return {**base, "status": "error", "id": None, "error": str(e)}
+        try:
+            r = self._client.submit_order(req)
+        except Exception as e:
+            return self._after_submit_error(base, cid, e)
+        return {**base, "status": status_str(_get(r, "status")), "id": str(_get(r, "id") or ""),
+                "client_order_id": str(_get(r, "client_order_id") or cid)}
+
+    def submit_single(self, order: dict, *, enabled: bool, gate_ok: bool, prefix: str = "OPT-") -> dict:
+        """OPT-26 clean-up: send ONE single-leg LIMIT DAY sell (O's assigned stock, or an orphan long put with
+        SELL_TO_CLOSE). Refuses (status "refused", nothing sent) under the same locks as `submit_mleg`."""
+        cid = str(order.get("client_order_id") or "")
+        base = {"client_order_id": cid, "symbol": order.get("symbol"), "qty": order.get("qty"),
+                "limit_price": order.get("limit_price")}
+        why = single_problems(order, enabled=enabled, gate_ok=gate_ok, paper=self.is_paper(), prefix=prefix)
+        if why:
+            return {**base, "status": "refused", "id": None, "error": "; ".join(why)}
+        try:
+            req = _single_request(order)
+        except Exception as e:  # never sent
+            return {**base, "status": "error", "id": None, "error": str(e)}
+        try:
+            r = self._client.submit_order(req)
+        except Exception as e:
+            return self._after_submit_error(base, cid, e)
+        return {**base, "status": status_str(_get(r, "status")), "id": str(_get(r, "id") or ""),
+                "client_order_id": str(_get(r, "client_order_id") or cid)}
+
+    def mleg_fills(self, pending: list[dict]) -> list[dict]:
+        """EX-4 for mleg orders: the parent fill row plus each leg's filled quantity and average price.
+        Never raises for one bad order (same rules as order_fills)."""
+        rows = []
+        for p in pending or []:
+            row = self._fill_one(p)
+            try:
+                order = self._lookup(row["client_order_id"], p.get("broker_order_id")) if row["status"] not in (
+                    "error", "unknown") else None
+            except Exception:
+                order = None
+            row["legs"] = [{"symbol": _get(l, "symbol"), "side": status_str(_get(l, "side")),
+                            "position_intent": status_str(_get(l, "position_intent")),
+                            "filled_qty": _num(_get(l, "filled_qty")) or 0.0,
+                            "filled_avg_price": _num(_get(l, "filled_avg_price"))}
+                           for l in (_get(order, "legs") or [])] if order is not None else []
+            rows.append(row)
+        return rows
 
     def submit(self, orders: list[Order], client_prefix: str, *, date: Any = None,
                suffix: str | None = None) -> list[dict]:
@@ -397,13 +685,24 @@ class SimBroker:
                 rows.append(fill_row(cid, "unknown"))
         return rows
 
-    def cancel_open_orders(self) -> None:
-        """Fill what is due first (those fills already happened), then cancel the rest."""
+    def cancel_open_orders(self, prefixes: Any = None) -> list[str] | None:
+        """Fill what is due first (those fills already happened), then cancel the rest.
+
+        `prefixes` works as in AlpacaPaperBroker: None cancels every open order; otherwise only orders whose
+        client_order_id starts with one of the prefixes (an empty list cancels nothing) and the ids are returned.
+        """
         self._fill_due()
+        wanted = None if prefixes is None else clean_prefixes(prefixes)
+        keep, done = [], []
         for od in self.state.get("open_orders", []):
-            self._close(od, "canceled")
+            if wanted is None or (wanted and str(od["client_order_id"]).startswith(wanted)):
+                self._close(od, "canceled")
+                done.append(od["client_order_id"])
+            else:
+                keep.append(od)
         if "open_orders" in self.state:
-            self.state["open_orders"] = []
+            self.state["open_orders"] = keep
+        return None if prefixes is None else done
 
     # --- internals -----------------------------------------------------------------------------
 

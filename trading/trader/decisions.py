@@ -114,6 +114,29 @@ NON_EVIDENCE_ROOTS = frozenset({"context_schema", "prompt_version", "date", "boo
                                 "allowlist", "reason_codes", "limits", "recent_notes"})
 # TEST FIRST shadow signals never change orders (rulebook, M-12), so they are never evidence either.
 SHADOW_EVIDENCE = frozenset({"shadow", "shadow_signals", "shadow_results", "credit_canary"})
+# News report section 6: news_signals are shadow until M-12 (no reason code before promotion); news_vetoes are
+# already enforced by code (decision 8) and news_meta is a label. None of them may support a skip, halve,
+# action, deviation or weight change.
+NEWS_ROOTS = frozenset({"news_signals", "news_vetoes", "news_meta"})
+# Fields elsewhere in the context that only restate a hype veto (decision 8, enforced by code): the rules book's
+# planned_increases[i].blocked_by_hype_veto, and a Claude-book menu's eligibility when the veto is why it is off.
+NEWS_DERIVED_FIELDS = frozenset({"blocked_by_hype_veto"})
+HYPE_MENU_FIELDS = frozenset({"why_not_eligible", "eligible_increase"})
+HYPE_VETO_LABEL = "hype veto"  # engine._menus starts why_not_eligible with this for a vetoed name
+
+
+def _news_derived(ctx: Any, toks: list[str]) -> bool:
+    """True when a path cites a hype veto through a field outside the news roots (section 6: not evidence)."""
+    if not toks:
+        return False
+    last = str(toks[-1])
+    if last in NEWS_DERIVED_FIELDS:
+        return True
+    if last in HYPE_MENU_FIELDS and len(toks) > 1:
+        parent = _lookup(ctx, toks[:-1])
+        why = parent.get("why_not_eligible") if isinstance(parent, dict) else None
+        return isinstance(why, str) and why.startswith(HYPE_VETO_LABEL)
+    return False
 
 
 def evidence_ok(ctx: Any, paths: Any) -> tuple[bool, str]:
@@ -126,6 +149,12 @@ def evidence_ok(ctx: Any, paths: Any) -> tuple[bool, str]:
         toks = _tokens(p) or []
         if toks and str(toks[0]) in NON_EVIDENCE_ROOTS:
             return False, f"evidence path is not market data: {str(p)[:120]!r} (CL-2)"
+        if toks and str(toks[0]) in NEWS_ROOTS:
+            return False, (f"evidence path cites a news signal, which is shadow until promoted: {str(p)[:120]!r} "
+                           "(news report section 6, CL-2, M-12)")
+        if _news_derived(ctx, toks):
+            return False, (f"evidence path cites a hype veto, which code already enforces: {str(p)[:120]!r} "
+                           "(decision 8, news report section 6, CL-2)")
         if any(str(t) in SHADOW_EVIDENCE for t in toks):
             return False, f"evidence path cites a TEST FIRST shadow signal: {str(p)[:120]!r} (CL-2, M-12)"
         if not path_exists(ctx, p):
@@ -1135,3 +1164,8 @@ def resolved_to_targets(resolved: ResolvedDecision, *, lots: dict | None, prices
                                "claude_pct": round(final_pct, 6), "reason_code": code, "evidence": evidence,
                                "prediction_id": pid})
     return targets, deviations
+
+
+
+# Book O's skip (OPT-33, OPT-34) is owned by trader/options/run.py (validate_skip, combine_skips), per the Wave 2
+# interface; it reuses evidence_ok above so news fields are never evidence there either.

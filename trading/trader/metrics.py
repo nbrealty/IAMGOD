@@ -969,3 +969,73 @@ def losing_streak_table(win_rates=(0.35, 0.40, 0.45), n_trades: int = 100) -> st
         lines.append(f"{w:.0%}      | {s[0.25]}-{s[0.75]}                   | {s[0.95]} or more")
     lines.append("A streak this long is normal for a working rule; it is not evidence the rule broke.")
     return "\n".join(lines)
+
+
+# --- owner decision 8: hype-veto report; OPT-11: combined SPY exposure ------------------------------------
+
+
+class _Lots:
+    def __init__(self, lots):
+        self.shadow_lots = list(lots or [])
+
+
+def _news_ids(lot: dict) -> list[str]:
+    ids = {str(r).split(" ", 1)[0] for r in lot.get("news_reasons") or [] if str(r).startswith("NEWS-")}
+    return sorted(ids) or ["UNKNOWN"]
+
+
+def news_veto_report(state) -> dict:
+    """Decision 8: every increase a hype veto blocked is followed as a CL-9 shadow lot and scored here.
+    veto_value > 0 means the veto saved money. By signal a lot with two reasons counts under both. Report only:
+    these lots never feed the CL-9 latch on Claude's skip codes."""
+    lots = list(getattr(state, "news_veto_lots", []) or [])
+    summary = shadow.veto_summary(_Lots(lots))
+    scored = [lt for lt in lots if lt.get("status") == "closed" and _f(lt.get("veto_value"), 12) is not None]
+    by_signal: dict[str, dict] = {}
+    for lt in lots:
+        for sid in _news_ids(lt):
+            g = by_signal.setdefault(sid, {"n_vetoes": 0, "n_scored": 0, "sum_value": 0.0})
+            g["n_vetoes"] += 1
+            if lt in scored:
+                g["n_scored"] += 1
+                g["sum_value"] += float(lt["veto_value"])
+    for g in by_signal.values():
+        g["sum_value"] = _f(g["sum_value"], 6)
+    vals = [float(lt["veto_value"]) for lt in scored]
+    return {"n_vetoes": len(lots), "n_scored": summary["n_scored"], "n_open": summary["n_open"],
+            "n_expired": summary["n_expired"], "sum_value": summary["sum_value"],
+            "sum_value_usd": summary["sum_value_usd"],
+            "hit_rate": _f(sum(v > 0 for v in vals) / len(vals)) if vals else None,
+            "by_signal": by_signal, "by_sleeve": _group(scored, "sleeve", "veto_value")}
+
+
+def _o_delta_notional(o_report) -> float | None:
+    """Book O's delta notional from `report_options` output, whichever key it uses (None when absent)."""
+    if not isinstance(o_report, dict):
+        return None
+    for key in ("SPY_delta_notional", "delta_notional", "o_delta_notional", "spy_delta_notional"):
+        v = _f(o_report.get(key), 2)
+        if v is not None:
+            return v
+    for sub in ("delta_notional_OPT11", "exposure", "greeks", "risk"):
+        v = _o_delta_notional(o_report.get(sub)) if isinstance(o_report.get(sub), dict) else None
+        if v is not None:
+            return v
+    return None
+
+
+def spy_exposure(rules_state, o_report=None, symbol: str = "SPY") -> dict:
+    """OPT-11 (display only): the rules book's SPY holding next to book O's SPY delta notional, so the combined
+    exposure in the shared account is visible. Nothing is clipped across books (exception to RISK-5/RISK-6)."""
+    qty = 0.0
+    for held in (getattr(rules_state, "lots", {}) or {}).values():
+        lot = held.get(symbol) if isinstance(held, dict) else None
+        qty += float(getattr(lot, "qty", 0.0) or 0.0) if lot is not None else 0.0
+    hist = getattr(rules_state, "equity_history", []) or []
+    close = _f(((hist[-1].get("closes") or {}).get(symbol)) if hist else None)
+    rules_notional = _f(qty * close, 2) if close is not None else (0.0 if qty == 0 else None)
+    o_delta = _o_delta_notional(o_report)
+    combined = _f(rules_notional + o_delta, 2) if rules_notional is not None and o_delta is not None else None
+    return {"symbol": symbol, "rules_qty": _f(qty, 6), "rules_notional": rules_notional,
+            "o_delta_notional": o_delta, "combined": combined,
+            "note": "display only (OPT-11): O's caps are OPT-9/OPT-10; the books are not netted"}

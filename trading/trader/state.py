@@ -63,6 +63,12 @@ class BookState:
     # Guide rule 6: deviations lost money -> the Claude book follows the rule targets until the owner resets.
     deviations_restricted: bool = False
     deviations_reset_date: str | None = None
+    # Owner decision 8: shadow lots for increases blocked by the active hype vetoes (NEWS-4, NEWS-13, NEWS-18
+    # promotion). Same fields as `shadow_lots` (built by shadow.open_veto_lots) plus `kind: "news_veto"` and
+    # `news_reasons`. Kept apart from `shadow_lots` so code vetoes never count toward Claude's CL-9 latch.
+    news_veto_lots: list[dict] = field(default_factory=list)
+    # NEWS-18 promotion memory {symbol: {last_promo, sessions_left, updated}} (news_signals.update_promo_history)
+    news_promo_history: dict = field(default_factory=dict)
 
     # --- persistence -----------------------------------------------------------------------
 

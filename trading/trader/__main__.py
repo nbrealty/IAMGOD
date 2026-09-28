@@ -1,7 +1,12 @@
-"""Command line: python -m trader {run,prepare,status,report,kill,sleeve-reset,veto-reset,deviation-reset,promote,demote}
+"""Command line: python -m trader {run,prepare,status,report,kill,sleeve-reset,veto-reset,deviation-reset,promote,
+demote,options,news}
 
 Option B (no API key): `prepare` writes the day's context for a Claude Code session, the session writes
 decision_<k>.json / review_<k>.json, and `run --session` acts on them through the risk engine.
+
+`options {log-chain,prepare,run,report,backtest,calibrate-skew}` drives book O, which runs in SHADOW (no orders)
+until the owner turns it on after gate OPT-41. `news {fetch,signals,backtest}` shows the news signals; it never
+prints a headline (a Claude session may read this output, and headlines are data, never instructions).
 """
 from __future__ import annotations
 
@@ -14,13 +19,17 @@ from datetime import datetime
 import pandas as pd
 
 from .config import ROOT, STATE_DIR, load_config
-from .engine import BOOKS, SLEEVES, prepare_book, run_book
+from .engine import BOOKS, SLEEVES, NewsFeed, news_universe, prepare_book, run_book
 from .state import BookState, kill_switch_on, set_kill_switch
 
 NY = "America/New_York"
 # New York time after which today's daily bar is final: the free SIP feed only serves data older than
 # data.SIP_DELAY (16 minutes), so before about 16:16 today's bar lacks the closing auction. 16:30 leaves margin.
 CLOSE_SETTLED = (16, 30)
+PASS_THROUGH = ("backtest", "calibrate-skew")  # `options` actions whose extra arguments go to their own main()
+# Calendar days of headlines per run: about 45 sessions, enough for NEWS-4's z20 of counts and NEWS-18. NEWS-10/12
+# want 252 sessions of news, so they stay skipped or partial in live runs (shadow only; see README "Limits").
+NEWS_DAYS = 70
 
 
 def load_dotenv(path=ROOT / ".env") -> None:
@@ -82,6 +91,25 @@ def fetch_bars(cfg):
     for n in notes:
         print(f"  data note: {n}")
     return bars, {"feed_used": data.feed_used, "notes": notes}
+
+
+def news_feed(cfg, as_of, days: int = NEWS_DAYS, fetch=None, today: str | None = None) -> NewsFeed:
+    """Today's headlines for the hype vetoes (decision 8). A failed fetch is not fatal: the engine still runs
+    NEWS-4 (without its headline term) and NEWS-13 on bars, and NEWS-18 uses the stored promotion memory."""
+    from .news import fetch_news
+
+    ts = pd.Timestamp(as_of)
+    ts = ts.tz_localize(None) if ts.tzinfo is not None else ts
+    start = (ts.normalize() - pd.Timedelta(days=int(days))).date().isoformat()
+    end = today or today_ny()  # through today, so a promotion after the close is seen (no look-ahead: code cuts)
+    try:
+        items = (fetch or fetch_news)(news_universe(cfg), start, end, policy=cfg.policy)
+    except Exception as e:  # noqa: BLE001
+        why = f"news fetch failed ({type(e).__name__}); hype vetoes NEWS-4 and NEWS-13 run on bars only"
+        print(f"  news note: {why}: {e}")
+        return NewsFeed(items=None, notes=[why])
+    print(f"news: {len(items)} headline(s) from {start} to {end} (alpaca_benzinga; headlines are never printed)")
+    return NewsFeed(items=list(items), start=start, notes=[f"{len(items)} headlines {start} to {end}"])
 
 
 def sim_books(arg, books) -> set[str]:
@@ -149,6 +177,7 @@ def cmd_run(args) -> int:
     bench = cfg.playbook["regime"]["benchmark"]
     as_of = bars[bench].index[-1]
     date = as_of.date().isoformat()
+    news = news_feed(cfg, as_of, args.news_days)
     failed = []
     for book in books:
         try:  # one book failing never stops the other (they share no state)
@@ -158,7 +187,7 @@ def cmd_run(args) -> int:
             print(f"[{book}] advisor: {why}")
             entry = run_book(book, cfg, bars, broker, advisor, as_of, STATE_DIR, dry_run=args.dry_run,
                              force=args.force, state=state, data_notes=notes,
-                             allow_all_zero=args.confirm_empty_account)
+                             allow_all_zero=args.confirm_empty_account, news=news)
         except (Exception, SystemExit) as e:  # noqa: BLE001
             if len(books) == 1:
                 raise
@@ -181,11 +210,12 @@ def cmd_prepare(args) -> int:
     sims = sim_books(args.sim, books)
     bars, notes = fetch_bars(cfg)
     as_of = bars[cfg.playbook["regime"]["benchmark"]].index[-1]
+    news = news_feed(cfg, as_of, args.news_days)
     for book in books:
         state = BookState.load(book, STATE_DIR)
         broker = make_broker(book, cfg, state, bars, book in sims)
         out = prepare_book(book, cfg, bars, broker, as_of, STATE_DIR, state=state, samples=args.samples,
-                           data_notes=notes)
+                           data_notes=notes, news=news)
         print(f"\n=== prepare {book} book, {out['date']}{' (SIMULATED)' if book in sims else ''} ===")
         for line in out["summary"]:
             print(f"  {line}")
@@ -323,8 +353,10 @@ def last_journal_entry(book: str) -> dict | None:
 
 
 def build_report(cfg, states: dict, since: str | None = None, rehearsed: bool | None = None,
-                 data_problems: list[str] | None = None) -> dict:
-    """Every measurement for both books (M-1, M-2, M-4 to M-11, G-1..G-5). Pure: reads the states only."""
+                 data_problems: list[str] | None = None, o_report: dict | None = None) -> dict:
+    """Every measurement for both books (M-1, M-2, M-4 to M-11, G-1..G-5), the hype-veto scores (decision 8) and,
+    when `o_report` (options.run.report_options) is given, book O's OPT-38 report and the OPT-11 SPY line.
+    Pure: reads the states and o_report only."""
     from . import metrics
 
     pol = cfg.policy
@@ -344,6 +376,7 @@ def build_report(cfg, states: dict, since: str | None = None, rehearsed: bool | 
             "promotion_gate": metrics.promotion_gate(metrics.sleeve_stats(s.closed_trades, policy=pol, since=since),
                                                      s, pol),
             "demotion": metrics.demotion_reasons(stats, pol),
+            "news_vetoes": metrics.news_veto_report(s),
         }
     rules, claude = states.get("rules"), states.get("claude")
     if claude is not None:
@@ -353,7 +386,28 @@ def build_report(cfg, states: dict, since: str | None = None, rehearsed: bool | 
     if rules is not None and claude is not None:
         out["going_live"] = metrics.going_live_report(rules, claude, pol, since=since, rehearsed=rehearsed,
                                                       data_problems=data_problems)
+    if o_report is not None:
+        out["options"] = o_report
+        host = states.get(_o_host(cfg))
+        if host is not None:
+            out["opt11_spy"] = metrics.spy_exposure(host, o_report)
     return out
+
+
+def _o_host(cfg) -> str:
+    from .engine import o_host_book
+
+    return o_host_book(cfg)
+
+
+def options_report_or_none(cfg) -> tuple[dict | None, str]:
+    """book O's report (OPT-38, gates OPT-40/41/42) from trader.options.run, or None with the reason."""
+    try:
+        from .options import run as orun
+
+        return orun.report_options(cfg, STATE_DIR), ""
+    except Exception as e:  # noqa: BLE001 - the stock report never depends on book O
+        return None, f"{type(e).__name__}: {e}"
 
 
 def cmd_report(args) -> int:
@@ -362,8 +416,11 @@ def cmd_report(args) -> int:
     cfg = load_config()
     states = {b: BookState.load(b, STATE_DIR) for b in BOOKS}
     last = last_journal_entry("rules")
+    o_rep, o_why = options_report_or_none(cfg)
     rep = build_report(cfg, states, since=args.since, rehearsed=True if args.rehearsed else None,
-                       data_problems=last.get("data_problems") if last else None)
+                       data_problems=last.get("data_problems") if last else None, o_report=o_rep)
+    if o_rep is None:
+        rep["options_unavailable"] = o_why
     if args.json:
         print(json.dumps(jsonable(rep), indent=2))
         return 0
@@ -398,6 +455,7 @@ def cmd_report(args) -> int:
             print(f"M-10 promotion gate {s}: {'PASSED' if g.get('passed') else 'not passed'}")
         for s, why in r["demotion"].items():
             print(f"M-11 demotion {s}: {why}")
+        print_news_vetoes(r.get("news_vetoes") or {})
     if "deviations" in rep:
         d = rep["deviations"]
         print(f"\nM-5 Claude deviations: {d.get('n_resolved')} resolved, "
@@ -415,8 +473,43 @@ def cmd_report(args) -> int:
             if g7.get("breached"):
                 print(f"G-7 [{b}]: median slippage above 2x the cost model in {', '.join(g7['breached'])}"
                       " (G-7 says go back to paper)")
+    print_options_report(rep)
     print("\n(use --json for every number)")
     return 0
+
+
+def print_news_vetoes(v: dict) -> None:
+    """Decision 8: what the hype vetoes blocked, and whether blocking paid (veto_value > 0 = money saved)."""
+    if not v.get("n_vetoes"):
+        print("hype vetoes (decision 8): none blocked an increase yet")
+        return
+    print(f"hype vetoes (decision 8): {v['n_vetoes']} blocked, {v['n_scored']} scored, sum value "
+          f"{_fmt(v.get('sum_value'))} R (${_fmt(v.get('sum_value_usd'))}), hit rate {_fmt(v.get('hit_rate'))}")
+    for sid, g in sorted((v.get("by_signal") or {}).items()):
+        print(f"  {sid}: {g['n_vetoes']} blocked, {g['n_scored']} scored, sum {_fmt(g.get('sum_value'))} R")
+
+
+def print_options_report(rep: dict) -> None:
+    """Book O (shadow): OPT-38 numbers, the gates and the OPT-11 SPY line, as report_options gives them."""
+    print("\n===== book O (options, SHADOW until the owner turns it on after OPT-41) =====")
+    if "options" not in rep:
+        print(f"  not available: {rep.get('options_unavailable') or 'no report'}")
+        return
+    o = rep["options"]
+    print(f"  paper orders enabled: {o.get('enabled')}")
+    for part in ("shadow", "paper", "skips"):
+        stats = o.get(part)
+        if isinstance(stats, dict):
+            print(f"  OPT-38 {part}: " + ", ".join(f"{k} {_fmt(v)}" for k, v in stats.items()
+                                                    if not isinstance(v, (dict, list)))[:400])
+    gates = o.get("gates")
+    if isinstance(gates, dict):
+        print("  gates: " + ", ".join(f"{k} {_fmt(v)}" for k, v in gates.items()
+                                      if not isinstance(v, (dict, list)))[:400])
+    x = rep.get("opt11_spy")
+    if x:
+        print(f"  OPT-11 SPY: rules book {_fmt(x.get('rules_notional'))}, book O delta notional "
+              f"{_fmt(x.get('o_delta_notional'))}, combined {_fmt(x.get('combined'))} (display only)")
 
 
 def cmd_kill(args) -> int:
@@ -499,6 +592,163 @@ def cmd_promote(args, promote: bool) -> int:
     return 0
 
 
+# --- book O (options, shadow) ------------------------------------------------------------------------
+
+
+def _options_run():
+    """trader.options.run, imported only when an options command runs (it is built separately)."""
+    try:
+        from .options import run as orun
+    except Exception as e:  # noqa: BLE001
+        raise SystemExit(f"book O is not available yet: trader.options.run failed to load ({type(e).__name__}: {e})")
+    return orun
+
+
+def _print_dict(d, indent: str = "  ", depth: int = 0) -> None:
+    """A readable dump of a result dict (nested one level; long lists are counted, not printed)."""
+    if not isinstance(d, dict):
+        print(f"{indent}{d}")
+        return
+    for k, v in d.items():
+        if isinstance(v, dict) and depth < 1:
+            print(f"{indent}{k}:")
+            _print_dict(v, indent + "  ", depth + 1)
+        elif isinstance(v, (list, tuple)) and (len(v) > 8 or any(isinstance(x, (dict, list)) for x in v)):
+            print(f"{indent}{k}: {len(v)} item(s)")
+        else:
+            print(f"{indent}{k}: {_fmt(v) if not isinstance(v, (dict, list, tuple)) else v}")
+
+
+def _bars_kw(fn, cfg, args) -> dict:
+    """Daily bars for book O's REG-2 regime label (OPT-19: an unknown regime means no spread), when the function
+    takes them. No broker is ever passed from here: this command line runs book O in shadow only (decision 10)."""
+    import inspect
+
+    try:
+        takes = "bars" in inspect.signature(fn).parameters
+    except (TypeError, ValueError):
+        takes = False
+    if not takes or args.no_bars:
+        return {}
+    bars, _ = fetch_bars(cfg)
+    return {"bars": bars}
+
+
+def cmd_options(args) -> int:
+    """Book O (reports/Options rulebook.md). SHADOW: nothing here sends an order while options_book.enabled is
+    false, and the order code also needs gate OPT-41 (trader.options.run enforces both)."""
+    cfg = load_config()
+    if args.action == "backtest":
+        from .options import backtest as obt
+
+        return int(obt.main(list(args.rest or [])) or 0)
+    if args.action == "calibrate-skew":
+        from .options import pricing
+
+        return int(pricing.main(["calibrate", *list(args.rest or [])]) or 0)
+    orun = _options_run()
+    if args.action == "log-chain":
+        out = orun.log_chains(cfg, STATE_DIR, args.when)
+    elif args.action == "prepare":
+        out = orun.prepare_options(cfg, STATE_DIR, date=args.date, samples=args.samples or 3,
+                                   **_bars_kw(orun.prepare_options, cfg, args))
+    elif args.action == "run":
+        out = orun.run_options(cfg, STATE_DIR, decision_files=tuple(args.decision_file or ()), dry_run=args.dry_run,
+                               **_bars_kw(orun.run_options, cfg, args))
+    else:
+        out = orun.report_options(cfg, STATE_DIR)
+    if getattr(args, "json", False):
+        from .llm import jsonable
+
+        print(json.dumps(jsonable(out), indent=2))
+    else:
+        print(f"=== book O {args.action} (SHADOW unless the owner enabled it after OPT-41) ===")
+        _print_dict(out)
+    return 0
+
+
+# --- news (decision 8; news report section 6) ------------------------------------------------------------
+
+
+def cmd_news(args) -> int:
+    """fetch: headline counts per symbol. signals: today's NEWS-1..18 events and the active hype vetoes.
+    backtest: forward returns of one signal's past events (M-12 inputs). Headline text is never printed."""
+    from collections import Counter
+
+    cfg = load_config()
+    if args.action == "fetch":
+        from .news import fetch_news
+
+        end = today_ny()
+        start = (pd.Timestamp(end) - pd.Timedelta(days=int(args.days))).date().isoformat()
+        items = fetch_news(news_universe(cfg), start, end, policy=cfg.policy, refresh=args.refresh)
+        counts = Counter(sym for it in items for sym in it.get("symbols") or [] if sym in set(news_universe(cfg)))
+        print(f"{len(items)} headline(s) from {start} to {end} (alpaca_benzinga); per symbol:")
+        for sym, n in counts.most_common():
+            print(f"  {sym:6s} {n}")
+        return 0
+    bars, _ = fetch_bars(cfg)
+    as_of = bars[cfg.playbook["regime"]["benchmark"]].index[-1]
+    if args.action == "signals":
+        return _news_signals(cfg, bars, as_of, args)
+    return _news_backtest(cfg, bars, args)
+
+
+def _news_signals(cfg, bars, as_of, args) -> int:
+    from . import news_signals as ns
+    from .engine import _clean_vetoes, _compact_signals
+
+    feed = news_feed(cfg, as_of, args.days)
+    uni = news_universe(cfg)
+    signals = ns.compute(bars, feed.items or [], uni, as_of, cfg.policy, c_universe=cfg.stock_universe(),
+                         news_start=feed.start if feed.items is not None else None)
+    state = BookState.load("rules", STATE_DIR)
+    vetoes = ns.active_vetoes(signals, cfg.policy, dict(state.news_promo_history or {}), as_of=as_of)[0]
+    allowed = set(uni) | {ns.BENCHMARK}
+    compact, vetoes = _compact_signals(signals, allowed), _clean_vetoes(vetoes, allowed)
+    if args.json:
+        from .llm import jsonable
+
+        print(json.dumps(jsonable({"as_of": as_of.date().isoformat(), "signals": compact, "vetoes": vetoes}),
+                         indent=2))
+        return 0
+    print(f"news signals for {as_of.date()} (shadow unless marked active; data: alpaca_benzinga + alpaca_bars)")
+    for sid in ns.SIGNAL_IDS:
+        rows = compact.get(sid) or {}
+        events = sorted(s for s, r in rows.items() if r.get("event"))
+        print(f"  {sid:8s} {len(events)} event(s)" + (f": {', '.join(events[:12])}" if events else ""))
+    print("active hype vetoes (no new longs in either book, decision 8):")
+    for sym, reasons in sorted(vetoes.items()):
+        print(f"  {sym}: {'; '.join(reasons)}")
+    if not vetoes:
+        print("  none")
+    return 0
+
+
+def _news_backtest(cfg, bars, args) -> int:
+    from . import news_signals as ns
+    from .news import fetch_news
+
+    start, end = args.start, args.end or today_ny()
+    fetch_from = (pd.Timestamp(start) - pd.Timedelta(days=45)).date().isoformat()
+    items = fetch_news(news_universe(cfg), fetch_from, end, policy=cfg.policy)
+    events = ns.backtest_signal(args.signal, bars, items, start, end, universe=news_universe(cfg),
+                                policy=cfg.policy, news_start=fetch_from, c_universe=cfg.stock_universe())
+    out_dir = STATE_DIR / "news"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / f"backtest_{args.signal}_{start}_{end}.json"
+    from .llm import jsonable
+
+    path.write_text(json.dumps(jsonable(events), indent=2))
+    print(f"{args.signal}: {len(events)} event(s) from {start} to {end}; saved to {path}")
+    for h in (1, 5, 10, 20):
+        vals = [e.get(f"ar_fwd_open_net_{h}") for e in events if e.get(f"ar_fwd_open_net_{h}") is not None]
+        mean = sum(vals) / len(vals) if vals else None
+        print(f"  {h:2d} sessions: n {len(vals)}, mean AR after costs {_fmt(mean)} (next-open fill, 10 bps/side)")
+    print("  (M-12: a signal is promoted only after >= 30 events agree in sign out of sample and the owner signs off)")
+    return 0
+
+
 def main(argv=None) -> int:
     load_dotenv()
     ap = argparse.ArgumentParser(prog="trader", description=__doc__)
@@ -518,12 +768,14 @@ def main(argv=None) -> int:
                    help="act on the decision_*/review_* files in today's pending folder")
     r.add_argument("--confirm-empty-account", action="store_true",
                    help="owner: the broker account really is empty, so reconcile may close every lot")
+    r.add_argument("--news-days", type=int, default=NEWS_DAYS, help="calendar days of headlines for the hype vetoes")
     r.set_defaults(func=cmd_run)
 
     p = sub.add_parser("prepare", help="write today's context for a Claude Code session (no orders, no save)")
     p.add_argument("--book", choices=[*BOOKS, "both"], default="both")
     p.add_argument("--sim", nargs="*", choices=list(BOOKS), metavar="BOOK")
     p.add_argument("--samples", type=int, default=None, help="independent decision files wanted (default 3)")
+    p.add_argument("--news-days", type=int, default=NEWS_DAYS, help="calendar days of headlines for the hype vetoes")
     p.set_defaults(func=cmd_prepare)
 
     sub.add_parser("status", help="positions, pending orders, blocks and flags per book").set_defaults(func=cmd_status)
@@ -556,7 +808,30 @@ def main(argv=None) -> int:
         pr.add_argument("--since", default=None, help="count closed lots entered on or after this date")
         pr.add_argument("--i-am-the-owner", action="store_true")
         pr.set_defaults(func=lambda a, _p=promote: cmd_promote(a, _p))
-    args = ap.parse_args(argv)
+    o = sub.add_parser("options", help="book O (options, SHADOW): log-chain, prepare, run, report, backtest")
+    o.add_argument("action", choices=["log-chain", "prepare", "run", "report", "backtest", "calibrate-skew"])
+    o.add_argument("--when", choices=["close", "1545"], default="close", help="log-chain: which snapshot (OPT-35)")
+    o.add_argument("--date", default=None, help="prepare: the session date (default: today)")
+    o.add_argument("--samples", type=int, default=None, help="prepare: independent review files wanted (default 3)")
+    o.add_argument("--decision-file", action="append", metavar="PATH", help="run: a review file (repeatable)")
+    o.add_argument("--dry-run", action="store_true", help="run: compute everything, save nothing")
+    o.add_argument("--json", action="store_true")
+    o.add_argument("--no-bars", action="store_true", help="prepare/run: do not fetch daily bars (regime unknown)")
+    o.set_defaults(func=cmd_options)  # backtest / calibrate-skew: unknown arguments are passed through
+
+    n = sub.add_parser("news", help="news signals (decision 8): fetch, signals, backtest; never prints headlines")
+    n.add_argument("action", choices=["fetch", "signals", "backtest"])
+    n.add_argument("--days", type=int, default=NEWS_DAYS, help="fetch/signals: calendar days of headlines")
+    n.add_argument("--refresh", action="store_true", help="fetch: ignore the cache")
+    n.add_argument("--json", action="store_true", help="signals: print the rows Claude would see")
+    n.add_argument("--signal", default="NEWS-4", help="backtest: NEWS-1 .. NEWS-18")
+    n.add_argument("--start", default="2024-01-01", help="backtest: first event date")
+    n.add_argument("--end", default=None, help="backtest: last event date (default: today)")
+    n.set_defaults(func=cmd_news)
+    args, extra = ap.parse_known_args(argv)
+    if extra and not (args.cmd == "options" and args.action in PASS_THROUGH):
+        ap.error(f"unrecognized arguments: {' '.join(extra)}")
+    args.rest = extra
     return args.func(args)
 
 

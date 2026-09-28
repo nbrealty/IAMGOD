@@ -1,9 +1,13 @@
 """One daily run of one book (BUILD_SPEC "How a daily run flows").
 
 1 settle last run's orders -> 2 account, positions, reconcile -> 3 marks and equity -> 4 breakers ->
-5 regime -> 6 data checks -> 7 sleeve weights -> 8 rule plans and shadow rules -> 9 measurement ->
-10 context -> 11 Claude (review or decision, several samples) -> 12 data block and risk engine ->
-13 orders and pending bookkeeping -> 14 store records, journal, save.
+5 regime -> 5b news signals and hype vetoes -> 6 data checks -> 7 sleeve weights -> 8 rule plans and shadow
+rules -> 9 measurement -> 10 context -> 11 Claude (review or decision, several samples) -> 12 data block,
+hype-veto block and risk engine -> 13 orders and pending bookkeeping -> 14 store records, journal, save.
+
+Book O (options) shares the rules book's Alpaca account (owner decision 6). The stock books never see its
+option positions (OPT-2), its assigned stock or its orders: step 1 cancels only the book's own client-id
+prefixes and step 2 removes O's holdings and value before reconcile and equity (see "book O separation").
 
 `prepare_book` runs steps 1-10 without touching the broker's orders or the saved state and writes the
 session's pending folder (Option B). `run_book` runs all 14 steps through the same code, so the context a
@@ -11,17 +15,18 @@ session answers is exactly the context the run checks the answer against.
 """
 from __future__ import annotations
 
+import inspect
 import json
 import math
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pandas as pd
 
-from . import consensus, decisions, ledger, metrics, risk, session, shadow, shadow_rules
+from . import consensus, decisions, ledger, metrics, news_signals, risk, session, shadow, shadow_rules
 from . import strategies as strat
 from .broker import Broker, make_client_order_id, new_suffix
 from .config import CONFIG_DIR, STATE_DIR, Config
@@ -30,6 +35,7 @@ from .decisions import apply_review  # noqa: F401  (re-exported: the review live
 from .ledger import reconcile, update_lots  # noqa: F401  (re-exported for old callers)
 from .llm import BOOK_ROLE, ClaudeError, decision_tags, jsonable, prompt_version
 from .models import Lot, SleevePlan, Target
+from .options.models import is_occ
 from .regime import Regime, classify, classify_kwargs
 from .risk import RiskEngine, breaker_status
 from .schemas import (ACTION_CODES, CONTEXT_SCHEMA, DEVIATION_CODES, RESTRICTED_SKIP_CODES, SKIP_CODES,
@@ -228,8 +234,12 @@ def build_context(book: str, cfg: Config, state: BookState, bars: Bars, equity: 
                   problems: list[str], as_of: pd.Timestamp, *, broker_name: str = "", simulated: bool = False,
                   rule_weights: dict | None = None, since_change: dict | None = None,
                   eligible: dict | None = None, allowed_skip: tuple = SKIP_CODES, data_notes: dict | None = None,
-                  stats: dict | None = None, demotion: dict | None = None, config_dir: Path = CONFIG_DIR) -> dict:
-    """The context shown to Claude (schema ctx-2). Every number is computed here; JSON-safe (no NaN)."""
+                  stats: dict | None = None, demotion: dict | None = None, config_dir: Path = CONFIG_DIR,
+                  news: dict | None = None) -> dict:
+    """The context shown to Claude. Every number is computed here; JSON-safe (no NaN).
+
+    `news` ({meta, signals, vetoes} from step 5b) adds `news_signals.<ID>[SYMBOL].<field>` (shadow, numbers and
+    fixed labels only: news report section 6), `news_meta` and `news_vetoes` (decision 8, enforced by code)."""
     date = as_of.date().isoformat()
     prices = risk.last_prices(bars)
     E = float(equity)
@@ -313,14 +323,19 @@ def build_context(book: str, cfg: Config, state: BookState, bars: Bars, equity: 
         }
     ctx["positions"] = positions
     ctx["rule_signals"] = rule_signals
+    vetoed = dict((news or {}).get("vetoes") or {})
     if book == "claude":
-        ctx["menus"] = _menus(cfg, state, bars, plans, prices, E, regime.permissions, eligible)
+        ctx["menus"] = _menus(cfg, state, bars, plans, prices, E, regime.permissions, eligible, vetoed)
     else:
         ctx["planned_increases"] = [
             {"sleeve": t.sleeve, "symbol": t.symbol, "current_qty": _r(_lot_qty(state.lots, t.sleeve, t.symbol), 6),
              "target_qty": _r(t.qty, 6), "target_pct_equity": pct(t.qty, t.symbol), "stop": _r(t.stop, 4),
-             "reason": t.reason}
+             "reason": t.reason, "blocked_by_hype_veto": t.symbol in vetoed}
             for t in _plan_targets(plans) if t.sleeve in ("B", "C", "D") and _is_increase(t, state.lots)]
+    if news is not None:
+        ctx["news_meta"] = dict(news.get("meta") or {})
+        ctx["news_signals"] = dict(news.get("signals") or {})
+        ctx["news_vetoes"] = vetoed
     ctx["allowlist"] = cfg.allowlist()
     ctx["reason_codes"] = {"action": list(ACTION_CODES), "deviation": list(DEVIATION_CODES),
                            "weight_up": list(WEIGHT_UP_CODES), "skip": list(allowed_skip)}
@@ -350,7 +365,7 @@ def build_context(book: str, cfg: Config, state: BookState, bars: Bars, equity: 
 
 
 def _menus(cfg: Config, state: BookState, bars: Bars, plans: dict[str, SleevePlan], prices: dict, equity: float,
-           permissions: dict, eligible: dict | None) -> dict:
+           permissions: dict, eligible: dict | None, vetoed: dict | None = None) -> dict:
     """CL-10/CL-14 menus per 'S:SYM': the numbers behind each size and stop choice (guide 2)."""
     eligible = eligible if eligible is not None else decisions.eligibility(cfg, bars, permissions)
     rules = {f"{t.sleeve}:{t.symbol}": t for t in _plan_targets(plans)}
@@ -367,6 +382,9 @@ def _menus(cfg: Config, state: BookState, bars: Bars, plans: dict[str, SleevePla
         rt = rules.get(key)
         rule_qty = float(rt.qty) if rt is not None and _r(rt.qty) is not None else cur
         ok = sym in eligible.get(sleeve, set())
+        why = "" if ok else _not_eligible_why(cfg, sleeve, sym, bars, permissions)
+        if sleeve in NEWS_VETO_SLEEVES and sym in (vetoed or {}):
+            ok, why = False, decisions.HYPE_VETO_LABEL + ", no new long today (decision 8): " + "; ".join(vetoed[sym])
         try:
             stops = decisions.stop_menu(sleeve, bars.get(sym), cfg.policy, lot)
         except (KeyError, IndexError, ValueError, TypeError):
@@ -374,9 +392,346 @@ def _menus(cfg: Config, state: BookState, bars: Bars, plans: dict[str, SleevePla
         out[key] = {"sleeve": sleeve, "symbol": sym, "price": _r(px, 4), "current_pct": _r(cur * px / equity, 6),
                     "rule_pct": _r(rule_qty * px / equity, 6), "half_rule_pct": _r(0.5 * rule_qty * px / equity, 6),
                     "eligible_increase": ok,
-                    "why_not_eligible": "" if ok else _not_eligible_why(cfg, sleeve, sym, bars, permissions),
+                    "why_not_eligible": why,
                     "stops": {k: _r(v, 4) for k, v in stops.items()}}
     return out
+
+
+# --- book O separation (owner decision 6, OPT-2, OPT-11) -----------------------------------------------
+
+O_PREFIX_DEFAULT = "OPT-"
+
+
+def o_host_book(cfg: Config) -> str:
+    """The stock book whose Alpaca account book O shares (owner decision 6: the rules book)."""
+    return str((cfg.policy.get("options_book") or {}).get("shared_account_book", "rules"))
+
+
+def _clean_o(raw: Any, *, complete: bool, note: str = "") -> dict:
+    """A JSON-safe copy of `o_owned`: symbols (upper case), stock {sym: shares > 0}, value (float or None)."""
+    raw = raw if isinstance(raw, dict) else {}
+    stock = {}
+    for sym, q in (raw.get("stock") or {}).items():
+        v = _r(q, 6)
+        if v is not None and v > EPS:
+            stock[str(sym).upper()] = v
+    value = raw.get("value")
+    value = _r(value, 2) if value is not None else None
+    if raw and value is None:
+        complete = False  # O says it owns something but gives no value: the rules equity cannot be trusted
+    return {"symbols": sorted({str(s).upper() for s in (raw.get("symbols") or ())}), "stock": stock,
+            "value": value, "order_prefix": str(raw.get("order_prefix") or O_PREFIX_DEFAULT),
+            "complete": bool(complete), "note": note}
+
+
+def _o_from_ledger(state_dir: Path, why: str) -> dict:
+    """Fallback when `trader.options.run.o_owned` is missing or fails: read O's paper ledger (shadow spreads live
+    elsewhere and never reach the account). Any open spread or assigned stock in it makes the answer incomplete
+    (its value is unknown), which blocks the host book's increases for the day."""
+    note = f"trader.options.run.o_owned unavailable ({why}); O's ledger read directly"
+    try:
+        from .options.ledger import OptionsBook
+
+        ob = OptionsBook.load(state_dir)
+    except Exception as e:  # noqa: BLE001 - a corrupt ledger means "unknown", never "O owns nothing"
+        exists = (Path(state_dir) / "options").exists()
+        return _clean_o({}, complete=not exists, note=f"{note}; ledger unreadable ({type(e).__name__}: {e})")
+    live = list(ob.open_lots())  # safer: without run.py a spread's shadow flag is not trusted
+    syms = {leg.symbol for lot in live for leg in (lot.short_leg, lot.long_leg)}
+    raw = {"symbols": syms, "stock": dict(ob.o_stock or {}), "value": None if (live or ob.o_stock) else 0.0}
+    return _clean_o(raw, complete=not (live or ob.o_stock), note=note)
+
+
+def o_owned(state_dir: Path = STATE_DIR) -> dict:
+    """What book O owns in the shared account: {symbols, stock, value, order_prefix, complete, note}.
+
+    Calls `trader.options.run.o_owned` (Wave 2 interface), imported only here so the stock books still run
+    while that module is being built or broken. `complete` False means O's value is unknown."""
+    try:
+        from .options import run as orun
+
+        return _clean_o(orun.o_owned(state_dir), complete=True)
+    except Exception as e:  # noqa: BLE001
+        return _o_from_ledger(state_dir, f"{type(e).__name__}: {e}")
+
+
+def separate_o(positions: dict, o: dict, log: list[str], *, host: bool) -> tuple[dict, set[str]]:
+    """OPT-2 / decision 6: the stock books' view of broker positions. Option symbols (OCC) and O's legs are
+    removed for every book; on the shared (host) account O's assigned stock is also subtracted.
+
+    Returns (positions, suspect symbols). A symbol where the broker holds less stock than O owns cannot be
+    split between the books, so it is suspect (no orders, no reconcile) today."""
+    out, dropped, suspect = {}, [], set()
+    o_syms = set(o.get("symbols") or ())
+    for sym, q in (positions or {}).items():
+        if is_occ(sym) or str(sym).upper() in o_syms:
+            dropped.append(sym)
+            continue
+        out[sym] = q
+    if dropped:
+        log.append(f"{len(dropped)} option position(s) belong to book O and are left alone (OPT-2, decision 6)")
+    if not host:
+        return out, suspect
+    for sym, shares in (o.get("stock") or {}).items():
+        have = decisions._num(out.get(sym, 0.0))
+        if have is None:
+            continue  # reconcile flags a non-numeric position itself
+        if have + 1e-6 < shares:
+            log.append(f"{sym}: broker holds {have:.6g} but book O owns {shares:.6g} assigned shares; "
+                       "the stock books leave it alone today")
+            suspect.add(sym)
+        out[sym] = max(0.0, have - shares)
+        log.append(f"{sym}: {shares:.6g} share(s) belong to book O (assignment), not to this book")
+    return out, suspect
+
+
+def _own_prefixes(book: str, date: str) -> tuple[str, ...]:
+    """Client-order-id prefixes of this book's orders (`client_prefix`), this year and last (never O's `OPT-`)."""
+    year = int(str(date)[:4])
+    return (f"{book[:1]}{year}", f"{book[:1]}{year - 1}")
+
+
+def _cancel_own_orders(day: "_Day", broker: Broker) -> None:
+    """Step 1: cancel only this book's leftover orders (decision 6: never book O's). A real broker that cannot
+    filter by prefix is not asked to cancel at all while O may have orders (DAY orders lapse by themselves)."""
+    fn = broker.cancel_open_orders
+    try:
+        takes_prefixes = "prefixes" in inspect.signature(fn).parameters
+    except (TypeError, ValueError):
+        takes_prefixes = False
+    if takes_prefixes:
+        fn(prefixes=_own_prefixes(day.book, day.date))
+        return
+    o = day.o or {}
+    if not _simulated(broker) and day.o_host and (o.get("symbols") or o.get("stock") or not o.get("complete", True)):
+        day.hold_symbols = {str(o.get("symbol")) for o in day.state.pending_orders if isinstance(o, dict)}
+        day.log.append("open orders not cancelled: this broker cannot cancel by client-id prefix and book O may "
+                       "have orders in the shared account (decision 6)"
+                       + (f"; no new orders today in {', '.join(sorted(day.hold_symbols))}, whose last orders may "
+                          "still be open" if day.hold_symbols else ""))
+        return
+    fn()
+
+
+def _apply_o(day: "_Day", broker: Broker, state_dir: Path) -> None:
+    """Step 2 for the stock books: O's positions out of the positions, O's value out of equity and cash."""
+    if _simulated(broker):
+        day.o = _clean_o({}, complete=True, note="simulated broker: book O is not in this account")
+        return
+    if not day.o:
+        day.o = o_owned(state_dir)
+    if day.o.get("note"):
+        day.log.append(day.o["note"])
+    if day.o_host:
+        value = day.o.get("value")
+        if value is None or not day.o.get("complete", True):
+            # Unknown: take out O's last known value (a conservative stand-in, never "O owns nothing"), block every
+            # increase in every sleeve, and keep this day out of the high-water mark (_record_equity).
+            value = _last_o_value(day.state)
+            day.o["value_used"] = value
+            day.block_increases = ("book O's value in the shared account is unknown, so this book's equity is not "
+                                   "reliable: no new entries or increases today, in any sleeve (decision 6)")
+            day.log.append(day.block_increases)
+            if value is not None:
+                day.log.append(f"book O's last known value {value:,.2f} taken out of this book's equity instead")
+        if value is not None:
+            day.equity -= float(value)
+            day.cash -= max(0.0, float(value))
+            if abs(float(value)) > EPS and day.o.get("complete", True):
+                day.log.append(f"book O's value {value:,.2f} taken out of this book's equity (decision 6)")
+
+
+def _last_o_value(state: BookState) -> float | None:
+    """Book O's value on the latest equity row where it was known (None if never recorded)."""
+    for row in reversed(state.equity_history):
+        if isinstance(row, dict) and row.get("o_value") is not None and not row.get("o_value_unknown"):
+            return float(row["o_value"])
+    return None
+
+
+def _record_equity(day: "_Day", closes: dict, bench: str) -> tuple[float, float]:
+    """Step 3: store today's equity row with book O's value on it. When O's value is unknown on the host the row
+    is marked `o_value_unknown` and the peak (high-water mark) is not raised from it, so O's money can never
+    become this book's peak, and the next day's drawdown and loss limits do not see a false loss."""
+    st = day.state
+    peak = st.peak_equity
+    out = st.record_equity(day.date, day.equity, closes.get(bench, float("nan")),
+                           closes={s: closes[s] for s in BENCH_CLOSES if s in closes},
+                           exposure=_exposure(day.cfg, st.lots, closes))
+    row = st.equity_history[-1]
+    if day.o_host:
+        unknown = day.o.get("value") is None or not day.o.get("complete", True)
+        used = day.o.get("value_used") if unknown else day.o.get("value")
+        row["o_value"] = _r(used, 2)
+        if unknown:
+            row["o_value_unknown"] = True
+            st.peak_equity = peak
+    return out
+
+
+# --- news signals and the active hype vetoes (owner decision 8, news report section 6) -----------------
+
+# Decision 8 names no exemption: a hype veto blocks a new buy or increase in every sleeve, A included (CL-7 only
+# limits what Claude may skip; it does not limit code). Exits, reductions and stops are never vetoed.
+NEWS_VETO_SLEEVES = ("A", "B", "C", "D")
+NEWS_VETO_CODE = "NEWS_HYPE_VETO"  # stored on the shadow lot; not a Claude reason code (section 6)
+_SAFE_KEY = re.compile(r"^[A-Za-z0-9_\-]{1,40}$")
+_SAFE_TEXT = re.compile(r"^[A-Za-z0-9 _.:%+\-/()=<>,]*$")
+NEWS_NOTE = ("shadow: code-computed numbers and fixed labels only (no headline text). You may cite these in "
+             "journal_note or a prediction; they are not evidence for any skip, halve, action or weight change "
+             "(CL-2, M-12). news_vetoes are already enforced by code: new longs in those names are blocked.")
+
+
+@dataclass
+class NewsFeed:
+    """News input for one run. `items` are `news.fetch_news` items; None means the fetch failed or was not
+    attempted. `start` is the fetch window start (so a quiet day counts 0 headlines, not 'unknown')."""
+
+    items: list[dict] | None = None
+    start: Any = None
+    notes: list[str] = field(default_factory=list)
+
+
+def news_universe(cfg: Config) -> list[str]:
+    """News report section 5: the C universe plus the B ETFs (no crypto)."""
+    syms = list(cfg.sleeves["B"]["symbols"]) + list(cfg.stock_universe())
+    return [s for s in dict.fromkeys(syms) if "/" not in s]
+
+
+def _safe_text(value: Any, limit: int = 60) -> str | None:
+    """A code label is kept only if short and plain (defence in depth: no text can reach Claude's context)."""
+    text = str(value)
+    return text if len(text) <= limit and _SAFE_TEXT.match(text) else None
+
+
+def safe_news_row(row: Any, depth: int = 0) -> dict:
+    """Section 6 guard: numbers, booleans and short fixed labels only; anything else is dropped."""
+    out: dict[str, Any] = {}
+    for k, v in (row.items() if isinstance(row, dict) else ()):
+        if not (isinstance(k, str) and _SAFE_KEY.match(k)):
+            continue
+        if v is None or isinstance(v, (bool, np.bool_)):
+            out[k] = None if v is None else bool(v)
+        elif isinstance(v, (int, float, np.integer, np.floating)):
+            out[k] = _r(v, 6)
+        elif isinstance(v, str):
+            t = _safe_text(v)
+            if t is not None:
+                out[k] = t
+        elif isinstance(v, dict) and depth < 2:
+            out[k] = safe_news_row(v, depth + 1)
+    return out
+
+
+def _compact_signals(signals: dict, allowed: set[str]) -> dict:
+    """The rows Claude sees: every computed event or veto row, and the market-wide rows (key SPY)."""
+    out: dict[str, dict] = {}
+    for sid, rows in (signals or {}).items():
+        keep = {}
+        for sym, row in (rows or {}).items():
+            if sym not in allowed or not isinstance(row, dict) or "skipped" in row:
+                continue
+            if row.get("event") or row.get("veto") or sid in ("NEWS-9", "NEWS-10", "NEWS-11", "NEWS-12"):
+                keep[sym] = safe_news_row(row)
+        if keep:
+            out[sid] = keep
+    return out
+
+
+def _clean_vetoes(vetoes: dict, allowed: set[str]) -> dict[str, list[str]]:
+    out = {}
+    for sym, reasons in (vetoes or {}).items():
+        if sym in allowed:
+            texts = [t for t in (_safe_text(r, 160) for r in reasons or ()) if t]
+            out[sym] = texts or ["hype veto (decision 8)"]
+    return out
+
+
+def _news_step(day: "_Day", feed: NewsFeed | None) -> None:
+    """Step 5b: NEWS-1..18 for today and the active vetoes (NEWS-4, NEWS-13, NEWS-18 promotion).
+
+    `feed` None is the old call (tests, evals): nothing is computed and the run says so. The CLI always passes a
+    NewsFeed. A feed without headlines (a failed fetch: items None) still runs NEWS-4 without its headline term
+    and NEWS-13 on bars, so the hype checks never switch off in a real run. If the computation itself fails,
+    every increase is blocked today (the hype check is impossible, so it fails closed, like news_signals'
+    short-history rows)."""
+    cfg, st = day.cfg, day.state
+    if feed is None:
+        day.log.append("hype vetoes not checked: no news feed was passed to the engine (the CLI always passes one)")
+        return
+    uni = news_universe(cfg)
+    allowed = set(uni) | {news_signals.BENCHMARK}
+    items = list(feed.items) if feed.items is not None else []
+    start = feed.start if feed.items is not None else None
+    notes = [_safe_text(n, 200) or "news note withheld (not plain text)" for n in feed.notes or []]
+    try:
+        signals = news_signals.compute(day.bars, items, uni, day.as_of, cfg.policy, news_start=start,
+                                       c_universe=cfg.stock_universe(), regime_label=day.regime.label)
+        vetoes, history = news_signals.active_vetoes(signals, cfg.policy, dict(st.news_promo_history or {}),
+                                                     as_of=day.as_of)
+    except Exception as e:  # noqa: BLE001 - fail closed, never silently open
+        day.block_increases = f"news signals failed ({type(e).__name__}: {e}): no new longs today (decision 8)"
+        day.log.append(day.block_increases)
+        day.news = {"meta": {"status": "failed", "note": NEWS_NOTE, "notes": notes + [day.block_increases]},
+                    "signals": {}, "vetoes": {}}
+        return
+    day.news_vetoes = _clean_vetoes(vetoes, allowed)
+    day.news_history = history
+    try:  # section 6 audit record: headline text and scorer version per score, for a file only (_save_score_log)
+        day.score_log = list(news_signals.score_log(day.bars, items, uni, day.as_of, cfg.policy))
+    except Exception as e:  # noqa: BLE001 - the audit file is not a trading input
+        day.log.append(f"news score log not written ({type(e).__name__}: {e})")
+    pol = news_signals.news_policy(cfg.policy)
+    day.news = {"meta": {"status": "shadow", "note": NEWS_NOTE, "as_of": day.date, "source": pol["source"],
+                         "headlines": len(items) if feed.items is not None else None,
+                         "active_vetoes": list(pol["active_vetoes"]), "notes": notes},
+                "signals": _compact_signals(signals, allowed), "vetoes": day.news_vetoes}
+    if day.news_vetoes:
+        day.log.append("hype vetoes (decision 8, no new longs): " + ", ".join(sorted(day.news_vetoes)))
+
+
+def _block_news(day: "_Day", proposed: list[Target], quiet: bool = False) -> tuple[list[Target], list[dict]]:
+    """Step 12, decision 8: an increase in a vetoed name (any sleeve) is held at today's quantity. Exits,
+    reductions and stops pass untouched. Returns (targets, one veto record per blocked increase)."""
+    if not day.news_vetoes:
+        return list(proposed), []
+    out, records = [], []
+    for t in proposed:
+        reasons = day.news_vetoes.get(t.symbol)
+        if not reasons or t.sleeve not in NEWS_VETO_SLEEVES or not _is_increase(t, day.state.lots):
+            out.append(t)
+            continue
+        cur = _lot_qty(day.state.lots, t.sleeve, t.symbol)
+        ids = sorted({r.split(" ", 1)[0] for r in reasons})
+        out.append(replace(t, qty=cur, reason=f"{t.reason} (blocked by hype veto {', '.join(ids)})"))
+        if not quiet:
+            day.log.append(f"{t.sleeve}/{t.symbol}: increase blocked by hype veto ({'; '.join(reasons)})")
+        records.append({"date": day.date, "sleeve": t.sleeve, "symbol": t.symbol, "fraction": 1.0,
+                        "rule_qty": float(t.qty), "current_qty": cur, "stop": t.stop,
+                        "reason_code": NEWS_VETO_CODE, "prediction_id": "", "news_reasons": list(reasons)})
+    return out, records
+
+
+class _NewsLots:
+    """Lets shadow.py's CL-9 veto-lot functions score `state.news_veto_lots` (a separate list, so code vetoes
+    never feed Claude's CL-9 latch or the M-6 review report)."""
+
+    def __init__(self, state: BookState):
+        self.book = state.book
+        self.shadow_lots = state.news_veto_lots
+        self.cost_model_bps = state.cost_model_bps
+        self.veto_reset_date = None
+
+
+def _store_news(state: BookState, day: "_Day", records: list[dict], tags: dict) -> None:
+    """Step 14: a same-day rerun replaces lots that have not entered; then one shadow lot per blocked increase."""
+    state.news_veto_lots[:] = [lt for lt in state.news_veto_lots
+                               if not (lt.get("date") == day.date and lt.get("status") == "pending_entry")]
+    for lot in shadow.open_veto_lots(_NewsLots(state), records, day.date, tags=tags):
+        rec = next((r for r in records if r["sleeve"] == lot["sleeve"] and r["symbol"] == lot["symbol"]), {})
+        lot.update({"kind": "news_veto", "news_reasons": list(rec.get("news_reasons") or [])})
+    if day.news_history is not None:
+        state.news_promo_history = day.news_history
 
 
 # --- the day: steps 1-10, shared by prepare and run --------------------------------------------------------
@@ -416,6 +771,14 @@ class _Day:
     cost_bps: dict = field(default_factory=dict)
     data_notes: dict = field(default_factory=dict)
     suspect: set = field(default_factory=set)  # symbols whose broker quantity cannot be trusted today
+    o: dict = field(default_factory=dict)  # what book O owns in the shared account (o_owned)
+    o_host: bool = False  # this book shares its Alpaca account with book O (decision 6)
+    block_increases: str = ""  # non-empty: every increase (all sleeves) is blocked today, with this reason
+    hold_symbols: set = field(default_factory=set)  # symbols with possibly open old orders: no new orders today
+    score_log: list = field(default_factory=list)  # section 6 audit rows (headline text): a file only, never context
+    news: dict = field(default_factory=dict)  # {meta, signals, vetoes} for the context and the journal
+    news_vetoes: dict = field(default_factory=dict)  # symbol -> reasons (decision 8)
+    news_history: dict | None = None  # the updated NEWS-18 promotion memory, saved by a real run
 
 
 def _slice(bars: Bars, as_of: pd.Timestamp) -> Bars:
@@ -452,7 +815,7 @@ def _settle(day: _Day, broker: Broker) -> None:
         if st.pending_orders:
             day.log.append(f"{len(st.pending_orders)} order(s) from the last run still open (dry run: not cancelled)")
         return
-    broker.cancel_open_orders()
+    _cancel_own_orders(day, broker)
     if fills_of is not None and st.pending_orders:
         day.settled += ledger.settle_fills(st, fills_of(st.pending_orders), date=day.date,
                                            asset_class=cfg.asset_class, cost_bps=day.cost_bps, log=day.log)
@@ -467,11 +830,15 @@ def _prev_claude_weights(state: BookState, rule_weights: dict) -> dict:
 
 
 def _prepare_day(book: str, cfg: Config, bars: Bars, broker: Broker, as_of: pd.Timestamp, state: BookState,
-                 state_dir: Path, dry_run: bool, data_notes=None, allow_all_zero: bool = False) -> _Day:
+                 state_dir: Path, dry_run: bool, data_notes=None, allow_all_zero: bool = False,
+                 news: NewsFeed | None = None) -> _Day:
     """Steps 1-10. Only step 1 differs with dry_run (no cancel); nothing here saves or sends orders."""
     bars = _slice(bars, as_of)
     day = _Day(book, cfg, state, bars, as_of, as_of.date().isoformat(), dry_run, data_notes=_data_notes(data_notes))
     st, pol, date, log = state, cfg.policy, day.date, day.log
+    day.o_host = book == o_host_book(cfg) and not _simulated(broker)
+    if not _simulated(broker):
+        day.o = o_owned(state_dir)  # read before step 1: the cancel must know whether O may have orders
     bench = cfg.playbook["regime"]["benchmark"]
 
     # 0. splits: the bars are split-adjusted, so lots, pending orders and the simulator move to today's units
@@ -481,8 +848,9 @@ def _prepare_day(book: str, cfg: Config, bars: Bars, broker: Broker, as_of: pd.T
     day.cost_bps = ledger.measured_cost_model(st, pol)
     _settle(day, broker)
 
-    # 2. account and reconcile (never against a positions call that failed)
+    # 2. account and reconcile (never against a positions call that failed); book O's share taken out first
     day.equity, day.cash = broker.account()
+    _apply_o(day, broker, state_dir)
     day.prices = risk.last_prices(bars)
     closes = risk.last_valid_closes(bars)
     try:
@@ -492,19 +860,18 @@ def _prepare_day(book: str, cfg: Config, bars: Bars, broker: Broker, as_of: pd.T
         log.append(f"broker positions unavailable ({e}); reconcile skipped and no orders will be sent today")
     suspect: set = set()
     if day.positions_ok:
+        day.positions, o_suspect = separate_o(day.positions, day.o, log, host=day.o_host)
+        suspect |= o_suspect
         lagging = set() if _simulated(broker) else ledger.split_lagging(st, splits, day.positions, log)
-        suspect = ledger.reconcile(st.lots, day.positions, log, state=st, prices=closes, date=date,
-                                   skip_symbols=lagging, allow_all_zero=allow_all_zero) | lagging
+        suspect |= ledger.reconcile(st.lots, day.positions, log, state=st, prices=closes, date=date,
+                                    skip_symbols=lagging | suspect, allow_all_zero=allow_all_zero) | lagging
     else:
         suspect = {sym for held in st.lots.values() for sym in held}
     day.suspect = set(suspect)
 
     # 3. marks and equity (M-1, M-4, M-5, RISK-13 inputs)
     ledger.update_marks(st, bars, date, log=log)
-    day_pnl, week_pnl = st.record_equity(
-        date, day.equity, closes.get(bench, float("nan")),
-        closes={s: closes[s] for s in BENCH_CLOSES if s in closes},
-        exposure=_exposure(cfg, st.lots, closes))
+    day_pnl, week_pnl = _record_equity(day, closes, bench)
 
     # 4. breakers (RISK-9 to RISK-13, M-11); latches live in memory and are saved only by a real run
     day.stats = metrics.sleeve_stats(st.closed_trades, policy=pol)
@@ -531,6 +898,9 @@ def _prepare_day(book: str, cfg: Config, bars: Bars, broker: Broker, as_of: pd.T
     rcfg = cfg.playbook["regime"]
     day.regime = classify(bars, bench, cfg.stock_universe(), rcfg["canaries"], **classify_kwargs(rcfg))
 
+    # 5b. news signals (shadow) and the active hype vetoes (decision 8: block new longs only)
+    _news_step(day, news)
+
     # 6. data checks (EX-7): symbols with problems get no increases today
     dc = pol.get("data_checks", {})
     day.problems = validate(bars, cfg.allowlist(), as_of, max_stale_days=dc.get("max_stale_days", 5),
@@ -538,6 +908,8 @@ def _prepare_day(book: str, cfg: Config, bars: Bars, broker: Broker, as_of: pd.T
     day.problems += [f"{s}: broker position looks wrong today, no increases (reconcile skipped)"
                      for s in sorted(suspect)]
     day.bad = problem_symbols(day.problems) | set(suspect)
+    if day.block_increases:
+        day.problems.append(f"all symbols: {day.block_increases}")
 
     # 7. weights
     promoted = tuple(st.promoted_sleeves)
@@ -561,6 +933,7 @@ def _prepare_day(book: str, cfg: Config, bars: Bars, broker: Broker, as_of: pd.T
         "veto_events": shadow.update_veto_lots(st, bars, cfg, date),
         "predictions_resolved": shadow.resolve_predictions(st, bars, date),
         "deviations_resolved": shadow.resolve_deviations(st, bars, date),
+        "news_veto_events": shadow.update_veto_lots(_NewsLots(st), bars, cfg, date),
     }
     if book == "rules":
         if not st.veto_codes_restricted and shadow.should_restrict(st, policy=cfg):
@@ -574,13 +947,17 @@ def _prepare_day(book: str, cfg: Config, bars: Bars, broker: Broker, as_of: pd.T
             log.append("guide rule 6: deviations have lost money over the scored minimum; the Claude book follows "
                        "the rule targets until the owner runs `trader deviation-reset`")
         day.eligible = decisions.eligibility(cfg, bars, day.regime.permissions)
+        for s in NEWS_VETO_SLEEVES:  # decision 8: a vetoed name is not an eligible increase today
+            if s in day.eligible:
+                day.eligible[s] = {sym for sym in day.eligible[s] if sym not in day.news_vetoes}
 
     # 10. context
     day.context = build_context(
         book, cfg, st, bars, day.equity, day.cash, day.breakers, day.regime, day.weights, day.plans, day.problems,
         as_of, broker_name=getattr(broker, "name", type(broker).__name__), simulated=_simulated(broker),
         rule_weights=day.rule_weights, since_change=day.since_change, eligible=day.eligible,
-        allowed_skip=day.allowed_skip, data_notes=day.data_notes, stats=day.stats, demotion=day.demotion)
+        allowed_skip=day.allowed_skip, data_notes=day.data_notes, stats=day.stats, demotion=day.demotion,
+        news=day.news or None)
     return day
 
 
@@ -593,7 +970,7 @@ def _simulated(broker) -> bool:
 
 def prepare_book(book: str, cfg: Config, bars: Bars, broker: Broker, as_of: pd.Timestamp,
                  state_dir: Path = STATE_DIR, state: BookState | None = None, samples: int | None = None, *,
-                 data_notes=None) -> dict:
+                 data_notes=None, news: NewsFeed | None = None) -> dict:
     """Steps 1-10 without cancelling, ordering or saving, then write state/<book>/pending/<date>/.
 
     Returns {book, date, dir, files, samples, summary}. The context is exactly the one `run_book` builds for
@@ -607,7 +984,8 @@ def prepare_book(book: str, cfg: Config, bars: Bars, broker: Broker, as_of: pd.T
                "the pending folder is left as it is")
         return {"book": book, "date": date, "dir": "", "files": {}, "samples": 0, "summary": [why],
                 "skipped": why, "log": []}
-    day = _prepare_day(book, cfg, bars, broker, as_of, state, state_dir, dry_run=True, data_notes=data_notes)
+    day = _prepare_day(book, cfg, bars, broker, as_of, state, state_dir, dry_run=True, data_notes=data_notes,
+                       news=news)
     n = session._samples(cfg, samples)
     files = session.write_pending(book, day.date, day.context, cfg, state_dir, n)
     prefix = session.FILE_PREFIX[book]
@@ -626,6 +1004,8 @@ def prepare_book(book: str, cfg: Config, bars: Bars, broker: Broker, as_of: pd.T
                        + ", ".join(f"{s} {w:.0%}" for s, w in day.weights.items()))
     if b.reasons:
         summary.append("breakers: " + "; ".join(b.reasons))
+    if day.news_vetoes:
+        summary.append("hype vetoes (no new longs, decision 8): " + ", ".join(sorted(day.news_vetoes)))
     if day.problems:
         summary.append(f"{len(day.problems)} data problem(s): " + "; ".join(day.problems[:5]))
     summary.append(f"write {prefix}_1.json ... {prefix}_{n}.json into {files['dir']}")
@@ -814,12 +1194,16 @@ def _risk(day: _Day, proposed: list[Target], weights: dict, book: str):
                                      promoted=tuple(day.state.promoted_sleeves), book=book)
 
 
-def _block_bad_data(day: _Day, proposed: list[Target]) -> list[Target]:
-    """EX-7: never open or add to a position whose data failed the checks (exits and holds still go)."""
+def _block_bad_data(day: _Day, proposed: list[Target], quiet: bool = False) -> list[Target]:
+    """EX-7: never open or add to a position whose data failed the checks (exits and holds still go).
+    `day.block_increases` (an unknown book-O value, a failed hype check) blocks every increase the same way."""
     safe = []
     for t in proposed:
-        if t.symbol in day.bad and _is_increase(t, day.state.lots):
-            day.log.append(f"{t.sleeve}/{t.symbol}: increase blocked, data problem")
+        if _is_increase(t, day.state.lots) and (
+                t.symbol in day.bad or day.block_increases):
+            if not quiet:
+                day.log.append(f"{t.sleeve}/{t.symbol}: increase blocked, "
+                               + ("data problem" if t.symbol in day.bad else day.block_increases))
             continue
         safe.append(t)
     return safe
@@ -850,11 +1234,13 @@ def _deviations_traded(day: _Day, deviations: list[dict], approved: list[Target]
     return kept
 
 
-def _vetoes_risk_allows(day: _Day, vetoes: list[dict], unvetoed: list[Target], weights: dict) -> list[dict]:
-    """CL-9: a vetoed increase only counts if the risk engine would have let the rules book make it."""
+def _vetoes_risk_allows(day: _Day, vetoes: list[dict], unvetoed: list[Target], weights: dict,
+                        book: str = "rules") -> list[dict]:
+    """CL-9: a vetoed increase only counts if the risk engine would have let the book make it."""
     if not vetoes:
         return []
-    allowed = {(t.sleeve, t.symbol): t.qty for t in _risk(day, _block_bad_data(day, unvetoed), weights, "rules").targets}
+    allowed = {(t.sleeve, t.symbol): t.qty
+               for t in _risk(day, _block_bad_data(day, unvetoed, quiet=True), weights, book).targets}
     kept = []
     for v in vetoes:
         qty = allowed.get((v["sleeve"], v["symbol"]), v["current_qty"])
@@ -901,8 +1287,11 @@ def _assign_ids(book: str, date: str, orders: list, state: BookState, suffix: st
 
 def run_book(book: str, cfg: Config, bars: Bars, broker: Broker, advisor, as_of: pd.Timestamp,
              state_dir: Path = STATE_DIR, dry_run: bool = False, force: bool = False,
-             state: BookState | None = None, *, data_notes=None, allow_all_zero: bool = False) -> dict:
-    """All 14 steps for one book. Returns the journal entry (also appended to the journal, dry runs included)."""
+             state: BookState | None = None, *, data_notes=None, allow_all_zero: bool = False,
+             news: NewsFeed | None = None) -> dict:
+    """All 14 steps for one book. Returns the journal entry (also appended to the journal, dry runs included).
+
+    `news` is today's news fetch (NewsFeed); without it the hype vetoes still run on bars (step 5b)."""
     assert book in BOOKS
     state = state or BookState.load(book, state_dir)
     date = as_of.date().isoformat()
@@ -911,15 +1300,23 @@ def run_book(book: str, cfg: Config, bars: Bars, broker: Broker, advisor, as_of:
     if force and state.last_run_date == date:
         _drop_discarded_attempt(state, date)
 
-    day = _prepare_day(book, cfg, bars, broker, as_of, state, state_dir, dry_run, data_notes, allow_all_zero)
+    day = _prepare_day(book, cfg, bars, broker, as_of, state, state_dir, dry_run, data_notes, allow_all_zero,
+                       news=news)
     log = day.log
 
     # 11. Claude
     out = _step(day, advisor)
-    if book == "rules" and out.vetoes:
-        out.vetoes = _vetoes_risk_allows(day, out.vetoes, _plan_targets(day.plans), out.weights)
 
-    # 12. data block, then the risk engine (nothing bypasses it)
+    # 12. hype vetoes (decision 8), data block, then the risk engine (nothing bypasses it). The hype vetoes are
+    # recorded against the book's targets BEFORE Claude's review (rules book: the plan), so a review skip or halve
+    # of a vetoed name can neither hide the veto's shadow lot nor earn CL-9 credit for a block code makes anyway.
+    pre = _plan_targets(day.plans) if book == "rules" else list(out.proposed)
+    _, news_vetoes = _block_news(day, pre)
+    news_vetoes = _vetoes_risk_allows(day, news_vetoes, pre, out.weights, book)
+    if book == "rules" and out.vetoes:
+        out.vetoes = _drop_hype_blocked(day, out.vetoes)
+        out.vetoes = _vetoes_risk_allows(day, out.vetoes, _plan_targets(day.plans), out.weights)
+    out.proposed, _ = _block_news(day, out.proposed, quiet=True)
     safe = _block_bad_data(day, out.proposed)
     result = _risk(day, safe, out.weights, book)
     log += result.log
@@ -927,6 +1324,7 @@ def run_book(book: str, cfg: Config, bars: Bars, broker: Broker, advisor, as_of:
     # 13. orders
     orders = result.orders
     submit_results: list[dict] = []
+    alerts: list[str] = []
     if not day.positions_ok and orders:
         log.append(f"{len(orders)} order(s) not sent: broker positions were unavailable")
         orders = []
@@ -937,6 +1335,19 @@ def run_book(book: str, cfg: Config, bars: Bars, broker: Broker, advisor, as_of:
                        f"{len(held)} order(s) not sent. If the account really is empty, the owner reruns with "
                        "--confirm-empty-account")
             orders = [o for o in orders if o.symbol not in day.suspect]
+    for t in safe:  # an exit, stop or reduction this book wants but cannot make in a suspect symbol is an ALERT
+        cur = _lot_qty(state.lots, t.sleeve, t.symbol)
+        if t.symbol in day.suspect and float(t.qty) < cur - EPS:
+            alerts.append(f"ALERT: {t.sleeve}/{t.symbol} sell to {float(t.qty):g} of {cur:g} (an exit, stop or "
+                          "reduction) not sent: the broker position cannot be split from book O's or looks wrong; "
+                          "the owner checks the position and book O's ledger today")
+    log += alerts
+    if day.hold_symbols and orders:
+        held = [o for o in orders if o.symbol in day.hold_symbols]
+        if held:
+            log.append(f"{len(held)} order(s) not sent in {', '.join(sorted({o.symbol for o in held}))}: the last "
+                       "run's orders there could not be cancelled and may still be open (no duplicates)")
+            orders = [o for o in orders if o.symbol not in day.hold_symbols]
     if out.deviations:
         unsent = {o.symbol for o in result.orders} - {o.symbol for o in orders}
         out.deviations = _deviations_traded(day, out.deviations, result.targets, unsent)
@@ -959,6 +1370,8 @@ def run_book(book: str, cfg: Config, bars: Bars, broker: Broker, advisor, as_of:
         shadow.clear_pending(state, date)
         if out.vetoes:
             shadow.open_veto_lots(state, out.vetoes, date, tags=tags)
+        _store_news(state, day, news_vetoes, tags)
+        _save_score_log(day, state_dir)
         if out.predictions:
             shadow.add_predictions(state, out.predictions, date=date, book=book, bars=day.bars, tags=tags)
         if out.deviations:
@@ -975,8 +1388,41 @@ def run_book(book: str, cfg: Config, bars: Bars, broker: Broker, advisor, as_of:
         state.save(state_dir)
 
     entry = _journal_entry(day, broker, out, result, orders, submit_results)
+    entry["news"] = jsonable(day.news)
+    entry["news_vetoes"] = jsonable(news_vetoes)
+    entry["book_o"] = jsonable({"host": day.o_host, **{k: v for k, v in (day.o or {}).items()}})
+    if alerts:
+        entry["alerts"] = alerts
     journal(book, entry, state_dir)
     return entry
+
+
+def _drop_hype_blocked(day: _Day, vetoes: list[dict]) -> list[dict]:
+    """A review skip or halve of an increase that a hype veto already blocks changes nothing, so it is not a CL-9
+    veto: no CL-9 shadow lot, no credit or blame (decision 8's own shadow lot scores the block)."""
+    kept = []
+    for v in vetoes:
+        if (v.get("symbol") in day.news_vetoes and v.get("sleeve") in NEWS_VETO_SLEEVES):
+            day.log.append(f"{v.get('sleeve')}/{v.get('symbol')}: review {v.get('reason_code')} ignored for CL-9, the "
+                           "increase is already blocked by code (hype veto, decision 8)")
+            continue
+        kept.append(v)
+    return kept
+
+
+def _save_score_log(day: _Day, state_dir: Path) -> None:
+    """News report section 6: the headline text and scorer version behind every score, so a veto can be traced and
+    reproduced. Written to state/news/score_log/<date>.jsonl, never to a context or pending folder."""
+    if not day.score_log:
+        return
+    try:
+        folder = Path(state_dir) / "news" / "score_log"
+        folder.mkdir(parents=True, exist_ok=True)
+        with open(folder / f"{day.date}.jsonl", "w") as f:
+            for row in day.score_log:
+                f.write(json.dumps(jsonable(row), sort_keys=True) + "\n")
+    except Exception as e:  # noqa: BLE001 - the audit file is not a trading input
+        day.log.append(f"news score log not written ({type(e).__name__}: {e})")
 
 
 def _drop_discarded_attempt(state: BookState, date: str) -> None:

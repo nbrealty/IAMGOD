@@ -25,6 +25,7 @@ also keeps `claude/investment-agents-question-hrkk10` in sync).
 | Scheduled weekday routine | (not created) | **Waiting for the owner's OK** after a dry run |
 | GitHub Actions daily workflow | `.github/workflows/paper-trading.yml` | Old API-key path, **stays switched off** (Option B below) |
 | Book PDFs | `docs/*.pdf` | Uploaded by the owner. Do not commit extracted book text. |
+| **Options book O and news signals (build 2)** | `trading/trader/options/`, `trading/trader/news*.py` | Built; book O runs in **shadow only** (no orders, decision 10). Stock books: O's options, assigned stock and `OPT-` orders are kept out of reconcile, equity and cancels; the hype vetoes (NEWS-4, NEWS-13, NEWS-18 promotion) block new buys in both books and every sleeve (A included) and are shadow-scored; Claude sees only code-computed news numbers. CLI `options ...` / `news ...`; runbook step 6b |
 
 ## Decisions the owner has made
 

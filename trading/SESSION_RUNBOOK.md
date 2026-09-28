@@ -10,6 +10,18 @@ Two books run:
   owner's Alpaca **paper** account (`ALPACA_RULES_KEY` / `ALPACA_RULES_SECRET`).
 - **claude** book: Claude picks from menus inside the hard risk limits. It has no paper account yet, so it
   runs on the local **simulator** (`--sim claude`). Say "simulated" whenever you report on it.
+- **book O** (options): one monthly SPY bull put spread chosen by code, run in **SHADOW** (logged, never
+  ordered) until the owner turns it on after gate OPT-41. It shares the rules book's paper account (owner
+  decision 6), so the stock books leave its option positions, its assigned stock and its `OPT-` orders alone.
+  Say "shadow" whenever you report on it.
+
+Hype vetoes (owner decision 8) run in both stock books: a name with an attention spike after a run-up
+(NEWS-4), a lottery-like jump (NEWS-13) or "paid"/"sponsored" promotion in its headlines (NEWS-18) gets no new
+buy today, in any sleeve (sleeve A included). Each blocked buy is followed as a shadow trade and scored; a
+review skip of a name that is already vetoed changes nothing and is not counted as a CL-9 veto. Headlines are
+never shown to Claude or printed by any command in this file; only code-computed numbers are. A real run writes
+the headline behind each score, with the scorer version, to `state/news/score_log/<date>.jsonl` (the audit
+record; never put it in a context or a summary).
 
 ## Hard rules for this session
 
@@ -21,6 +33,8 @@ Two books run:
 4. Never drop `--sim claude` from a command. The Claude book has no paper account, and a book cannot switch
    between the simulator and Alpaca.
 5. If a step says **stop**, skip to step 9 (the summary) and say clearly what failed.
+6. Never change `options_book.enabled` or anything else in `config/`. Book O stays in shadow until the owner
+   says otherwise in writing (decision 10: no paper orders and no schedule without the owner's OK).
 
 ## Step 0. Go to the trading folder and install
 
@@ -61,9 +75,13 @@ kill switch line. (The first time it prints `no runs yet`.)
 python -m trader prepare --book both --sim claude
 ```
 
-It fetches market data (`market data: 56 symbols, feed sip`) and prints, per book, the date, equity,
-drawdown, regime and the **pending folder**, for example
+It fetches market data (`market data: 56 symbols, feed sip`) and the news (`news: N headline(s) from ...`;
+headlines are never printed), and prints, per book, the date, equity, drawdown, regime, any
+`hype vetoes (no new longs, decision 8): ...` line and the **pending folder**, for example
 `trading/state/claude/pending/2026-09-25` and `trading/state/rules/pending/2026-09-25`.
+
+- A `news note: news fetch failed ...` line is not a stop: the hype vetoes NEWS-4 and NEWS-13 still run on
+  prices. Mention it in the summary.
 
 - If it fails with "Market data is not set up" or "Could not fetch daily bars": **stop** and quote the message
   (it names the variable or host to fix).
@@ -125,9 +143,21 @@ python -m trader run --book both --sim claude --session
 ```
 
 This sends the rules book's orders to the Alpaca paper account (market orders for the next open) and
-books the Claude book's orders in the simulator. Before it sends anything, it cancels **every** open order in
-that paper account, so the owner must not place manual orders in the rules book's paper account. It prints the same as step 5 with `order:` lines, plus
-`filled:` lines for yesterday's orders that filled at today's open.
+books the Claude book's orders in the simulator. Before it sends anything, it cancels the book's **own** open
+orders (client ids starting with `r` or `c` and the year); book O's `OPT-` orders and anything else in the
+account are never touched. It prints the same as step 5 with `order:` lines, plus `filled:` lines for
+yesterday's orders that filled at today's open. Lines such as `2 option position(s) belong to book O and are
+left alone` or `SPY: 100 share(s) belong to book O (assignment)` are normal in the shared account.
+- `book O's value in the shared account is unknown ...`: the rules book takes out O's last known value,
+  makes no new buys or increases in any sleeve today and does not raise its peak from this day. Note it.
+- `ALERT: ...` lines (also under `alerts` in the journal): an exit or stop could not be sent because the
+  broker position cannot be split from book O's. Put every ALERT at the top of the summary for the owner.
+- `open orders not cancelled: this broker cannot cancel by client-id prefix ...`: no new orders go out in
+  the listed symbols today (their old orders may still be open). Note it.
+- The rules book's equity is the account minus book O's value, and O's value includes the max loss it
+  commits to an open spread. So a new O spread lowers the rules book's equity (and its day P&L) by about
+  0.25% of equity, and a closed one raises it: a transfer, not a rules-book trade. Each equity row stores
+  `o_value`, so the owner can tell the two apart.
 
 - `ORDER PROBLEM: ...` lines: note every one for the summary. Do not retry.
 - `skipped: already ran for <date>`: that book already ran today. Do not rerun it (never use `--force`).
@@ -140,6 +170,30 @@ that paper account, so the owner must not place manual orders in the rules book'
   `python -m trader status`: if the other book's `last run` is not today, run that book alone: the same
   command with `--book both` replaced by `--book rules` or `--book claude` (always keep `--sim claude`).
 
+## Step 6b. Book O (options), SHADOW only
+
+```bash
+python -m trader options log-chain --when close
+python -m trader options prepare
+```
+
+`log-chain` saves today's SPY, QQQ and IWM option chains (OPT-35; `complete: True` or the problems it found).
+`prepare` builds the day's one spread (or none, with the reasons) and writes a pending folder
+`trading/state/options/pending/<date>/` with `context.json`, `schema.json` and `instructions.md`.
+
+If `prepare` shows a candidate, start **one fresh subagent per file** as in step 4 (normally 3), with the same
+prompt, the options folder and the file names `skip_1.json`, `skip_2.json`, `skip_3.json`. The only choice is
+"follow" or "skip"; following is the usual answer. With no candidate, write no files.
+
+```bash
+python -m trader options run
+```
+
+It updates the shadow book (entries, exits, skips) and never sends an order from this command line.
+
+- `book O is not available yet: ...` or a traceback in any of these three commands: do **not** stop. The stock
+  books are not affected. Quote the first line in the summary and go on to step 7.
+
 ## Step 7. Status and report
 
 ```bash
@@ -148,7 +202,9 @@ python -m trader report
 ```
 
 `status` shows equity, drawdown, flags, pending orders and positions per book. `report` compares each
-book with SPY, 60/40 and GTAA-5 and shows per-sleeve results (it needs at least two daily runs).
+book with SPY, 60/40 and GTAA-5 and shows per-sleeve results (it needs at least two daily runs), what the
+hype vetoes blocked and whether blocking paid (`hype vetoes (decision 8): ...`), and book O's shadow results,
+its gates and the combined SPY exposure line (`OPT-11 SPY: ...`, display only).
 
 ## Step 8. Save the state
 
@@ -172,10 +228,14 @@ without a few words of explanation. Include:
 4. Claude's journal note for each book (the `claude:` line), and whether the decision files were used
    (quote the `samples: X of Y valid` line and every `claude problem:` line) or the book fell back to
    holding / running unreviewed.
-5. Anything that needs the owner: breakers, blocked sleeves, `ORDER PROBLEM` lines, data notes (for example
+5. Hype vetoes: which names had a buy blocked today (the `increase blocked by hype veto` log lines), and a
+   failed news fetch if there was one.
+6. Book O (shadow): the spread code chose or why there was none, whether the samples skipped it, and any
+   problem from step 6b. Always call it **shadow**.
+7. Anything that needs the owner: breakers, blocked sleeves, `ORDER PROBLEM` lines, data notes (for example
    the IEX fallback), a failed state save, or a stop from this runbook.
 
-Keep it under about 15 lines.
+Keep it under about 18 lines.
 
 ## For the owner: the scheduled trigger
 

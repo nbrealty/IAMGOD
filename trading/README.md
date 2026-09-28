@@ -7,6 +7,15 @@ Two paper-trading books run the same strategy playbook every weekday after the U
 | `rules` | Fixed rules from the playbook | Only skip or halve a new B/C/D entry for a listed reason, and write the daily note | Alpaca paper account (`ALPACA_RULES_*`) |
 | `claude` | Claude, picking from menus that code builds | Choose sleeve weights (one small step at a time) and positions, follow or deviate from the rules with a reason and a prediction, pick a stop from a menu | **Local simulator** until its own paper account exists |
 
+A third book, **book O** (options), trades one monthly SPY bull put spread chosen entirely by code. It runs in
+**SHADOW** (logged, scored, never ordered) until the owner turns it on after its paper-start gate (OPT-41; see
+`reports/Options rulebook.md`). It shares the rules book's Alpaca paper account (owner decision 6), so:
+
+- the stock books ignore option (OCC) symbols, the stock O owns after an assignment and O's `OPT-` orders:
+  reconcile, positions and "untracked" warnings never see them, and each book cancels only its own orders;
+- the rules book's equity is the account equity minus O's value (committed max loss plus O's profit or loss);
+- if O's value cannot be read while O holds something, the rules book makes no new entries that day.
+
 Until the Claude book has its own Alpaca paper account (`ALPACA_CLAUDE_KEY` / `ALPACA_CLAUDE_SECRET`), it runs on
 the simulator (`--sim claude`, $100,000 starting cash, fills at the next day's open plus costs). Every output
 and report labels it **SIMULATED**.
@@ -26,7 +35,17 @@ Claude's decisions come from a scheduled **Claude Code session**, not from API c
 4. `python -m trader run --book both --sim claude --session` checks every file against the same rules, then
    sends everything through the risk engine and places the orders. A bad item is dropped on its own. With no
    valid file, the Claude book holds its positions (stops still enforced) and the rules book runs unreviewed.
-5. `python -m trader status` and `python -m trader report`, then `scripts/state.sh push` saves the state.
+5. `python -m trader options log-chain|prepare|run` keeps book O's shadow up to date (never orders).
+6. `python -m trader status` and `python -m trader report`, then `scripts/state.sh push` saves the state.
+
+**Hype and news (owner decision 8).** Every run fetches recent headlines (Alpaca / Benzinga, public data) and
+code turns them into numbers (news signals NEWS-1 to NEWS-18, `trader/news_signals.py`). Three of them are
+active from day one and only ever block buys, in both books and every sleeve: NEWS-4 (an attention spike after a run-up),
+NEWS-13 (lottery-like jumps) and the promotion part of NEWS-18 ("paid", "sponsored", "investor awareness":
+no new long for 20 sessions). A blocked buy is followed as a shadow trade, so `report` shows whether blocking
+paid. Claude never sees a headline: only numbers and fixed labels (`news_signals.<ID>[SYMBOL].<field>`),
+marked shadow, which it may mention but never use as a reason to trade. Its prompt tells it to be skeptical:
+promotion or hype is never a reason to buy.
 
 The API path still works as an alternative: set `claude.mode: api` in `config/playbook.yaml` and
 `ANTHROPIC_API_KEY`, then `python -m trader run` calls Claude directly.
@@ -89,12 +108,20 @@ rules book: the real rules book's state is tied to Alpaca, and a book cannot swi
 | `run [--book rules\|claude\|both] [--sim [BOOK ...]] [--session] [--decision-file PATH ...] [--dry-run] [--no-claude]` | Today's run. `--sim` alone = every book on the simulator. `--session` uses today's decision files. A book that already ran for the latest trading day is skipped. |
 | `prepare [--book ...] [--sim [BOOK ...]] [--samples N]` | Writes the pending folder for the session (no orders, no save). |
 | `status` | Equity, drawdown, flags, blocked sleeves, pending orders, positions, last note. |
-| `report [--json] [--since DATE]` | Books vs SPY, 60/40 and GTAA-5; per-sleeve results in R; Claude's deviations and the review's vetoes scored; prediction Brier scores; promotion, demotion and going-live gates (report only). |
+| `report [--json] [--since DATE]` | Books vs SPY, 60/40 and GTAA-5; per-sleeve results in R; Claude's deviations and the review's vetoes scored; hype vetoes scored; prediction Brier scores; promotion, demotion and going-live gates; book O's shadow report and the combined SPY line (OPT-11) (report only). |
 | `kill on\|off [--reset-halt [--reset-peak]]` | Owner: kill switch; clear a drawdown halt. |
 | `sleeve-reset S --book B` | Owner: allow a blocked sleeve's entries again. |
 | `veto-reset` / `deviation-reset` | Owner: lift the automatic limits on the review's skips / the Claude book's deviations after they scored badly. |
 | `promote S --book B --i-am-the-owner` / `demote ...` | Owner: raise or lower a sleeve's weight cap; shows the promotion gate first. |
 | `python -m trader.backtest --start 2017-01-01 [--set KEY=VALUE] [--out FILE]` | Rules-only backtest with costs and next-open fills; never calls Claude; refuses settings that loosen risk. |
+| `options log-chain [--when close\|1545]` | Book O: save today's SPY/QQQ/IWM option chains (OPT-35). |
+| `options prepare [--date D] [--samples N]` | Book O: build the month's one spread (or none) and write its skip-only menu. |
+| `options run [--decision-file PATH ...] [--dry-run]` | Book O: update the shadow book (entries, exits, skips). Never sends an order from the command line. |
+| `options report [--json]` | Book O: OPT-38 results, gates OPT-40/41/42, amount invested per trade, OPT-11 delta. |
+| `options backtest ...` / `options calibrate-skew ...` | Book O: the OPT-37 backtester / refit the skew table (arguments passed through). |
+| `news fetch [--days N]` | Headline counts per symbol (never the headlines themselves). |
+| `news signals [--json]` | Today's NEWS-1..18 events and the active hype vetoes. |
+| `news backtest --signal NEWS-4 --start D [--end D]` | Past events of one signal with forward returns after costs (M-12 inputs). |
 
 ## Saving state
 
@@ -140,6 +167,8 @@ trader/metrics.py, shadow.py, shadow_rules.py   measurement and TEST FIRST shado
 trader/regime.py, strategies.py, indicators.py   regime, sleeves, indicators
 trader/data.py, broker.py   Alpaca data and paper broker, local simulator
 trader/backtest.py          rules-only backtester
+trader/news.py, news_signals.py   headline fetch (sanitised) and NEWS-1..18, the hype vetoes
+trader/options/             book O: chains, pricing, spread builder, ledger, its own risk checks, run, shadow
 state/<book>/journal.jsonl  every run: regime, Claude's answers, risk decisions, orders
 ```
 
@@ -151,6 +180,16 @@ state/<book>/journal.jsonl  every run: regime, Claude's answers, risk decisions,
 - Moving a sleeve from 0.5% to 1% risk stays a manual edit of the policy file after its gate passes.
 - Only one data source, so "two price sources disagree" cannot be checked.
 - The daily routine is not scheduled yet: it needs a successful dry run and the owner's OK.
+- Book O sends no paper orders: it stays in shadow until gate OPT-41 passes and the owner says yes. The
+  15:45 ET chain log (`options log-chain --when 1545`) needs its own schedule, also only with the owner's OK.
+- News signals other than the three hype vetoes are TEST FIRST: logged and shown as shadow, never traded.
+- A run fetches 70 calendar days of headlines (`--news-days`), about 45 sessions: enough for NEWS-4 and
+  NEWS-18. NEWS-10 and NEWS-12 need 252 sessions of news, so in live runs they stay skipped or partial (they are
+  shadow only; no money depends on them). A longer window is possible but refetches the whole window every day.
+- Book O's committed max loss sits inside its value, which the rules book's equity excludes, so O's entries and
+  exits move the rules book's recorded equity and day P&L by that amount (a transfer; `o_value` is stored on
+  every equity row). If O's value is unknown, the last known value is used, the day blocks every increase and
+  the peak is not raised.
 - The GitHub Actions workflow (`.github/workflows/paper-trading.yml`) is the old API-key path and stays off.
 
 ## Tests
