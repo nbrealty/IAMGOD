@@ -26,6 +26,8 @@ also keeps `claude/investment-agents-question-hrkk10` in sync).
 | GitHub Actions daily workflow | `.github/workflows/paper-trading.yml` | Old API-key path, **stays switched off** (Option B below) |
 | Book PDFs | `docs/*.pdf` | Uploaded by the owner. Do not commit extracted book text. |
 | **Options book O and news signals (build 2)** | `trading/trader/options/`, `trading/trader/news*.py` | Built; book O runs in **shadow only** (no orders, decision 10). Stock books: O's options, assigned stock and `OPT-` orders are kept out of reconcile, equity and cancels; the hype vetoes (NEWS-4, NEWS-13, NEWS-18 promotion) block new buys in both books and every sleeve (A included) and are shadow-scored; Claude sees only code-computed news numbers. CLI `options ...` / `news ...`; runbook step 6b |
+| **Minute trading (separate session)** | `MINUTE_TRADING.md`, `trading/lab/scalp/`, `reports/Minute trading *.md`, `reports/Why day traders lose.md` | Research and 2-year backtest done (no setup beat costs); live paper trader to be built by the minute-trading session |
+| **Options lab (one-day paper test, 28 Sept 2026)** | `trading/lab/options_lab.py`, results in `trading/state/options_lab/<date>/` | Ran live on the rules account with `LAB-` order ids; its P&L currently counts in the rules book's equity (to separate) |
 
 ## Decisions the owner has made
 
@@ -63,6 +65,13 @@ also keeps `claude/investment-agents-question-hrkk10` in sync).
    record and the owner asks. When that time comes: crypto stays on Alpaca, BTC/ETH only on the owner's allowlist,
    decision 8 (no promoted or new coins) applies in full, and rulebook D-1 to D-5 plus the speculative cap RISK-7 hold.
 10. **Hold everything until the options build is done:** no paper orders and no daily schedule without the owner's OK.
+11. **Minute trading has its own session, brief and account (28 Sept 2026).** The brief is `MINUTE_TRADING.md`. It trades
+    only in a second Alpaca paper account (`ALPACA_SCALP_KEY` / `ALPACA_SCALP_SECRET`), never in the rules book's account.
+    This session does not edit `trading/lab/scalp/`; that session does not edit `trading/trader/`, `trading/config/`,
+    `trading/lab/options_lab.py` or this file without the owner's OK.
+12. **Untested setups may be tested on paper** (owner, 28 Sept 2026: "anything untested we will test on a paper account").
+    It is paper money, so unproven ideas get a small, clearly labelled exploratory test with every safety rule on, and the
+    results never count as proof of an edge until the measurement gates pass.
 
 ## What to build (the owner said: build the BUILD NOW rules)
 
