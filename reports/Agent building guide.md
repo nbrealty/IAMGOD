@@ -24,9 +24,9 @@ none has been independently audited.
 
 The failures point the same way:
 
-- In the Alpha Arena contest, Claude traded crypto on its own with borrowed money (about 12x
-  leverage) and lost about 31%.
-- In StockBench, most models failed to beat buy-and-hold.
+- In the Alpha Arena contest, Claude traded crypto on its own with borrowed money and lost somewhere
+  between about 31% and 42%, depending on the source (UNVERIFIED; see `Why day traders lose.md`).
+- In StockBench, 8 of 13 models beat buy-and-hold, but only by tiny margins.
 - In Anthropic's Project Vend, a Claude-run shop lost money until it was forced to follow fixed
   procedures, such as checking cost and market price before quoting. A second Claude acting as the
   "boss" mostly failed to supervise it.
