@@ -1,0 +1,44 @@
+{
+  "schema_version": "2",
+  "date": "2026-09-25",
+  "temperature_ack": "Temperature reads 0.60 (neutral), so neither euphoria nor fear justifies leaning against the rules today.",
+  "likely_error": {
+    "kind": "none",
+    "note": "The book is all cash with no rule triggers in B or C, so following the sleeve A build-out carries little room for error."
+  },
+  "flags": [
+    "regime.canary_ok is false while the label is bull_calm; watch for a regime change.",
+    "regime.bonds_not_hedging is true (stock-bond correlation 0.54), so IEF offers little diversification; the A rule already holds 0% IEF.",
+    "Account is fully in cash on day 1; sleeve A orders will establish the initial positions."
+  ],
+  "predictions": [],
+  "journal_note": "The regime is bull_calm with SPY at 771.35, about 8% above its 200-day average, and 20-day volatility (0.108) below its one-year median. The rules build sleeve A: SPY, EFA, DBC and VNQ are above their 10-month averages, IEF is below and gets 0%, and the vol-scaled remainder goes to BIL. Sleeve B has no entries because no index has RSI(2) below 10 (IWM is lowest at 29.4), and sleeve C has no breakouts because every candidate trades on volume ratios under 1.0 with breakout_today false. I agree with all of it: the trend filters are clean, data_problems is empty, and no breaker is tripped. Weights stay at the rule values.",
+  "market_view": "US equities are in a calm uptrend with only moderate breadth (65% above the 200-day, 45% above the 50-day), which supports holding trend exposure without chasing. Bonds are not hedging stocks right now, so the book's diversification comes mainly from the BIL allocation and the commodity and REIT sleeves.",
+  "sleeve_weights": {
+    "A": {
+      "choice": "keep",
+      "reason_code": "NONE",
+      "evidence": []
+    },
+    "B": {
+      "choice": "keep",
+      "reason_code": "NONE",
+      "evidence": []
+    },
+    "C": {
+      "choice": "keep",
+      "reason_code": "NONE",
+      "evidence": []
+    },
+    "D": {
+      "choice": "keep",
+      "reason_code": "NONE",
+      "evidence": []
+    }
+  },
+  "actions": [],
+  "meta": {
+    "model": "claude-opus-5-5",
+    "sample": 3
+  }
+}

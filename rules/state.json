@@ -1,0 +1,251 @@
+{
+  "book": "rules",
+  "last_run_date": "2026-09-25",
+  "peak_equity": 100000.0,
+  "halted": false,
+  "equity_history": [
+    {
+      "date": "2026-09-25",
+      "equity": 100000.0,
+      "benchmark": 771.35,
+      "closes": {
+        "SPY": 771.35,
+        "IEF": 90.0,
+        "EFA": 105.56,
+        "DBC": 32.62,
+        "VNQ": 90.99,
+        "BIL": 91.62
+      },
+      "exposure": {
+        "A": 0.0,
+        "B": 0.0,
+        "C": 0.0,
+        "D": 0.0,
+        "A_cash": 0.0,
+        "A_SPY": 0.0,
+        "A_EFA": 0.0,
+        "A_IEF": 0.0,
+        "A_DBC": 0.0,
+        "A_VNQ": 0.0
+      },
+      "o_value": 0.0,
+      "sleeve_cum": {},
+      "halted": false
+    }
+  ],
+  "lots": {},
+  "closed_trades": [],
+  "notes": [
+    {
+      "date": "2026-09-25",
+      "note": "The regime is bull_calm with SPY at 771.35, well above its 200-day SMA of 714.83, 20-day vol of 0.108 below its one-year median, and no breakers tripped. Sleeve B has no entries because no index ETF has RSI(2) below 10 (the lowest is IWM at 29.4). Sleeve C has no breakout today: every top-RS name shows breakout_today false with volume ratios of 0.63 to 0.81, far below the 1.5x requirement. planned_increases and data_problems are both empty, so there is nothing to skip and no valid reason code applies. I agree with the rules: sleeve A rebalances into its Faber targets and B and C wait for their setups."
+    }
+  ],
+  "sim": {},
+  "pending_orders": [
+    {
+      "client_order_id": "r20260925-BIL-buy-1-29a888",
+      "broker_order_id": "cd728176-7c30-45fd-84ce-585ab53e90c8",
+      "date": "2026-09-25",
+      "symbol": "BIL",
+      "side": "buy",
+      "qty": 327.439424,
+      "signal_close": 91.62,
+      "asset_class": "etf",
+      "alloc": [
+        {
+          "sleeve": "A",
+          "delta_qty": 327.43942370661426,
+          "stop": null,
+          "reason": "faber weight 0.50 of sleeve",
+          "tags": {
+            "book": "rules",
+            "mode": "session",
+            "prompt_version": "79b9c9dcb874",
+            "model": "claude-opus-5-5",
+            "effort": null,
+            "schema_version": "2",
+            "context_schema": "ctx-3",
+            "instructions_version": "248a59c8718a",
+            "fallback_used": null,
+            "model_source": "self-reported"
+          },
+          "target_qty": 327.43942370661426
+        }
+      ],
+      "status": "pending_new",
+      "settled_qty": 0.0,
+      "settled_value": 0.0,
+      "crossed": false
+    },
+    {
+      "client_order_id": "r20260925-SPY-buy-1-29a888",
+      "broker_order_id": "3ae051ae-fab6-4822-9dd6-189c3cab55cf",
+      "date": "2026-09-25",
+      "symbol": "SPY",
+      "side": "buy",
+      "qty": 11.147044,
+      "signal_close": 771.35,
+      "asset_class": "etf",
+      "alloc": [
+        {
+          "sleeve": "A",
+          "delta_qty": 11.14704383540344,
+          "stop": null,
+          "reason": "faber weight 0.14 of sleeve",
+          "tags": {
+            "book": "rules",
+            "mode": "session",
+            "prompt_version": "79b9c9dcb874",
+            "model": "claude-opus-5-5",
+            "effort": null,
+            "schema_version": "2",
+            "context_schema": "ctx-3",
+            "instructions_version": "248a59c8718a",
+            "fallback_used": null,
+            "model_source": "self-reported"
+          },
+          "target_qty": 11.14704383540344
+        }
+      ],
+      "status": "pending_new",
+      "settled_qty": 0.0,
+      "settled_value": 0.0,
+      "crossed": false
+    },
+    {
+      "client_order_id": "r20260925-VNQ-buy-1-29a888",
+      "broker_order_id": "9fb8ac56-5f52-441f-b8ab-c71d308adeb7",
+      "date": "2026-09-25",
+      "symbol": "VNQ",
+      "side": "buy",
+      "qty": 87.124165,
+      "signal_close": 90.99,
+      "asset_class": "etf",
+      "alloc": [
+        {
+          "sleeve": "A",
+          "delta_qty": 87.12416496950652,
+          "stop": null,
+          "reason": "faber weight 0.13 of sleeve",
+          "tags": {
+            "book": "rules",
+            "mode": "session",
+            "prompt_version": "79b9c9dcb874",
+            "model": "claude-opus-5-5",
+            "effort": null,
+            "schema_version": "2",
+            "context_schema": "ctx-3",
+            "instructions_version": "248a59c8718a",
+            "fallback_used": null,
+            "model_source": "self-reported"
+          },
+          "target_qty": 87.12416496950652
+        }
+      ],
+      "status": "pending_new",
+      "settled_qty": 0.0,
+      "settled_value": 0.0,
+      "crossed": false
+    },
+    {
+      "client_order_id": "r20260925-EFA-buy-1-29a888",
+      "broker_order_id": "53a13ac4-c99d-455a-b39e-d13a0fd83d03",
+      "date": "2026-09-25",
+      "symbol": "EFA",
+      "side": "buy",
+      "qty": 75.027435,
+      "signal_close": 105.56,
+      "asset_class": "etf",
+      "alloc": [
+        {
+          "sleeve": "A",
+          "delta_qty": 75.02743504573114,
+          "stop": null,
+          "reason": "faber weight 0.13 of sleeve",
+          "tags": {
+            "book": "rules",
+            "mode": "session",
+            "prompt_version": "79b9c9dcb874",
+            "model": "claude-opus-5-5",
+            "effort": null,
+            "schema_version": "2",
+            "context_schema": "ctx-3",
+            "instructions_version": "248a59c8718a",
+            "fallback_used": null,
+            "model_source": "self-reported"
+          },
+          "target_qty": 75.02743504573114
+        }
+      ],
+      "status": "pending_new",
+      "settled_qty": 0.0,
+      "settled_value": 0.0,
+      "crossed": false
+    },
+    {
+      "client_order_id": "r20260925-DBC-buy-1-29a888",
+      "broker_order_id": "3d55e136-782c-4c7a-a823-d3dc7720b2e1",
+      "date": "2026-09-25",
+      "symbol": "DBC",
+      "side": "buy",
+      "qty": 164.873799,
+      "signal_close": 32.62,
+      "asset_class": "etf",
+      "alloc": [
+        {
+          "sleeve": "A",
+          "delta_qty": 164.87379949420213,
+          "stop": null,
+          "reason": "faber weight 0.09 of sleeve",
+          "tags": {
+            "book": "rules",
+            "mode": "session",
+            "prompt_version": "79b9c9dcb874",
+            "model": "claude-opus-5-5",
+            "effort": null,
+            "schema_version": "2",
+            "context_schema": "ctx-3",
+            "instructions_version": "248a59c8718a",
+            "fallback_used": null,
+            "model_source": "self-reported"
+          },
+          "target_qty": 164.87379949420213
+        }
+      ],
+      "status": "pending_new",
+      "settled_qty": 0.0,
+      "settled_value": 0.0,
+      "crossed": false
+    }
+  ],
+  "fills": [],
+  "shadow_lots": [],
+  "predictions": [],
+  "deviations": [],
+  "sleeve_pnl": {},
+  "sleeve_blocked": {},
+  "promoted_sleeves": [],
+  "promotions": [],
+  "api_cost": [
+    {
+      "date": "2026-09-25",
+      "role": "review",
+      "mode": "session",
+      "model": "claude-opus-5-5",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "usd": 0.0,
+      "samples": 3,
+      "samples_requested": 3
+    }
+  ],
+  "weight_history": [],
+  "veto_codes_restricted": false,
+  "cost_model_bps": {},
+  "veto_reset_date": null,
+  "deviations_restricted": false,
+  "deviations_reset_date": null,
+  "news_veto_lots": [],
+  "news_promo_history": {}
+}

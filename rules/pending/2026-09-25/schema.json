@@ -1,0 +1,218 @@
+{
+  "properties": {
+    "schema_version": {
+      "type": "string"
+    },
+    "date": {
+      "type": "string"
+    },
+    "journal_note": {
+      "type": "string"
+    },
+    "temperature_ack": {
+      "type": "string"
+    },
+    "likely_error": {
+      "properties": {
+        "kind": {
+          "enum": [
+            "commission",
+            "omission",
+            "none"
+          ],
+          "type": "string"
+        },
+        "note": {
+          "type": "string"
+        }
+      },
+      "type": "object",
+      "required": [
+        "kind",
+        "note"
+      ],
+      "additionalProperties": false
+    },
+    "flags": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "skip_entries": {
+      "items": {
+        "properties": {
+          "symbol": {
+            "type": "string"
+          },
+          "sleeve": {
+            "enum": [
+              "A",
+              "B",
+              "C",
+              "D"
+            ],
+            "type": "string"
+          },
+          "reason_code": {
+            "enum": [
+              "EARNINGS_IN_WINDOW",
+              "DATA_SUSPECT",
+              "SCHEDULED_EVENT",
+              "HALT_OR_ILLIQUID",
+              "CORPORATE_ACTION"
+            ],
+            "type": "string"
+          },
+          "evidence": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "prediction_id": {
+            "type": "string"
+          },
+          "event_date": {
+            "type": "string"
+          },
+          "verified": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "symbol",
+          "sleeve",
+          "reason_code",
+          "evidence",
+          "prediction_id",
+          "event_date",
+          "verified"
+        ],
+        "type": "object",
+        "additionalProperties": false
+      },
+      "type": "array"
+    },
+    "halve_sleeves": {
+      "items": {
+        "properties": {
+          "sleeve": {
+            "enum": [
+              "A",
+              "B",
+              "C",
+              "D"
+            ],
+            "type": "string"
+          },
+          "reason_code": {
+            "enum": [
+              "EARNINGS_IN_WINDOW",
+              "DATA_SUSPECT",
+              "SCHEDULED_EVENT",
+              "HALT_OR_ILLIQUID",
+              "CORPORATE_ACTION"
+            ],
+            "type": "string"
+          },
+          "evidence": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "prediction_id": {
+            "type": "string"
+          },
+          "event_date": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sleeve",
+          "reason_code",
+          "evidence",
+          "prediction_id",
+          "event_date"
+        ],
+        "type": "object",
+        "additionalProperties": false
+      },
+      "type": "array"
+    },
+    "predictions": {
+      "items": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "horizon": {
+            "enum": [
+              5,
+              20,
+              60
+            ],
+            "type": "integer"
+          },
+          "direction": {
+            "enum": [
+              "above",
+              "below"
+            ],
+            "type": "string"
+          },
+          "threshold_pct": {
+            "type": "number"
+          },
+          "probability": {
+            "type": "number"
+          },
+          "linked_decision": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "symbol",
+          "horizon",
+          "direction",
+          "threshold_pct",
+          "probability",
+          "linked_decision"
+        ],
+        "type": "object",
+        "additionalProperties": false
+      },
+      "type": "array"
+    },
+    "meta": {
+      "type": "object",
+      "properties": {
+        "model": {
+          "type": "string"
+        },
+        "sample": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema_version",
+    "date",
+    "journal_note",
+    "temperature_ack",
+    "likely_error",
+    "flags",
+    "skip_entries",
+    "halve_sleeves",
+    "predictions"
+  ],
+  "type": "object",
+  "additionalProperties": false
+}

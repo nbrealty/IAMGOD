@@ -1,0 +1,44 @@
+{
+  "schema_version": "2",
+  "date": "2026-09-25",
+  "temperature_ack": "Temperature is 0.60 (neutral), which is neither hot nor cold, so it supports running the rules at normal size with no extra caution or aggression.",
+  "likely_error": {
+    "kind": "none",
+    "note": "The rules have no B or C entries today and sleeve A just builds its Faber allocation, so following them carries little risk of either error."
+  },
+  "flags": [
+    "Book is all cash on day one; sleeve A will deploy about 60% of equity, roughly half of it into BIL because IEF is below its 10-month SMA and vol scaling trims the others.",
+    "regime.canary_ok is false and regime.bonds_not_hedging is true (stock-bond correlation 0.54): bonds are not a hedge right now, so watch equity-like exposure.",
+    "Breadth above the 50-day is only 0.45 against 0.65 above the 200-day: participation is narrowing under a bull_calm label."
+  ],
+  "predictions": [],
+  "journal_note": "The regime is bull_calm: SPY at 771.35 sits well above its 200-day average of 714.83 and 20-day volatility (0.108) is below its one-year median. Sleeve A follows its monthly Faber signal: SPY, EFA, DBC and VNQ are above their 10-month SMAs and IEF is below, so IEF's share goes to BIL. Sleeve B has no entry because no index has RSI(2) under 10 (IWM is lowest at 29.4). Sleeve C has no breakout today; every candidate shows breakout_today false on volume ratios under 1.0. I agree with the rules because nothing in today's context is a reason to deviate, and no weight change is warranted on day one.",
+  "market_view": "Trend is up and volatility is calm, but breadth is narrowing and bonds are not hedging stocks, so a patient rules-based build-out is better than chasing strength.",
+  "sleeve_weights": {
+    "A": {
+      "choice": "keep",
+      "reason_code": "NONE",
+      "evidence": []
+    },
+    "B": {
+      "choice": "keep",
+      "reason_code": "NONE",
+      "evidence": []
+    },
+    "C": {
+      "choice": "keep",
+      "reason_code": "NONE",
+      "evidence": []
+    },
+    "D": {
+      "choice": "keep",
+      "reason_code": "NONE",
+      "evidence": []
+    }
+  },
+  "actions": [],
+  "meta": {
+    "model": "claude-opus-5-5",
+    "sample": 2
+  }
+}

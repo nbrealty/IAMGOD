@@ -1,0 +1,34 @@
+{
+  "schema_version": "2",
+  "date": "2026-09-25",
+  "temperature_ack": "Market temperature is 0.5988 (neutral), built from all 5 components, so it gives no reason today to lean more cautious or more aggressive than the rules.",
+  "likely_error": {
+    "kind": "none",
+    "note": "planned_increases is empty and data_problems is empty, so there is nothing to skip or halve, and acting would only add discretionary noise."
+  },
+  "flags": [
+    "Book is 100% cash on day 1 (positions empty); sleeve A targets (SPY, EFA, DBC, VNQ, BIL) should fill on this run, so confirm the fills.",
+    "regime.canary_ok is false while the label is bull_calm; worth watching, but it is not a skip code.",
+    "regime.bonds_not_hedging is true (stock_bond_corr 0.54) and IEF is below its 10-month SMA, so sleeve A leans on BIL rather than bonds for defence.",
+    "IWM RSI(2) is 29.4 with close above its 200-day SMA; it is not below 10, so there is no B entry yet."
+  ],
+  "predictions": [
+    {
+      "id": "p1",
+      "symbol": "SPY",
+      "horizon": 20,
+      "direction": "above",
+      "threshold_pct": 0.0,
+      "probability": 0.58,
+      "linked_decision": "follow:rules"
+    }
+  ],
+  "journal_note": "The regime is bull_calm: SPY at 771.35 sits about 7.9% above its 200-day SMA, vol20 of 0.108 is below its one-year median, and all sleeve permissions are 1.0. The rules plan no B, C or D increases today because no B index has RSI(2) below 10 and no C name broke out (every breakout_today is false, with volume ratios under 1.0). Sleeve A deploys its Faber targets into SPY, EFA, DBC and VNQ, which are above their 10-month SMAs, and puts about half the sleeve in BIL in place of IEF, which is below its SMA. No breakers have tripped, drawdown is 0 and data_problems is empty, so there is no valid reason code for a skip or a halve. I agree with following the rules as planned."
+  ,
+  "skip_entries": [],
+  "halve_sleeves": [],
+  "meta": {
+    "model": "claude-opus-5-5",
+    "sample": 2
+  }
+}

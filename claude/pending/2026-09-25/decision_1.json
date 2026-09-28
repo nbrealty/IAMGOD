@@ -1,0 +1,43 @@
+{
+  "schema_version": "2",
+  "date": "2026-09-25",
+  "temperature_ack": "Temperature is 0.60 (neutral), so there is no reason to press or cut risk; the book follows the rules.",
+  "likely_error": {
+    "kind": "none",
+    "note": "The book is all cash and the rules only build sleeve A today, so following them carries little risk of either error."
+  },
+  "flags": [
+    "canary_ok is false and bonds_not_hedging is true (stock-bond correlation 0.54): IEF is below its 10-month SMA, so sleeve A holds BIL instead of bonds; watch if breadth above the 50-day (0.45) keeps weakening.",
+    "news_vetoes is empty although NEWS-4 and NEWS-13 shadow entries show veto true; this is consistent with only NEWS-18-PROMO being active, but worth confirming."
+  ],
+  "predictions": [],
+  "journal_note": "Regime is bull_calm with SPY 771.35 well above its 200-day SMA of 714.83 and 20-day volatility 0.108 below its one-year median. The rules build sleeve A from cash: SPY, EFA, DBC and VNQ are above their 10-month SMAs, and IEF is below, so its share goes to BIL. Sleeve B has no signal because every index has RSI(2) far above 10 (the lowest is IWM at 29.4). Sleeve C has no breakout today; all nine top-RS names are below their pivots on volume ratios under 1.0. I agree with the rules because nothing in today's context gives a coded reason to deviate, and the book has no positions to defend.",
+  "market_view": "US equities are in a calm uptrend with SPY about 8% above its 200-day average, but narrowing breadth above the 50-day and bonds that no longer hedge argue for building exposure only as the rules dictate, not faster.",
+  "sleeve_weights": {
+    "A": {
+      "choice": "keep",
+      "reason_code": "NONE",
+      "evidence": []
+    },
+    "B": {
+      "choice": "keep",
+      "reason_code": "NONE",
+      "evidence": []
+    },
+    "C": {
+      "choice": "keep",
+      "reason_code": "NONE",
+      "evidence": []
+    },
+    "D": {
+      "choice": "keep",
+      "reason_code": "NONE",
+      "evidence": []
+    }
+  },
+  "actions": [],
+  "meta": {
+    "model": "claude-opus-5-5",
+    "sample": 1
+  }
+}

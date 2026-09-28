@@ -1,0 +1,23 @@
+{
+  "schema_version": "2",
+  "date": "2026-09-25",
+  "temperature_ack": "Temperature reads 0.5988 (neutral) from all 5 components, so it gives no reason to lean either way and the bull_calm regime permissions stand as computed.",
+  "likely_error": {
+    "kind": "none",
+    "note": "planned_increases is empty, so there is nothing to skip or halve and the main risk would be inventing a veto without a valid code."
+  },
+  "flags": [
+    "regime.canary_ok is false while the label is bull_calm; worth watching for a regime change.",
+    "regime.bonds_not_hedging is true (stock-bond correlation 0.54) and IEF is below its 10-month SMA, so sleeve A holds BIL in place of IEF.",
+    "Account is flat (no positions, cash 100000); first session, so there are no per-sleeve statistics yet."
+  ],
+  "predictions": [],
+  "journal_note": "The regime is bull_calm with SPY at 771.35, well above its 200-day SMA of 714.83, 20-day vol of 0.108 below its one-year median, and no breakers tripped. Sleeve B has no entries because no index ETF has RSI(2) below 10 (the lowest is IWM at 29.4). Sleeve C has no breakout today: every top-RS name shows breakout_today false with volume ratios of 0.63 to 0.81, far below the 1.5x requirement. planned_increases and data_problems are both empty, so there is nothing to skip and no valid reason code applies. I agree with the rules: sleeve A rebalances into its Faber targets and B and C wait for their setups."
+  ,
+  "skip_entries": [],
+  "halve_sleeves": [],
+  "meta": {
+    "model": "claude-opus-5-5",
+    "sample": 1
+  }
+}

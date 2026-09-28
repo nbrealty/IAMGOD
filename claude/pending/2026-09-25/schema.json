@@ -1,0 +1,366 @@
+{
+  "properties": {
+    "schema_version": {
+      "type": "string"
+    },
+    "date": {
+      "type": "string"
+    },
+    "market_view": {
+      "type": "string"
+    },
+    "temperature_ack": {
+      "type": "string"
+    },
+    "likely_error": {
+      "properties": {
+        "kind": {
+          "enum": [
+            "commission",
+            "omission",
+            "none"
+          ],
+          "type": "string"
+        },
+        "note": {
+          "type": "string"
+        }
+      },
+      "type": "object",
+      "required": [
+        "kind",
+        "note"
+      ],
+      "additionalProperties": false
+    },
+    "flags": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "sleeve_weights": {
+      "properties": {
+        "A": {
+          "properties": {
+            "choice": {
+              "enum": [
+                "keep",
+                "up",
+                "down",
+                "rule",
+                "default"
+              ],
+              "type": "string"
+            },
+            "reason_code": {
+              "enum": [
+                "NONE",
+                "SIGNAL_COUNT_CHANGE",
+                "REGIME_CHANGE",
+                "VOLATILITY_CHANGE",
+                "RETURN_TO_DEFAULT"
+              ],
+              "type": "string"
+            },
+            "evidence": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object",
+          "required": [
+            "choice",
+            "reason_code",
+            "evidence"
+          ],
+          "additionalProperties": false
+        },
+        "B": {
+          "properties": {
+            "choice": {
+              "enum": [
+                "keep",
+                "up",
+                "down",
+                "rule",
+                "default"
+              ],
+              "type": "string"
+            },
+            "reason_code": {
+              "enum": [
+                "NONE",
+                "SIGNAL_COUNT_CHANGE",
+                "REGIME_CHANGE",
+                "VOLATILITY_CHANGE",
+                "RETURN_TO_DEFAULT"
+              ],
+              "type": "string"
+            },
+            "evidence": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object",
+          "required": [
+            "choice",
+            "reason_code",
+            "evidence"
+          ],
+          "additionalProperties": false
+        },
+        "C": {
+          "properties": {
+            "choice": {
+              "enum": [
+                "keep",
+                "up",
+                "down",
+                "rule",
+                "default"
+              ],
+              "type": "string"
+            },
+            "reason_code": {
+              "enum": [
+                "NONE",
+                "SIGNAL_COUNT_CHANGE",
+                "REGIME_CHANGE",
+                "VOLATILITY_CHANGE",
+                "RETURN_TO_DEFAULT"
+              ],
+              "type": "string"
+            },
+            "evidence": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object",
+          "required": [
+            "choice",
+            "reason_code",
+            "evidence"
+          ],
+          "additionalProperties": false
+        },
+        "D": {
+          "properties": {
+            "choice": {
+              "enum": [
+                "keep",
+                "up",
+                "down",
+                "rule",
+                "default"
+              ],
+              "type": "string"
+            },
+            "reason_code": {
+              "enum": [
+                "NONE",
+                "SIGNAL_COUNT_CHANGE",
+                "REGIME_CHANGE",
+                "VOLATILITY_CHANGE",
+                "RETURN_TO_DEFAULT"
+              ],
+              "type": "string"
+            },
+            "evidence": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object",
+          "required": [
+            "choice",
+            "reason_code",
+            "evidence"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "type": "object",
+      "required": [
+        "A",
+        "B",
+        "C",
+        "D"
+      ],
+      "additionalProperties": false
+    },
+    "actions": {
+      "items": {
+        "properties": {
+          "symbol": {
+            "type": "string"
+          },
+          "sleeve": {
+            "enum": [
+              "A",
+              "B",
+              "C",
+              "D"
+            ],
+            "type": "string"
+          },
+          "size": {
+            "enum": [
+              "rule",
+              "half_rule",
+              "hold",
+              "exit",
+              "pct"
+            ],
+            "type": "string"
+          },
+          "target_pct_equity": {
+            "type": "number"
+          },
+          "stop": {
+            "enum": [
+              "rule",
+              "tight",
+              "keep",
+              "none"
+            ],
+            "type": "string"
+          },
+          "reason_code": {
+            "enum": [
+              "FOLLOW_RULE",
+              "EARNINGS_IN_WINDOW",
+              "DATA_SUSPECT",
+              "SCHEDULED_EVENT",
+              "HALT_OR_ILLIQUID",
+              "CORPORATE_ACTION",
+              "REGIME_RISK",
+              "CONCENTRATION",
+              "TREND_WEAKENING",
+              "TREND_STRENGTHENING",
+              "MEAN_REVERSION_SETUP"
+            ],
+            "type": "string"
+          },
+          "evidence": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "prediction_id": {
+            "type": "string"
+          },
+          "rationale": {
+            "type": "string"
+          },
+          "event_date": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol",
+          "sleeve",
+          "size",
+          "target_pct_equity",
+          "stop",
+          "reason_code",
+          "evidence",
+          "prediction_id",
+          "rationale",
+          "event_date"
+        ],
+        "type": "object",
+        "additionalProperties": false
+      },
+      "type": "array"
+    },
+    "predictions": {
+      "items": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "horizon": {
+            "enum": [
+              5,
+              20,
+              60
+            ],
+            "type": "integer"
+          },
+          "direction": {
+            "enum": [
+              "above",
+              "below"
+            ],
+            "type": "string"
+          },
+          "threshold_pct": {
+            "type": "number"
+          },
+          "probability": {
+            "type": "number"
+          },
+          "linked_decision": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "symbol",
+          "horizon",
+          "direction",
+          "threshold_pct",
+          "probability",
+          "linked_decision"
+        ],
+        "type": "object",
+        "additionalProperties": false
+      },
+      "type": "array"
+    },
+    "journal_note": {
+      "type": "string"
+    },
+    "meta": {
+      "type": "object",
+      "properties": {
+        "model": {
+          "type": "string"
+        },
+        "sample": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema_version",
+    "date",
+    "market_view",
+    "temperature_ack",
+    "likely_error",
+    "flags",
+    "sleeve_weights",
+    "actions",
+    "predictions",
+    "journal_note"
+  ],
+  "type": "object",
+  "additionalProperties": false
+}
