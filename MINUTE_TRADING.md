@@ -95,6 +95,15 @@ a day each, the strongest published evidence, and they measure real fill costs).
 they share one slot: a later signal is skipped (and logged) while a position is open. Skip VWAP_TREND (about 16 trades a
 day), VWAP_2SD_FADE, EMA 9/21, PDH/PDL and ORB30 until the three above have run, unless the owner asks.
 
+### Known follow-ups in the backtest lab (from the last independent review)
+
+- **The random baseline is noisy.** It draws one random trade per setup trade, which adds noise to "p vs random" at the
+  strict 0.0018 bar. Draw about 20 random trades per setup trade instead (only `run()` changes; the metrics already work
+  per trade).
+- **Market drift is not matched.** The random side is 50/50, but some setups lean long (about 55 to 57%). Draw the
+  random side with the setup's long share measured on earlier days only, so it stays free of look-ahead.
+- Neither changes today's verdict (nothing beat costs), but fix both before any setup is judged a "candidate".
+
 Before adding the ChatGPT strategies to paper, add them to the backtester as new registered versions (every threshold
 counts toward the MT-G7 trial count) and note the IEX-live versus SIP-history volume mismatch for RVOL5.
 
