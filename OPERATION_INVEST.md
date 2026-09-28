@@ -41,6 +41,18 @@ also keeps `claude/investment-agents-question-hrkk10` in sync).
    make most sleeves impossible, and Claude costs would dominate. Plan for a rules-only live book;
    never go live without the owner's explicit say-so and the rulebook's going-live gate (G-1 to G-7).
 5. **Crypto sleeve D stays off.** The model default stays `claude-opus-5` (only relevant to the API path).
+6. **Options book (27–28 Sept 2026).** Add a paper-only, defined-risk options book. For now it shares the rules book's
+   Alpaca paper account: tag every options order (`OPT-` client order id), keep its own ledger with the amount invested
+   (max loss committed) per trade, and never let either book touch, reconcile or cancel the other's orders or positions.
+   Options come first; short selling later; fast trading later on crypto via Alpaca (no forex broker).
+7. **Nothing illegal, ever.** Public data only (Alpaca bars, news, option chains), with the source of every signal logged.
+   No tips or non-public information, the bot never posts or promotes anything, and no manipulative order patterns.
+8. **Distrust promotion (no "celebrity coins").** Only the owner can add a symbol to the allowlist; the bot never trades
+   new coins, IPOs/SPACs or penny stocks. Promotion, hype or influencer chatter is never evidence to buy and counts against
+   a name. The hype vetoes NEWS-4 (attention spike after a run-up), NEWS-13 (lottery/MAX) and the promotion part of NEWS-18
+   ("paid", "sponsored", "investor awareness": no new long for 20 sessions) are active from day one, because they only
+   block new buys; each veto is still shadow-scored. Claude is told to be skeptical of anything widely promoted.
+9. **Hold everything until the options build is done:** no paper orders and no daily schedule without the owner's OK.
 
 ## What to build (the owner said: build the BUILD NOW rules)
 
