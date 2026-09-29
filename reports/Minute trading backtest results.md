@@ -8,7 +8,7 @@
 
 - **No setup made money after costs in the test half (the most recent 12 months).** Not one passed our pre-set bar.
 - **Most setups were close to zero before costs.** Costs then pushed them below zero.
-- **Every setup lost money through the options proxy.** Same-day options lost about 4% to 47% of the premium per trade on average. Time decay and the spread were the main reasons.
+- **Every setup lost money through the options proxy.** Same-day options lost about 4% to 38% of the premium per trade on average at realistic option costs (up to 44% at pessimistic costs). Time decay and the spread were the main reasons.
 - **The famous 5-minute opening range breakout (ORB5) partly replicated.** It was positive in "R" terms in the first year. It faded to about zero in the second year. With the paper's 4x leverage, costs turned it into a loss.
 - **No setup is worth a paper test *as an edge*.** A small paper test is still useful for two things: learning the mechanics, and measuring real fill costs. Section 8 gives three setups and strict caps for that.
 

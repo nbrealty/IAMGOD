@@ -22,7 +22,7 @@ orders for the first time or changes a limit.
 Headline results (out of sample, realistic cost, per $1,000 traded): every setup lost between about $0.03 and $0.45 a
 trade, except GAP_FADE on SPY (+$0.39 on 74 trades, 95% range -8.7 to +16.7 bps, not significant) and NOISE_MOM on QQQ
 (a check run, $0.00). The 5-minute opening range breakout replicated before costs in year one and faded to about zero in 2026. Buying
-same-day options on these signals lost 4% to 47% of the premium per trade. Details are in the backtest report.
+same-day options on these signals lost about 4% to 38% of the premium per trade at realistic option costs (up to 44% at pessimistic costs). Details are in the backtest report.
 
 ## Live trader status (28 Sept 2026, minute-trading session)
 
@@ -68,11 +68,13 @@ Folder `reports/Chart reading research/`: seven research reports (R1 to R7), a b
 independent fact-checks. Read `00 Fact-check corrections (read first).md`, then `01 Synthesis and plan.md`. In short:
 no chart technique has strong after-cost proof at minute level on SPY/QQQ; the agent's chart reading should be code (a
 59-feature "Reader", spec in `R1_features.json`) with the AI limited to veto and explain (MT-G29); by eye the AI reads
-clean charts 97.8% right but showed no skill predicting (small sample) and extended the trend; "10X" is honest for coverage, consistency,
-records and research speed, undefined for profit. **Wave 1** is about 114 new pre-registered tests on 2016-2024 data, counted the cautious way (about 48 to 60 if counted more
-loosely; old data can drop ideas, not confirm them: MT-G6; they add to the trials already counted under MT-G7) and awaits the
-owner's OK. Requested from the owner: the cousin's screens, rules and a
-journal including skipped trades. Cboe VIX-family files are for private use only: never commit them.
+clean charts 97.8% right but showed no skill predicting (small sample) and extended the trend; "10X" is a fair description of the design (not yet
+measured) for coverage, consistency, records and research speed, undefined for profit. **Wave 1** is at least 114 new pre-registered tests, mostly on 2016-2024 data (old data can drop ideas, not confirm them:
+MT-G6; they add to the trials already counted under MT-G7) and awaits the owner's OK. Requested from the owner: the cousin's screens, rules and a
+journal including skipped trades. Cboe VIX-family files are for private use only: never commit them (scheduled downloads await the owner's decision).
+**Data rights (29 Sept):** `Data rights register.md` in that folder found that this GitHub repository is public and holds
+market-data files from earlier work; Alpaca's terms are silent on sending market data to an AI model (no AI layer until it
+answers in writing). Owner action: check the repository's visibility.
 
 ## The owner's decisions for minute trading
 

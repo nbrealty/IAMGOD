@@ -6,7 +6,7 @@ rebuilt from the code and the cached bars (seed 7). Raw market data is not store
 
 ## 1. Short answer
 
-- **Reading a clean chart by eye: essentially solved.** On 17 scored items per market day (7 for the 1-minute chart, 5 for the 5-minute chart, 5 for the daily chart), six readers
+- **Reading a clean chart by eye worked very well in this easy test.** On 17 scored items per market day (7 for the 1-minute chart, 5 for the 5-minute chart, 5 for the daily chart), six readers
   (two independent passes over every picture) were right **97.8% of the time** (27 wrong of 1,224 answers; 99.3% on the 15
   core questions, 86.8% on the hardest, the largest gap). The two passes gave the same answer 97% to 100% of the time on the
   15 core questions, and 89% to 92% on the largest-gap and next-30-minutes questions.
@@ -20,8 +20,8 @@ rebuilt from the code and the cached bars (seed 7). Raw market data is not store
   versus 5.5 on the 1-minute charts, 6.2 versus 5.7 on the 5-minute charts; differences not significant, and a gap of about
   one point could hide).
 - **So:** the agent's *reading* should be done by code, which is exact, free and testable, and already has the numbers.
-  The AI's picture-reading is good enough to help with messy screenshots (for example transcribing your cousin's screens),
-  but any number it reads must be checked by code. It must not be a source of trade ideas from pictures.
+  The AI may be able to help with messy screenshots (for example turning your cousin's screens into journal notes), but that
+  is untested: try it on his real screenshots first, and check every number by code. It must not be a source of trade ideas from pictures.
 
 ## 2. How the test worked
 
@@ -73,7 +73,7 @@ VWAP-crossing count, range comparison) were not analysed further. None looks lik
 
 **Prediction question** (36 pictures, both passes = 72 answers): 28 right (39%). Real days: the chart's trend continued in
 18 of 32 answers (56%); random twins: in 4 of 14 (29%). The AI followed the trend in all 32 real-day answers where a trend was visible.
-Extending a trend earned nothing.
+Extending a trend earned nothing in this tiny sample.
 
 **"How clear and tradeable does it look?" (0 to 10)** The two passes agree closely (correlation 0.90) but the rating does
 not separate real from random: 1-minute charts 5.52 real versus 5.79 random (p = 0.69); 5-minute charts 5.73 versus 6.21
