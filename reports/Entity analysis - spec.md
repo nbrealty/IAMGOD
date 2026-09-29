@@ -14,7 +14,7 @@ the order code**. Its job is to make a human's (and an auditor's) common sense b
 
 | Asset | The entity behind it | What entity analysis researches |
 |---|---|---|
-| SPY, QQQ (what the bot trades today) | The **fund** (issuer, legal structure, index, rules) and the **companies inside it** | Who runs the fund and how it is built (a "unit investment trust", not a normal fund, for both); the index and its rules; top holdings, their weights and how concentrated the fund is; when index changes happen; ex-dividend dates; what a big holding's earnings or bad news does to the fund; liquidity and fees |
+| SPY, QQQ (what the bot trades today) | The **fund** (issuer, legal structure, index, rules) and the **companies inside it** | Who runs the fund and how it is legally built (SPY is a unit investment trust; QQQ was one and has been reported as converted to an ordinary open-end fund in Dec 2025: the dossier must confirm each at the issuer or SEC); the index and its rules; top holdings, their weights and how concentrated the fund is; when index changes happen; ex-dividend dates; what a big holding's earnings or bad news does to the fund; liquidity and fees |
 | A single stock (not allowed today: MT-G23 says SPY and QQQ only) | The **company** | Business and revenue mix; financial health from its filings; debt due soon; earnings dates and how the price reacted before; lawsuits and regulators; who owns it, insider selling, short interest; management and auditor changes; how dependent it is on a few customers or suppliers; red flags such as restated results, a going-concern warning or delisting notices |
 | An option (shadow only today) | The **underlying** entity above, plus the option's own terms | The same, plus events before the option's expiry |
 | Something "bet against" (a short, a put) | Same entity, viewed for the **downside**: what has to be true for it to fall, and the traps for the other side (a squeeze, a buyout, a dividend, a hard-to-borrow stock) | Same |
@@ -33,12 +33,13 @@ English (define any jargon in a few words):
    releases that matter to this entity. Each with date and time and its source.
 5. **Risk flags:** each with severity (low / medium / high), why, and what evidence would settle it.
 6. **What is not known:** questions it could not answer, and why.
-7. **Relevance to our setups (one short paragraph):** for example "QQQ's ORB5 test is on a day when three of its five biggest
-   holdings report after the close".
+7. **Calendar overlap with our trading windows (facts only):** which scheduled items fall inside or next to the bot's
+   decision times (about 09:35 and 15:30 to 15:50 ET). Dates and times only: no judgement of whether that is good or bad for a
+   trade, no scores, no flags.
 8. **What would change this picture:** two or three observable things.
 
 Facts and opinions are kept apart: the facts table and calendar hold only checked facts; anything else is labelled "opinion" and
-kept short.
+kept short. Dossiers are **prose and tables for people only**: never JSON, scores or flags a program could read.
 
 ## Rules (non-negotiable)
 
@@ -64,6 +65,10 @@ kept short.
 8. **The universe does not grow because of a dossier.** Writing about a stock does not make it tradable (MT-G23).
 9. **Uncertainty is stated.** "Not found" is a valid answer. Never fill a gap with a guess; say what is missing.
 10. **No secrets.** Never read, print or store keys or account numbers.
+11. **No access to our records.** The entity-analysis agent does not read the bot's journal, state, recordings or account. It
+    only needs the public calendar file the bot uses and the setup descriptions. Web tools and our records are kept apart.
+12. **Human use is logged.** If anyone skips or stops a trade because of a dossier, it is logged as DISCRETIONARY (see the
+    live-auditor charter).
 
 ## How it runs
 
@@ -74,7 +79,7 @@ kept short.
   sources, and by a rules reviewer who checks it against this file (no advice, sources, dates). Live auditors may read the
   dossier as context. If it ever feeds a real-money decision, the verifier pass is mandatory and a second, differently-prompted
   verifier is added.
-- **Where it sits:** beside the auditors, not in the order path. See `reports/Live auditors - charter.md`.
+- **Where it sits:** beside the auditors, not in the order path. Auditors treat dossiers as untrusted text. See `reports/Live auditors - charter.md`.
 
 ## Known limits
 
