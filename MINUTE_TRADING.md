@@ -107,6 +107,16 @@ answers in writing). Owner action: check the repository's visibility.
    heavily. No 0DTE.
 6. **Keep all reviewers.** Build with workflows: implement, then at least two independent reviewers, then fix. Run the
    full test suite (`cd trading && python -m pytest -q`) before every push.
+7. **Live auditors, always (owner, 29 Sept 2026).** An auditor panel watches every trading session: 4 read-only auditors on
+   paper now (Strategy Reality Check, Decision Reasoning, Market and Execution, Risk and Operations); many more, and more
+   independent, for real money ("any wrong decision can cost me"). Charter, the proposed real-money panel and its limits:
+   `reports/Live auditors - charter.md`; agent files `.claude/agents/live-auditor-*.md`. Auditors advise humans and cannot
+   trade, run `kill` or change code; the bot stays plain code (MT-G29). For real money the presence of the panel must be
+   enforced by code (no panel heartbeat, no new entries; exits never blocked), which needs review and the owner's written OK.
+8. **Entity analysis (owner, 29 Sept 2026).** A research agent that investigates the entity behind an asset the bot buys or
+   bets on or against (the fund and its biggest holdings for SPY and QQQ; the company for a single stock, which is not
+   allowed today: MT-G23). It writes a sourced, dated dossier (`reports/Entity analysis/`). Research only: never an order
+   input, no advice, no predictions. Spec: `reports/Entity analysis - spec.md`; agent file `.claude/agents/entity-analysis.md`.
 
 ## Your first job
 
