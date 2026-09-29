@@ -17,17 +17,19 @@ orders for the first time or changes a limit.
 | An outside spec from ChatGPT, with the operations session's verdict | `reports/External intraday spec (ChatGPT, 2026-09-28).md` | Input only. Adopt its execution and test rules; test its two strategies; skip OFI |
 | The backtest lab (data download and cache, 14 setups as pure functions, fills, costs, baselines, statistics) | `trading/lab/scalp/` (`python -m lab.scalp ...`), tests `trading/tests/test_scalp_*.py` | Built, reviewed twice, tested (49+ offline tests) |
 | Live paper minute trader | `trading/lab/scalp/live/` (`python -m lab.scalp.live ...`), design in its `DESIGN.md`, tests `trading/tests/test_scalp_live_*.py` | Built 28 Sept 2026, 4 review rounds (3 reviewers, then verifier pairs). Dry replay of 28 Sept done. **No bot paper order yet: ask the owner first** (see "Live trader status") |
+| Chart-reading research (7 reports, a blind picture test, 4 fact-checks) | `reports/Chart reading research/` (start with `00 Fact-check corrections (read first).md`, then `01 Synthesis and plan.md`) | Done 29 Sept 2026. **Wave 1 of tests awaits the owner's OK**; the cousin's journal is requested |
 
 Headline results (out of sample, realistic cost, per $1,000 traded): every setup lost between about $0.03 and $0.45 a
-trade. The 5-minute opening range breakout replicated before costs in year one and faded to about zero in 2026. Buying
+trade, except GAP_FADE on SPY (+$0.39 on 74 trades, 95% range -8.7 to +16.7 bps, not significant) and NOISE_MOM on QQQ
+(a check run, $0.00). The 5-minute opening range breakout replicated before costs in year one and faded to about zero in 2026. Buying
 same-day options on these signals lost 4% to 47% of the premium per trade. Details are in the backtest report.
 
 ## Live trader status (28 Sept 2026, minute-trading session)
 
 - **Account check passed (read-only):** SCALP account ...GWRL, ACTIVE, paper host, different from RULES (...KA87),
   equity $1,000,000 (Alpaca's default; the caps are in dollars so this is fine; the size caps need at least about
-  $6,600). Shorting is enabled at Alpaca; the bot is long-only and refuses any sell above the position. Suggested to
-  the owner: set `no_shorting` on this account as a broker-side lock (a settings change: ask first).
+  $6,600). The bot is long-only and refuses any sell above the position. **Owner approved and I set
+  `no_shorting=true` on the SCALP account at Alpaca (evening of 28 Sept 2026); shorting_enabled now False.**
 - **One manual mechanics test (owner approved, 15:13 ET):** 1 SPY share bracket, bought $766.13, closed $766.06,
   paper -$0.07, honest -$0.11, account flat. Proved on the real paper API: legs show take-profit `new` and stop
   `held` after a full fill; a duplicate client_order_id gets 422; a second sell while legs are live gets 403
@@ -48,11 +50,29 @@ same-day options on these signals lost 4% to 47% of the premium per trade. Detai
 - **Before the first bot paper session:** owner OK; store `SCALP_RISK_HASH` (printed by `hash`) in the environment
   settings (the whole-test start date is taken automatically from the first SCALP order); start before 09:00 ET
   (a start at 09:00-16:15 with changed code blocks entries for the day, MT-G27).
-- **Open items:** owner's Notes_1 addendum (event check over the whole holding period, no entries after a halt,
-  MFE/MAE diagnostics, execution-health vs strategy lanes, operating costs) awaits the owner's answer;
-  MT-G5/G6/G7/G42 (validated lane) not built, so the validated lane is impossible; `backtest_mean_r` is null so the
-  MT-G13 drift check is inactive until the 20-session review fills it; the lab backtester does not yet run the guard
-  code (use `replay` for the 20/60-session reviews, MT-G37).
+- **Owner decisions of 28 Sept 2026:** first bot paper session approved for Tue 29 Sept (scheduled start 08:30 ET, before
+  09:00; a wrap-up report at 16:20 ET); shorting off at Alpaca; the Notes_1 items approved. Those were built, reviewed
+  by two independent reviewers and pushed (2056 tests): event check over the whole holding period
+  (EVENT_HORIZON_OVERLAP, so ORB5 skips days with a 10:00 release or an FOMC afternoon), no new entries in a symbol after
+  a seen or suspected halt, per-trade MFE/MAE diagnostics (measurement only), execution health kept apart from strategy
+  performance in the report, operating costs (`operating_costs.json`, hosting "not recorded"), margin framework recorded.
+- **Open items:** MT-G5/G6/G7/G42 (validated lane) not built, so the validated lane is impossible; `backtest_mean_r` is null
+  so the MT-G13 drift check is inactive until the 20-session review fills it; the lab backtester does not yet run the
+  guard code (use `replay` for the 20/60-session reviews, MT-G37). **Corrections from the fact-checks:** the SEC
+  half-penny tick and lower access-fee cap were moved to the first business day of Nov 2027 (SEC Release 34-105656), not
+  Nov 2026; do not plan a cost re-check for Nov 2026.
+
+## Chart-reading research (29 Sept 2026)
+
+Folder `reports/Chart reading research/`: seven research reports (R1 to R7), a blind picture-reading test (R8) and four
+independent fact-checks. Read `00 Fact-check corrections (read first).md`, then `01 Synthesis and plan.md`. In short:
+no chart technique has strong after-cost proof at minute level on SPY/QQQ; the agent's chart reading should be code (a
+59-feature "Reader", spec in `R1_features.json`) with the AI limited to veto and explain (MT-G29); by eye the AI reads
+clean charts 97.8% right but showed no skill predicting (small sample) and extended the trend; "10X" is honest for coverage, consistency,
+records and research speed, undefined for profit. **Wave 1** is about 114 new pre-registered tests on 2016-2024 data, counted the cautious way (about 48 to 60 if counted more
+loosely; old data can drop ideas, not confirm them: MT-G6; they add to the trials already counted under MT-G7) and awaits the
+owner's OK. Requested from the owner: the cousin's screens, rules and a
+journal including skipped trades. Cboe VIX-family files are for private use only: never commit them.
 
 ## The owner's decisions for minute trading
 
