@@ -31,7 +31,8 @@ from lab.scalp.live.model import NY, Bar, DayCounters, Feed, Mode, PositionView,
 from lab.scalp.signals import Ctx
 
 TRADING = Path(__file__).resolve().parents[1]
-D = date(2026, 10, 1)          # a Thursday inside the committed event calendar (ISM at 10:00, nothing else)
+D = date(2026, 10, 8)          # a Thursday inside the committed event calendar with no scheduled event (Notes 1
+                               # Patch C: on 1 Oct the 10:00 ISM release now refuses ORB5's 9:35 entry)
 E0 = 100_000.0
 
 

@@ -18,7 +18,7 @@ from typing import Any
 import pandas as pd
 
 from . import config as C
-from .clock import SessionTimes, clock_reasons
+from .clock import SessionTimes, clock_reasons, event_horizon_hits, hold_horizon
 from .model import Bar, Candidate, DayCounters, LastTrade, Lane, Quote, Reason, SlotState, as_ny
 
 BUSY_SLOTS = frozenset({SlotState.ARMED, SlotState.ENTRY_PENDING, SlotState.PARTIALLY_FILLED, SlotState.OPEN,
@@ -103,6 +103,11 @@ def entry_check(ec: EntryContext) -> tuple[list[Reason], dict[str, Any]]:
         add(Reason.SYMBOL_NOT_ALLOWED)
     if cand.symbol in cnt.blocked_symbols:
         add(Reason.SYMBOL_BLOCKED_BROKER_REJECT)
+    halt_block = cnt.halt_blocks.get(cand.symbol)
+    if halt_block:
+        # Notes 1 Patch G: a halt (seen or suspected) earlier today blocks the symbol's entries for the rest of the
+        # session; a reopening is never assumed
+        add(Reason.HALT_SUSPECTED if halt_block == Reason.HALT_SUSPECTED.value else Reason.HALTED)
     reg = ec.reg
     if reg is None or reg.setup_id != cand.setup_id or reg.symbol != cand.symbol or reg.version != cand.version:
         add(Reason.SETUP_NOT_REGISTERED)
@@ -126,6 +131,12 @@ def entry_check(ec: EntryContext) -> tuple[list[Reason], dict[str, Any]]:
     # clock (MT-G20)
     for x in clock_reasons(now, ec.session, reg, ec.events):
         add(x)
+    # Notes 1 Patch C: the whole intended hold, not only `now`, must stay clear of every scheduled event window
+    hits = event_horizon_hits(now, ec.session, reg, ec.events)
+    if hits:
+        add(Reason.EVENT_HORIZON_OVERLAP)
+        a, b = hold_horizon(now, ec.session, reg)
+        notes["event_horizon"] = {"from": a.isoformat(), "to": b.isoformat(), "events": hits}
 
     # caps (MT-G2, G17, G25)
     if cnt.round_trips >= C.MAX_ROUND_TRIPS_DAY:

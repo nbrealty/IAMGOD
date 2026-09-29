@@ -5,10 +5,19 @@
 Every block is per setup and lane, and every line about a setup carries its lane (EXPLORATORY results never count
 as proof of an edge). In order:
 1. MT-G41: the append-only changes log (guardrail changes, halt resets) comes FIRST.
-2. Per setup: closed trades, sessions, win rate, paper P&L next to honest P&L (MT-G4), median slippage in cents and
-   bps with its FEED tag (MT-G3, G35), cost / gross over the last 50 trades, the MT-G11 sample label, the MT-G12
-   switch-off check, the MT-G13 drift check (inactive without a backtest baseline), FEED_MISMATCH when live and
-   backtest feeds differ.
+2. EXECUTION HEALTH (Notes 1 Patch F), kept apart from the strategy's results: quote age at each entry decision, data
+   gaps in the session, order acknowledgement latency (submit -> the broker's answer) and submit -> fill, partial
+   fills, fills that raced a cancel request, cancels the broker refused, broker rejections, halt blocks, and per
+   setup the median slippage against the decision mid with its FEED tag next to the registered model (MT-G3, G35).
+   Where nothing registered says what "normal" is, the line says "uncalibrated" (a missing baseline is not
+   "healthy"). None of these incidents is ever an R value: the MT-G12 / G13 lines below read the closed trades only.
+2b. STRATEGY PERFORMANCE: per setup closed trades, sessions, win rate, paper P&L next to honest P&L (MT-G4), cost /
+   gross over the last 50 trades, the MT-G11 sample label, the MT-G12 switch-off check, the MT-G13 drift check
+   (inactive without a backtest baseline), FEED_MISMATCH when live and backtest feeds differ, and the Notes 1
+   Patch E excursions (MFE_R / MAE_R on the bid, time to +0.25R / +0.5R / +1R): measurement only, never P&L.
+2c. TRADING P&L AND OPERATING RESULT (Notes 1 Patch H): honest trading P&L, the running costs from
+   `operating_costs.json` pro-rated over the report's calendar days, and trading P&L minus them. A cost recorded as
+   null prints "not recorded" (never 0). Nothing sizes a trade from this.
 3. MT-G33 bias checks: exits that were not a standard exit (must be 0; a SIGTERM mid-trade shows as a manual stop),
    the disposition (profit vs loss taking) of every exit that was not a pre-set one, qty different from the sizing
    function (must be 0), trades per day after red vs green days, entries in top-decile volume minutes (> 20% flags).
@@ -60,6 +69,9 @@ MANUAL_EXITS = frozenset({"SIGTERM", "SHUTDOWN"})
 VOLUME_LOOKBACK = 20                    # MT-G33 check 5: same minute of day over the last 20 sessions
 VOLUME_FLAG_SHARE = 0.20
 TRADE_KINDS = ("trade_closed",)
+OPERATING_COSTS_PATH = C.LIVE_DIR / "operating_costs.json"
+DAYS_PER_MONTH = 365.25 / 12
+UNCALIBRATED = "uncalibrated: no registered baseline"
 RUNNER_LOOKBACK_DAYS = 400             # the broker history the re-mark reads (the runner's TEST_LOOKBACK_DAYS)
 EXPLORATORY_NOTE = "EXPLORATORY lane: paper, 1 share; results never count as proof of an edge."
 
@@ -230,11 +242,6 @@ def setup_block(setup_id: str, lane: str, trades: list[dict], reg: C.Registratio
            f"over {sessions} sessions -> {label}"]
     out.append(f"    win rate {_num(100 * np.mean(wins) if wins else None, '{:.0f}%')}; paper P&L "
                f"{_money(sum(paper) if paper else None)} vs honest P&L {_money(sum(honest) if honest else None)}")
-    sc = [v for v in (_slip(x, "cents") for x in fills) if v is not None]
-    sb = [v for v in (_slip(x, "bps") for x in fills) if v is not None]
-    feeds = sorted({str(x.get("feed") or "?") for x in fills}) or ["?"]
-    out.append(f"    median slippage {_num(float(np.median(sc)) if sc else None)} cents / "
-               f"{_num(float(np.median(sb)) if sb else None)} bps over {len(sc)} fills [FEED={'/'.join(feeds)}]")
     last = trades[-50:]
     gross = sum(v for v in (_f(t.get("paper_pnl")) for t in last) if v is not None)
     cost = sum((_f(t.get("paper_pnl")) or 0.0) - (_f(t.get("honest_pnl")) or 0.0) for t in last)
@@ -263,8 +270,152 @@ def setup_block(setup_id: str, lane: str, trades: list[dict], reg: C.Registratio
         diff = [f for f in used if f != reg.feed_backtest]
         if diff:
             out.append(f"    FEED_MISMATCH: live {'/'.join(diff)} vs backtest {reg.feed_backtest} (MT-G35)")
+    out.append("    " + excursion_line(trades))
     tag = f"[{lane}] {setup_id}"
     return [out[0]] + [f"{tag}  {x.strip()}" for x in out[1:]]
+
+
+def slippage_line(fills: list[dict], reg: C.Registration | None) -> str:
+    """MT-G3 / G35 execution health: median slippage against the decision mid, with the feed and the registered
+    model (the one baseline v1 has)."""
+    sc = [v for v in (_slip(x, "cents") for x in fills) if v is not None]
+    sb = [v for v in (_slip(x, "bps") for x in fills) if v is not None]
+    feeds = sorted({str(x.get("feed") or "?") for x in fills}) or ["?"]
+    model = reg.model_slip_bps if reg is not None else None
+    return (f"median slippage {_num(float(np.median(sc)) if sc else None)} cents / "
+            f"{_num(float(np.median(sb)) if sb else None)} bps over {len(sc)} fills [FEED={'/'.join(feeds)}]"
+            + (f" vs model {model:g} bps per side (MT-G3)" if model is not None else f" ({UNCALIBRATED})"))
+
+
+def excursion_line(trades: list[dict]) -> str:
+    """Notes 1 Patch E, per setup, from each trade_closed `diag`: median MFE_R / MAE_R (bid-based, long), how many
+    reached +0.25R / +0.5R / +1R and the median seconds to +0.5R, and how many had seconds without a quote (a target
+    never reached while quotes were missing is 'not seen', not 'never reached'). Measurement only: not P&L."""
+    ds = [t.get("diag") for t in trades]
+    ok = [d for d in ds if isinstance(d, dict) and _f(d.get("mfe_r")) is not None]
+    head = "excursions (Notes 1 Patch E, measurement only, not P&L): "
+    if not ok:
+        return head + f"none measured ({len(trades)} closed trades)"
+    mfe = [float(d["mfe_r"]) for d in ok]
+    mae = [float(d["mae_r"]) for d in ok]
+    hits = {k: [_f(d.get(k)) for d in ok] for k in ("t_plus_025r_s", "t_plus_05r_s", "t_plus_1r_s")}
+    t05 = [v for v in hits["t_plus_05r_s"] if v is not None]
+    gaps = sum(1 for d in ok if d.get("gaps"))
+    return (head + f"median MFE {np.median(mfe):.2f}R / MAE {np.median(mae):.2f}R over {len(ok)} trades; reached "
+            + ", ".join(f"{lbl} {sum(v is not None for v in hits[k])}/{len(ok)}" for lbl, k in
+                        (("+0.25R", "t_plus_025r_s"), ("+0.5R", "t_plus_05r_s"), ("+1R", "t_plus_1r_s")))
+            + f"; median time to +0.5R {_num(float(np.median(t05)) if t05 else None, '{:.0f} s')}"
+            + f"; {gaps} trade(s) with seconds without a quote (targets not reached there are 'not seen')")
+
+
+# ------------------------------------------------------------------------------------------ execution health (F)
+def _med_max(xs: list[float], unit: str, fmt: str = "{:.2f}") -> str:
+    if not xs:
+        return "n/a (none)"
+    return f"median {fmt.format(float(np.median(xs)))} {unit}, max {fmt.format(max(xs))} {unit} over {len(xs)}"
+
+
+def execution_block(lines: list[dict], groups: dict[tuple[str, str], list[dict]], registry: C.Registry,
+                    fills: list[dict]) -> list[str]:
+    """Notes 1 Patch F: execution incidents, apart from the strategy's results. Read from the engine's journal
+    lines only; nothing here is an R value or reaches gates.switch_off (MT-G12) or the CUSUM (MT-G13)."""
+    kinds: dict[str, list[dict]] = defaultdict(list)
+    for x in lines:
+        kinds[str(x.get("kind"))].append(x)
+    ages = [v for v in (_f((x.get("notes") or {}).get("quote_age_s")) for x in kinds["decision"]
+                        if x.get("action") == "enter" and isinstance(x.get("notes"), dict)) if v is not None]
+    stale = sum(1 for v in ages if v > C.QUOTE_MAX_AGE_S)
+    gaps = [v for v in (_f(x.get("seconds")) for x in kinds["data_gap"]) if v is not None]
+    open_gaps = max(len(kinds["data_gap_start"]) - len(kinds["data_gap"]), 0)
+    ack = {k: [v for v in (_f(x.get("ack_ms")) for x in kinds[k]) if v is not None]
+           for k in ("submit", "exit_order", "kill_order")}
+    entry_fills = [x for x in fills if x.get("role") == "entry"]
+    seen = [v for v in (_f((x.get("latency") or {}).get("seen_after_submit_s")) for x in entry_fills
+                        if isinstance(x.get("latency"), dict)) if v is not None]
+    brk = [v for v in (_f((x.get("latency") or {}).get("broker_submit_to_fill_s")) for x in fills
+                       if isinstance(x.get("latency"), dict)) if v is not None]
+    partial = {str(x.get("cid") or x.get("order_id")): x.get("role") for x in fills
+               if _f(x.get("order_qty")) and _f(x.get("filled_total")) is not None
+               and float(x["filled_total"]) < float(x["order_qty"]) - 1e-9}
+    races = sum(1 for x in fills if x.get("cancel_race"))
+    halts = Counter(f"{x.get('symbol')} {x.get('reason')}" for x in kinds["halt_block"])
+    out = ["EXECUTION HEALTH (Notes 1 Patch F: incidents are kept apart from strategy results and never enter the "
+           "MT-G12 / G13 R series)",
+           f"    quote age at entry decisions: {_med_max(ages, 's')}; {stale} older than {C.QUOTE_MAX_AGE_S} s "
+           f"({UNCALIBRATED})",
+           f"    data gaps in the session (no data for more than {C.DATA_SILENCE_S} s): {len(gaps)}, "
+           f"{sum(gaps):.0f} s in all" + (f", longest {max(gaps):.0f} s" if gaps else "")
+           + (f"; {open_gaps} still open at the end of the journal" if open_gaps else "") + f" ({UNCALIBRATED})",
+           f"    order acknowledgement (submit -> broker answer): entries {_med_max(ack['submit'], 'ms', '{:.0f}')}; "
+           f"exits {_med_max(ack['exit_order'], 'ms', '{:.0f}')}; kill orders {_med_max(ack['kill_order'], 'ms', '{:.0f}')}"
+           f" ({UNCALIBRATED})",
+           f"    submit -> entry fill seen: {_med_max(seen, 's')}; broker submitted -> filled: {_med_max(brk, 's')} "
+           f"({UNCALIBRATED})",
+           f"    partial fills: {sum(1 for r in partial.values() if r == 'entry')} entry order(s), "
+           f"{sum(1 for r in partial.values() if r != 'entry')} other order(s); fills that raced a cancel request: "
+           f"{races}; cancel requests the broker refused: {len(kinds['cancel_failed'])}",
+           f"    broker rejections: entries {len(kinds['broker_reject'])}, exits {len(kinds['exit_rejected'])}, kill "
+           f"orders {len(kinds['kill_order_rejected'])}; submits with an unknown outcome: "
+           f"{len(kinds['submit_uncertain']) + len(kinds['exit_uncertain'])}",
+           "    halt blocks (no entries in the symbol for the rest of that session): "
+           + (", ".join(f"{k} x{v}" for k, v in sorted(halts.items())) if halts else "none")]
+    for (sid, lane) in sorted(groups):
+        reg = next((r for r in registry.setups if r.setup_id == sid), None)
+        f = [x for x in fills if x.get("setup_id") == sid]
+        out.append(f"[{lane}] {sid}  {slippage_line(f, reg)}")
+    return out
+
+
+# ------------------------------------------------------------------------------------------ operating result (H)
+def load_operating_costs(path: str | Path = OPERATING_COSTS_PATH) -> list[dict]:
+    """The committed running costs: [{name, usd_per_month (a number >= 0, or None = not recorded), source, note}].
+    A missing or broken file raises: the report then says so instead of pretending the costs are 0."""
+    import json
+    raw = json.loads(Path(path).read_text())
+    out = []
+    for e in raw.get("costs") or []:
+        name = str(e.get("name") or "").strip()
+        v = e.get("usd_per_month")
+        if not name or not str(e.get("source") or "").strip():
+            raise ValueError(f"operating cost entry without a name or source: {e!r}")
+        if v is not None and (isinstance(v, bool) or not isinstance(v, (int, float)) or not v >= 0):
+            raise ValueError(f"{name}: usd_per_month must be a number >= 0 or null (not recorded)")
+        out.append({"name": name, "usd_per_month": None if v is None else float(v), "source": str(e["source"]),
+                    "note": str(e.get("note") or "")})
+    return out
+
+
+def operating_block(trades: list[dict], lines: list[dict], costs: list[dict] | None) -> list[str]:
+    """Notes 1 Patch H: trading P&L (honest, after fees and honest slippage) and the operating result = trading P&L
+    minus the running costs pro-rated over the report's calendar days (first to last journal date). A cost recorded
+    as null is "not recorded": left out of the sum and named, never counted as 0. Sizing never reads any of this."""
+    honest = [v for v in (_f(t.get("honest_pnl")) for t in trades) if v is not None]
+    paper = [v for v in (_f(t.get("paper_pnl")) for t in trades) if v is not None]
+    pnl = sum(honest)
+    out = ["TRADING P&L AND OPERATING RESULT (Notes 1 Patch H; nothing here changes a trade's size)",
+           f"    trading P&L (honest: fees and honest slippage included): {_money(pnl)} over {len(honest)} closed "
+           f"trades (paper {_money(sum(paper) if paper else 0.0)})"]
+    dates = sorted({str(x.get("ts", ""))[:10] for x in lines if x.get("ts")})
+    if costs is None:
+        return out + ["    operating costs: operating_costs.json missing or unreadable: not recorded; no operating "
+                      "result"]
+    if not dates:
+        return out + ["    operating costs: no journal dates, nothing to pro-rate; no operating result"]
+    days = (date.fromisoformat(dates[-1]) - date.fromisoformat(dates[0])).days + 1
+    parts, known, missing = [], 0.0, []
+    for c in costs:
+        v = c["usd_per_month"]
+        if v is None:
+            parts.append(f"{c['name']} not recorded")
+            missing.append(c["name"])
+        else:
+            amt = v * days / DAYS_PER_MONTH
+            known += amt
+            parts.append(f"{c['name']} {_money(amt)} (${v:,.2f}/month)")
+    out.append(f"    operating costs over {days} calendar day(s), pro-rated: " + ("; ".join(parts) or "none listed"))
+    out.append(f"    operating result (trading P&L - recorded costs): {_money(pnl - known)}"
+               + (f"  <- incomplete: {', '.join(missing)} not recorded" if missing else ""))
+    return out
 
 
 def _standard_exit(how: Any) -> bool:
@@ -416,9 +567,12 @@ def would_block(lines: list[dict]) -> list[str]:
     return out
 
 
+_COSTS_DEFAULT = object()
+
+
 def build_report(lines: list[dict], registry: C.Registry, *, changes: Iterable[dict] = (),
                  spy_bars: pd.DataFrame | None = None, title: str = "",
-                 bars: dict[str, pd.DataFrame] | None = None) -> str:
+                 bars: dict[str, pd.DataFrame] | None = None, operating_costs: Any = _COSTS_DEFAULT) -> str:
     out = [f"Minute trader report {title}".rstrip(), EXPLORATORY_NOTE, ""]
     ch = list(changes)
     out.append(f"Changes log (MT-G41): {len(ch)} entries" + (":" if ch else ""))
@@ -434,6 +588,10 @@ def build_report(lines: list[dict], registry: C.Registry, *, changes: Iterable[d
     for r in registry.setups:
         groups.setdefault((r.setup_id, r.lane.value), [])
     run_feeds = {x.get("feed") for x in lines if x.get("setup_id") and x.get("kind") != "fill"} - {None}
+    out += execution_block(lines, groups, registry, fills)
+    out.append("")
+    out.append("STRATEGY PERFORMANCE (honest net outcomes per setup version: MT-G11 sample, MT-G12 switch-off, MT-G13 "
+               "drift)")
     for (sid, lane) in sorted(groups):
         reg = next((r for r in registry.setups if r.setup_id == sid), None)
         f = [x for x in fills if x.get("setup_id") == sid]
@@ -443,6 +601,13 @@ def build_report(lines: list[dict], registry: C.Registry, *, changes: Iterable[d
             or run_feeds
         out += setup_block(sid, lane, sorted(groups[(sid, lane)], key=lambda t: str(t.get("exit_ts") or "")), reg, f,
                            feeds, index)
+    out.append("")
+    if operating_costs is _COSTS_DEFAULT:
+        try:
+            operating_costs = load_operating_costs()
+        except (OSError, ValueError):
+            operating_costs = None
+    out += operating_block(trades, lines, operating_costs)
     out.append("")
     out += bias_block(trades, lines, bars)
     out.append("")

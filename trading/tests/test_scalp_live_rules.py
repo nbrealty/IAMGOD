@@ -270,8 +270,9 @@ def test_events_only_verified_entries_count(tmp_path):
                releases=[{"date": "2026-10-01", "time": "10:00", "name": "ISM", "verified": True},
                          {"date": "2026-10-02", "time": "08:30", "name": "Payrolls", "verified": True},
                          {"date": "2026-10-27", "time": "10:00", "name": "Conf", "verified": False}])
-    assert cal.day(date(2026, 10, 1)) == E.DayEvents(True, [], [ts("10:00")], False)
-    assert cal.day(date(2026, 10, 2)) == E.DayEvents(True, ["Payrolls"], [], False)
+    assert cal.day(date(2026, 10, 1)) == E.DayEvents(True, [], [ts("10:00")], False, [(ts("10:00"), "ISM")])
+    assert cal.day(date(2026, 10, 2)) == E.DayEvents(True, ["Payrolls"], [], False,
+                                                     [(ts("08:30", date(2026, 10, 2)), "Payrolls")])
     assert cal.day(date(2026, 10, 28)).fomc and cal.day(date(2026, 10, 28)).known
     assert not cal.day(date(2026, 10, 27)).known          # an unverified release makes the date unknown
     assert not cal.day(date(2026, 12, 9)).known and cal.day(date(2026, 12, 9)).fomc

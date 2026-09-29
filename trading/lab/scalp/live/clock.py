@@ -12,6 +12,14 @@ Windows (a normal day):
 - a scheduled 10:00 release at t: RELEASE_BLACKOUT from t-2m through t+5m inclusive.
 - FOMC statement day: FOMC_BLACKOUT from 13:58:00 through 15:30:59.
 - an event calendar that does not cover the day: EVENT_CALENDAR_UNKNOWN (never read as "no events").
+
+Notes 1 Patch C (owner-approved 2026-09-28), checked by risk.py through `event_horizon_hits`: the whole intended
+hold must stay clear of every scheduled event window, not only the decision time. The interval is
+[d, e_latest + H + B_exit] with d the decision time, e_latest = d + ENTRY_TIMEOUT_S (the entry parent is cancelled
+after that), H the setup's registered `max_hold` ("until_flatten": the hold ends at flatten_at; N minutes: at
+e_latest + N min, never past flatten_at) and B_exit = EVENT_EXIT_ALLOWANCE_S. Event windows are [t - 5 min,
+t + 10 min] around every release in the calendar (08:30 and 10:00 alike) and the FOMC statement and press
+conference; inclusive endpoints overlap. H is never shortened to squeeze a trade through.
 """
 from __future__ import annotations
 
@@ -99,3 +107,53 @@ def clock_reasons(now: pd.Timestamp, st: SessionTimes, reg, ev) -> list[Reason]:
             if a <= now <= b + pd.Timedelta(microseconds=999_999):   # through 15:30:59.999
                 out.append(Reason.FOMC_BLACKOUT)
     return out
+
+
+# ------------------------------------------------------------------------------------------ Notes 1 Patch C
+def event_windows(st: SessionTimes, ev) -> list[tuple[pd.Timestamp, pd.Timestamp, str]]:
+    """[(start, end, name)] of every scheduled event window on the day: [t - 5 min, t + 10 min] around each release
+    (release_times, plus releases_1000 given without a name) and, on an FOMC day, the statement and press conference
+    (the calendar's times, else the standard 14:00 / 14:30: a missing time can never clear the day)."""
+    if ev is None:
+        return []
+    times: dict[pd.Timestamp, list[str]] = {}
+
+    def put(t: pd.Timestamp, name: str) -> None:
+        names = times.setdefault(as_ny(t), [])
+        if name not in names:
+            names.append(name)
+
+    for t, name in getattr(ev, "release_times", None) or []:
+        put(t, str(name))
+    for t in getattr(ev, "releases_1000", None) or []:
+        if as_ny(t) not in times:
+            put(t, "release")
+    if getattr(ev, "fomc", False):
+        fomc = list(getattr(ev, "fomc_times", None) or [])
+        if not fomc:
+            fomc = [(at(st.date, hhmm), what) for hhmm, what in C.FOMC_EVENT_TIMES]
+        for t, what in fomc:
+            put(t, str(what))
+    before = pd.Timedelta(minutes=C.EVENT_WINDOW_BEFORE_MIN)
+    after = pd.Timedelta(minutes=C.EVENT_WINDOW_AFTER_MIN)
+    return [(t - before, t + after, f"{' + '.join(names)} {t:%H:%M}") for t, names in sorted(times.items())]
+
+
+def hold_horizon(now: pd.Timestamp, st: SessionTimes, reg) -> tuple[pd.Timestamp, pd.Timestamp]:
+    """[d, e_latest + H + B_exit] for an entry decided at `now` (see the module docstring). A missing registration
+    counts as held until the flatten (the longest hold)."""
+    d = as_ny(now)
+    e_latest = d + pd.Timedelta(seconds=C.ENTRY_TIMEOUT_S)
+    mh = getattr(reg, "max_hold", C.MAX_HOLD_UNTIL_FLATTEN) if reg is not None else C.MAX_HOLD_UNTIL_FLATTEN
+    if mh == C.MAX_HOLD_UNTIL_FLATTEN:
+        hold_end = max(st.flatten_at, e_latest)
+    else:
+        hold_end = max(min(e_latest + pd.Timedelta(minutes=int(mh)), st.flatten_at), e_latest)
+    return d, hold_end + pd.Timedelta(seconds=C.EVENT_EXIT_ALLOWANCE_S)
+
+
+def event_horizon_hits(now: pd.Timestamp, st: SessionTimes, reg, ev) -> list[str]:
+    """Names of the event windows the entry's whole hold would meet (inclusive endpoints); [] = clear. Entries only
+    (MT-G38): exits never go through this."""
+    a, b = hold_horizon(now, st, reg)
+    return [name for w0, w1, name in event_windows(st, ev) if a <= w1 and w0 <= b]

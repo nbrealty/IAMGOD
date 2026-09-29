@@ -373,3 +373,63 @@ three setups equals the backtest's intent on the same bars (live = backtest).
 - New tests pin the V3-1 kill settle (a take-profit or a stray sell that fills while the kill cancels it is booked on
   the tick that finds the account flat; unexplained shares wait MISMATCH_MIN_GAP_S before `trade_unbooked` and an
   alert), the V3-2 startup re-mark from the broker's history, and the engine's in-process pending view (`pend`).
+
+## 8. Owner notes 1 (Notes 1 addendum v2, owner-approved 28 Sept 2026)
+Source: `reports/Owner notes 1 - intraday addendum v2 and v3 (2026-09-28).md` (verdict table). Where it is stricter
+it wins; nothing here loosens an MT-G rule, and every rule below applies to ENTRIES only (MT-G38: exits, protects,
+the flatten, the kill switch and the watchdog are never blocked by it). Tests: `tests/test_scalp_live_notes1.py`.
+- **Patch C, event check over the whole hold (`EVENT_HORIZON_OVERLAP`).** risk.py refuses a new entry when
+  [d, d + ENTRY_TIMEOUT_S + H + EVENT_EXIT_ALLOWANCE_S (60 s)] meets [t - 5 min, t + 10 min]
+  (`EVENT_WINDOW_BEFORE_MIN` / `_AFTER_MIN`) of any scheduled event t, endpoints included (`clock.hold_horizon`,
+  `clock.event_windows`, `clock.event_horizon_hits`). Events: every release in the calendar (08:30 and 10:00 alike,
+  `DayEvents.release_times`) and the FOMC statement and press conference (`DayEvents.fomc_times` from the calendar's
+  `statement` / `press_conference`, else the standard 14:00 / 14:30, `FOMC_EVENT_TIMES`). H is the registry's new
+  required `max_hold`: `"until_flatten"` (all three v1 setups: the hold ends at the 15:50 flatten) or whole minutes
+  (then never past the flatten); a missing registration counts as `until_flatten`. The MT-G20 blocks
+  (RELEASE_BLACKOUT, FOMC_BLACKOUT, OPENING_BLOCK) stay as they were; an unknown calendar is still
+  EVENT_CALENDAR_UNKNOWN. Effect: ORB5's 9:35 entry is skipped on days with a 10:00 release (the owner accepted this),
+  NOISE's checks are refused until 10:10 on those days, every entry before 14:40 is refused on FOMC days, and LAST30
+  at 15:30 is refused only when a window reaches 15:30-15:51. A guardrail change: exempt from the MT-G10 20-session
+  rule, and no v1 trade existed, so every version stays 1 (written in each registration's `deviations`; the code
+  hashes did not change: signals.py, sizing.py and orders.py are untouched).
+- **Patch G, halts (`HALTED`, `HALT_SUSPECTED`).** engine `_halt_watch`, every tick: a symbol whose snapshot status is
+  halted, or whose latest trade is older than `HALT_SUSPECT_S` (60 s) while our data polls are fresh (last poll <=
+  DATA_SILENCE_S and the symbol's quote received) from `HALT_SUSPECT_FROM_MIN` (5) after the open to the close, gets
+  `DayCounters.halt_blocks[symbol]` for the rest of the session. It is written to `blocked-DATE-MODE` (key `halts`)
+  before anything else, like a broker rejection, so a restart keeps it; journal `halt_block` and an alert. risk.py
+  refuses that symbol's entries with the recorded reason. A halt never marks a position flat, never assumes a
+  reopening, never forces an exit; the stop watchdog still pauses while the status says halted (MT-G21). On the free
+  IEX feed the status is unavailable (None), so the suspicion rule is the one that acts; a data glitch that leaves the
+  last trade old blocks that symbol for the day (fail closed).
+- **Patch G, margin framework (record only).** `config.margin_framework(date, base_url)`:
+  MARGIN_INTRADAY_FRAMEWORK (Alpaca applies FINRA Notice 26-10's intraday margin standard from 4 June 2026; source
+  https://docs.alpaca.markets/us/docs/the-intraday-margin-rule, checked 2026-09-28) on the Alpaca paper host on or
+  after the effective date, else UNKNOWN; with the check date and its age in days. `check-account` prints it and
+  every run's `startup` journal line carries it. It gates nothing: entries are sized from settled cash (MT-G15).
+- **Patch E, excursions (measurement only).** For the open trade, each tick, from the quotes the engine sees
+  (`engine._diag_observe`): E = the average entry fill, D = entry limit - stop-limit per share (the same R as
+  `trade_closed.r`); MFE_R = max(0, max(bid - E) / D), MAE_R = max(0, max(E - bid) / D); seconds from the first fill
+  to +0.25R, +0.5R and +1R (null = not reached while observed); seconds without a fresh quote (or between ticks
+  further apart than DATA_SILENCE_S) are counted as unobserved (`no_quote_s`, `gaps`), so "never reached" and "not
+  seen" stay apart. Written as `diag` on the `trade_closed` line; never added to P&L, never used by an exit, never an
+  R value. The report prints them per setup under strategy performance.
+- **Patch F, execution health apart from strategy performance.** The engine journals `quote_age_s` in every entry
+  decision's notes, `ack_ms` / `ack_status` (submit -> the broker's answer) on `submit` / `would_submit`,
+  `exit_order` and `kill_order`, `latency` (seen after submit, broker submitted -> filled), `order_qty`,
+  `filled_total` and `cancel_race` (a fill after a cancel request) on fills, and `data_gap_start` / `data_gap` (no
+  successful poll for more than DATA_SILENCE_S in the session). The report's EXECUTION HEALTH section shows those,
+  partial fills, refused cancels, broker rejections, halt blocks and the per-setup slippage against the registered
+  model; every other line says "uncalibrated: no registered baseline" (a missing baseline is not "healthy"). The
+  STRATEGY PERFORMANCE section holds the honest outcomes and the MT-G11 / G12 / G13 lines. Incidents are never R
+  values: the MT-G12 / G13 series (engine, `runner.lane_history`, report) read closed trades only. A trade closed by
+  an execution-driven exit (kill switch, protect sell) keeps its honest R in the series: the money is real, and
+  dropping it would be looser.
+- **Patch H, operating result.** `operating_costs.json` (committed): {name, usd_per_month, source, note} per running
+  cost (Alpaca market data $0 on the free plan, LLM / API $0 because none is used, hosting `null` = not recorded). The
+  report prints the honest trading P&L, each cost pro-rated over the report's calendar days (first to last journal
+  date, 365.25 / 12 days a month), and the operating result = trading P&L - recorded costs, marked "incomplete" while
+  any cost is not recorded (null prints "not recorded", never $0). Only report.py reads the file: nothing sizes or
+  places a trade from it (a test scans the package).
+- **Deploy note.** config.py and risk.py changed, so `risk_hash()` changed: the owner updates `SCALP_RISK_HASH` (print
+  it with `python -m lab.scalp.live hash`) and removes a stale `state/scalp/risk_hash.pin` before the next paper start,
+  or every entry is refused RISK_HASH_MISMATCH. Start before 09:00 ET (MT-G27 deploy guard).

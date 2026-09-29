@@ -27,6 +27,7 @@
       "backtest_mean_r": null,
       "model_slip_bps": 1.5,
       "uses_volume": false,
+      "max_hold": "until_flatten",
       "deviations": [
         "Long only: short signals are rejected as SHORT_DISABLED and logged as shadow trades (shorts need the owner's OK).",
         "Everything is flat by 15:50 (MT-G20 flatten), not at the backtest's 15:55 open.",
@@ -36,7 +37,10 @@
         "Size is 1 share (EXPLORATORY lane); the backtest used $1,000 of notional per trade.",
         "Half days are not traded (the backtest skipped them).",
         "Target is 10R measured from the entry limit (not the fill); stop is the other end of the first 5-minute candle, rounded down to the cent.",
-        "The paper sized at 1% risk with up to 4x leverage; here it is 1 share."
+        "The paper sized at 1% risk with up to 4x leverage; here it is 1 share.",
+        "Guardrail change 2026-09-28 (owner-approved Notes 1 Patch C; a guardrail fix is exempt from the MT-G10 20-session rule and no v1 trade exists yet, so the version stays 1): no entry when [decision, decision + ENTRY_TIMEOUT_S + max hold (max_hold until_flatten = the 15:50 flatten) + 60 s exit allowance] meets any scheduled event window [t - 5 min, t + 10 min] (every 08:30 / 10:00 release in the calendar, the FOMC statement 14:00 and press conference 14:30): EVENT_HORIZON_OVERLAP. The backtest had no such filter, so days with an in-session release or an FOMC afternoon are skipped here and not in the backtest.",
+        "Guardrail change 2026-09-28 (owner-approved Notes 1 Patch G, same exemption): after a halt (status HALTED) or a suspected halt (data fresh but no trade in the symbol for 60 s after 09:35: HALT_SUSPECTED) no new entries in that symbol for the rest of the session, kept across a restart; exits are unaffected. The backtest had no halt rule.",
+        "With the whole hold checked, ORB5's 9:35 entry is refused on every day with a 10:00 release (and on FOMC days), which the backtest traded."
       ]
     },
     {
@@ -63,6 +67,7 @@
       "backtest_mean_r": null,
       "model_slip_bps": 1.5,
       "uses_volume": false,
+      "max_hold": "until_flatten",
       "deviations": [
         "Long only: short signals are rejected as SHORT_DISABLED and logged as shadow trades (shorts need the owner's OK).",
         "Everything is flat by 15:50 (MT-G20 flatten), not at the backtest's 15:55 open.",
@@ -73,7 +78,10 @@
         "Half days are not traded (the backtest skipped them).",
         "Overlay bracket added (the backtest had no stop or target): stop 0.5% and target 1.0% from the entry limit, because MT-G16 needs a bracket.",
         "The papers hold to the 16:00 close; the backtest used the 15:55 open; live is flat by 15:50, so the trade lasts about 20 minutes, not 25-30.",
-        "On FOMC days the 15:30 entry falls in the FOMC blackout (13:58-15:30:59) and is skipped."
+        "On FOMC days the 15:30 entry falls in the FOMC blackout (13:58-15:30:59) and is skipped.",
+        "Guardrail change 2026-09-28 (owner-approved Notes 1 Patch C; a guardrail fix is exempt from the MT-G10 20-session rule and no v1 trade exists yet, so the version stays 1): no entry when [decision, decision + ENTRY_TIMEOUT_S + max hold (max_hold until_flatten = the 15:50 flatten) + 60 s exit allowance] meets any scheduled event window [t - 5 min, t + 10 min] (every 08:30 / 10:00 release in the calendar, the FOMC statement 14:00 and press conference 14:30): EVENT_HORIZON_OVERLAP. The backtest had no such filter, so days with an in-session release or an FOMC afternoon are skipped here and not in the backtest.",
+        "Guardrail change 2026-09-28 (owner-approved Notes 1 Patch G, same exemption): after a halt (status HALTED) or a suspected halt (data fresh but no trade in the symbol for 60 s after 09:35: HALT_SUSPECTED) no new entries in that symbol for the rest of the session, kept across a restart; exits are unaffected. The backtest had no halt rule.",
+        "A 15:30 entry holds to 15:50 (+60 s): it is refused only when an event window reaches into 15:30-15:51 (the FOMC blackout already skips FOMC days)."
       ]
     },
     {
@@ -100,6 +108,7 @@
       "backtest_mean_r": null,
       "model_slip_bps": 1.5,
       "uses_volume": true,
+      "max_hold": "until_flatten",
       "deviations": [
         "Long only: short signals are rejected as SHORT_DISABLED and logged as shadow trades (shorts need the owner's OK).",
         "Everything is flat by 15:50 (MT-G20 flatten), not at the backtest's 15:55 open.",
@@ -112,7 +121,10 @@
         "A reverse signal (long to short) only exits: the short side is not taken.",
         "The paper sized at min(4x, 2% / daily volatility); here it is 1 share.",
         "The 10:00 check is skipped on days with a 10:00 release (release blackout 9:58-10:05).",
-        "Its band_or_vwap exit uses the session VWAP, i.e. volume (MT-G35): on the free IEX live feed the VWAP is built from a few % of trades, so the setup runs SHADOW-only (decisions logged, no orders) until it runs on a SIP live feed."
+        "Its band_or_vwap exit uses the session VWAP, i.e. volume (MT-G35): on the free IEX live feed the VWAP is built from a few % of trades, so the setup runs SHADOW-only (decisions logged, no orders) until it runs on a SIP live feed.",
+        "Guardrail change 2026-09-28 (owner-approved Notes 1 Patch C; a guardrail fix is exempt from the MT-G10 20-session rule and no v1 trade exists yet, so the version stays 1): no entry when [decision, decision + ENTRY_TIMEOUT_S + max hold (max_hold until_flatten = the 15:50 flatten) + 60 s exit allowance] meets any scheduled event window [t - 5 min, t + 10 min] (every 08:30 / 10:00 release in the calendar, the FOMC statement 14:00 and press conference 14:30): EVENT_HORIZON_OVERLAP. The backtest had no such filter, so days with an in-session release or an FOMC afternoon are skipped here and not in the backtest.",
+        "Guardrail change 2026-09-28 (owner-approved Notes 1 Patch G, same exemption): after a halt (status HALTED) or a suspected halt (data fresh but no trade in the symbol for 60 s after 09:35: HALT_SUSPECTED) no new entries in that symbol for the rest of the session, kept across a restart; exits are unaffected. The backtest had no halt rule.",
+        "Its :00 / :30 checks are refused until 10:10 on days with a 10:00 release and all day on FOMC days (the hold runs to the 15:50 flatten)."
       ]
     }
   ]

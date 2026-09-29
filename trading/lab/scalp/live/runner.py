@@ -838,7 +838,8 @@ def run(mode: Mode | str, *, confirm_paper: bool = False, no_watchdog: bool = Fa
                   session_open=st.open, session_close=st.close, account_last4=acct.account_number[-4:],
                   test_start=test_start, test_sessions=counters.test_sessions, test_honest=counters.test_honest,
                   day_trades_5_sessions=counters.day_trades_5d,
-                  lanes={f"{r.setup_id}/{r.symbol}": r.lane.value for r in engine.registry.setups})
+                  lanes={f"{r.setup_id}/{r.symbol}": r.lane.value for r in engine.registry.setups},
+                  margin_framework=C.margin_framework(d, acct.base_url))    # Notes 1 Patch G: record only
     shadow_now = [r.setup_id for r in engine.registry.setups if r.lane in (Lane.SHADOW, Lane.RETIRED)]
     out(f"{mode.value.upper()} run for {d}: E0 ${e0:,.2f}; entry blocks at start: "
         f"{', '.join(sorted(f.value for f in flags)) or 'none'}; self-test: {'passed' if ok else 'FAILED'} "

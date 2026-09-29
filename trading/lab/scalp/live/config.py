@@ -86,6 +86,15 @@ WATCHDOG_FLAT_MIN_BEFORE_CLOSE = 3     # 15:57: the outside watchdog flattens (M
 RELEASE_BLOCK_BEFORE_MIN = 2           # scheduled 10:00 releases: no entries from t-2m to t+5m
 RELEASE_BLOCK_AFTER_MIN = 5
 FOMC_BLOCK = ("13:58", "15:30:59")     # FOMC statement days, press conference included
+# Notes 1 Patch C (owner-approved 2026-09-28): the WHOLE intended hold is checked, not only the decision time. A new
+# entry is refused (EVENT_HORIZON_OVERLAP) when [decision, decision + ENTRY_TIMEOUT_S + max hold + EVENT_EXIT_ALLOWANCE_S]
+# meets [t - 5 min, t + 10 min] of any scheduled event t (every release in the calendar, the FOMC statement and the
+# press conference), endpoints included. The MT-G20 blocks above stay as they are (the stricter rule wins).
+EVENT_WINDOW_BEFORE_MIN = 5
+EVENT_WINDOW_AFTER_MIN = 10
+EVENT_EXIT_ALLOWANCE_S = 60            # B_exit: time the exit path may need after the hold ends
+FOMC_EVENT_TIMES = (("14:00", "FOMC statement"), ("14:30", "FOMC press conference"))  # when the calendar has none
+MAX_HOLD_UNTIL_FLATTEN = "until_flatten"   # registry max_hold: held at most until the 15:50 flatten (MT-G20)
 
 # ------------------------------------------------------------------------------------------ data gates (MT-G22)
 CLOCK_OFFSET_MS = 100
@@ -99,6 +108,12 @@ WILD_MINUTE_RANGE = 0.01               # a 1-minute range > 1% pauses that symbo
 WILD_MINUTE_PAUSE_MIN = 10
 LULD_PCT = 0.05                        # decision price > 5% from the mean close of the last 5 bars
 MWCB_DROP = 0.07                       # SPY down 7% from the prior close (level-1 circuit breaker): no entries
+# Notes 1 Patch G (owner-approved): after a halt, no new entries in that symbol for the rest of the session, and
+# never assume a reopening. The free IEX feed has no halt status, so a halt is also SUSPECTED when the data polls are
+# fresh (last poll <= DATA_SILENCE_S old, the symbol's quote received) but its latest trade is older than
+# HALT_SUSPECT_S, from HALT_SUSPECT_FROM_MIN after the open to the close. Entries only: exits are never affected.
+HALT_SUSPECT_S = 60
+HALT_SUSPECT_FROM_MIN = 5              # 09:35 on a normal day
 
 # ------------------------------------------------------------------------------------------ reconcile, watchdog
 RECONCILE_EVERY_S = 5                  # MT-G26, while anything is open or pending
@@ -124,6 +139,32 @@ ORDER_PREFIX = "SCALP-"
 SETUP_CODES = {"ORB5_QQQ": "ORB5Q", "LAST30_MOM_SPY": "L30S", "NOISE_MOM_SPY": "NOISES"}
 
 RISK_FILES = ("config.py", "risk.py", "sizing.py", "orders.py")   # MT-G41: files under risk_hash()
+
+# ------------------------------------------------------------------------------------------ margin framework (record)
+# Notes 1 Patch G (owner-approved, record only: the bot trades settled cash, so it is not an entry gate). FINRA
+# Regulatory Notice 26-10 replaced the day-trading margin rules with an intraday margin standard from 4 June 2026
+# (phase-in to 20 October 2027); Alpaca documents that it applies the intraday standard. check-account prints this
+# and every startup journals it; a date before the effective date, or another broker host, is UNKNOWN.
+MARGIN_FRAMEWORK = "MARGIN_INTRADAY_FRAMEWORK"
+MARGIN_FRAMEWORK_SOURCE = "https://docs.alpaca.markets/us/docs/the-intraday-margin-rule"
+MARGIN_FRAMEWORK_EFFECTIVE = "2026-06-04"   # Alpaca adopted FINRA 26-10's intraday standard
+MARGIN_FRAMEWORK_CHECKED = "2026-09-28"     # when the source was read (minute-trading session)
+MARGIN_FRAMEWORK_HOST = "https://paper-api.alpaca.markets"
+
+
+def margin_framework(on: date, base_url: str | None = MARGIN_FRAMEWORK_HOST) -> dict[str, Any]:
+    """The account's margin framework as a record (never a gate): MARGIN_INTRADAY_FRAMEWORK with its source, the
+    date the source was checked and its effective date, or UNKNOWN (before the effective date, or not the Alpaca
+    paper host). `age_days` says how old the check is on `on`."""
+    eff, chk = date.fromisoformat(MARGIN_FRAMEWORK_EFFECTIVE), date.fromisoformat(MARGIN_FRAMEWORK_CHECKED)
+    host_ok = str(base_url or "").rstrip("/") == MARGIN_FRAMEWORK_HOST
+    known = host_ok and on >= eff
+    return {"framework": MARGIN_FRAMEWORK if known else "UNKNOWN", "source": MARGIN_FRAMEWORK_SOURCE,
+            "checked": MARGIN_FRAMEWORK_CHECKED, "effective": MARGIN_FRAMEWORK_EFFECTIVE,
+            "age_days": (on - chk).days,
+            "why": "Alpaca applies FINRA 26-10's intraday margin standard from 2026-06-04" if known else
+                   ("not the Alpaca paper host" if not host_ok else "before the 2026-06-04 effective date"),
+            "use": "record only (entries use settled cash, MT-G15)"}
 
 
 # ------------------------------------------------------------------------------------------ hashes
@@ -178,6 +219,7 @@ class Registration:
     model_slip_bps: float | None = None      # MT-G3 / MT-G13 slippage model, bps per side (None = checks off)
     prior_registered: str | None = None      # MT-G10: when version N-1 was registered (versions > 1)
     safety_fix: bool = False                 # MT-G10: a safety or guardrail fix skips the 20-session wait
+    max_hold: str | int = MAX_HOLD_UNTIL_FLATTEN   # Notes 1 Patch C: "until_flatten" or minutes from the first fill
 
     @property
     def code(self) -> str:
@@ -243,7 +285,7 @@ class Registry:
 
 _FIELDS = ("setup_id", "symbol", "version", "lane", "source", "registered", "params", "code_hash", "code_files",
            "opening_window", "tested_on_release_days", "feed_live", "feed_backtest", "backtest_mean_r",
-           "deviations", "uses_volume")
+           "deviations", "uses_volume", "max_hold")
 
 
 def sessions_between(a: date, b: date) -> int:
@@ -304,6 +346,10 @@ def _registration(d: dict[str, Any]) -> Registration:
     slip = d.get("model_slip_bps")
     if slip is not None and not (isinstance(slip, (int, float)) and not isinstance(slip, bool) and slip > 0):
         raise RegistryError(f"{where}: model_slip_bps must be null or a positive number (MT-G3)")
+    mh = d["max_hold"]
+    if not (mh == MAX_HOLD_UNTIL_FLATTEN or (isinstance(mh, int) and not isinstance(mh, bool) and mh >= 1)):
+        raise RegistryError(f"{where}: max_hold must be {MAX_HOLD_UNTIL_FLATTEN!r} or whole minutes >= 1 "
+                            "(Notes 1 Patch C: the event check covers the whole hold)")
     registered = str(d["registered"])
     prior, safety = d.get("prior_registered"), bool(d.get("safety_fix", False))
     if version > 1:
@@ -324,7 +370,7 @@ def _registration(d: dict[str, Any]) -> Registration:
         feed_live=str(d["feed_live"]), feed_backtest=str(d["feed_backtest"]),
         backtest_mean_r=None if bmr is None else float(bmr), deviations=tuple(str(x) for x in d["deviations"]),
         validated_report=report, uses_volume=d["uses_volume"], model_slip_bps=None if slip is None else float(slip),
-        prior_registered=None if not prior else str(prior), safety_fix=safety)
+        prior_registered=None if not prior else str(prior), safety_fix=safety, max_hold=mh)
 
 
 def load_registry(path: str | Path = REGISTRY_PATH) -> Registry:

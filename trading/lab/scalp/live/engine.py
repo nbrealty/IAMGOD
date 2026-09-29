@@ -48,6 +48,15 @@ each tick, so the heartbeat keeps beating while it waits. Order of work in one t
     here, or the MT-G4 SIP re-mark at the next start / `report --remark`, which also books a missed fill at 0R). After every closed trade (and at startup, from `history`) the automatic switch-offs run:
     MT-G12 losers, MT-G13 drift, MT-G3 / G13 slippage against the model -> SHADOW or RETIRED for this run.
 10. `status()` is the heartbeat the runner writes every tick.
+Notes 1 (owner-approved 2026-09-28): Patch G, a symbol seen halted (snapshot `halted` True) or suspected halted (data
+polls fresh, its quote received, but its latest trade older than HALT_SUSPECT_S from 09:35) gets no new entries for the
+rest of the session (HALTED / HALT_SUSPECTED), kept across a restart in state/scalp/blocked-DATE-MODE like a broker
+rejection; a position is never marked flat and a reopening is never assumed (exits carry on). Patch E, each open
+trade's excursions from the quotes the engine sees (MFE_R / MAE_R on the bid, time to +0.25R / +0.5R / +1R, seconds
+without a fresh quote) go on its `trade_closed` line as `diag`: measurement only, never P&L, never an exit. Patch F,
+execution-health facts are journalled for the report: quote age at each entry decision, data gaps in the session,
+order acknowledgement latency (`ack_ms` on submit / exit_order / kill_order, submit-to-fill on fills), partial fills and
+fills that raced a cancel request (`cancel_race`). None of them feeds the MT-G12 switch-off.
 A broker rejection of an ENTRY is never retried and blocks the symbol's entries for the day (MT-G25), also after a
 restart (state/scalp/blocked-DATE-MODE); a rejected EXIT is retried at the next collar. A timeout on submit -> look the order up by client id before anything else.
 """
@@ -153,6 +162,7 @@ class Trade:
     next_attempt: dict[str, int] = field(default_factory=dict)
     exit: ExitJob | None = None
     closed_by: str = ""
+    diag: dict[str, Any] | None = None             # Notes 1 Patch E excursions (measurement only, never P&L)
 
     @property
     def qty(self) -> float:
@@ -233,6 +243,7 @@ class Engine:
         self.linger_view: dict[str, OrderView] = {}
         self._kill_read_done: set[str] = set()                # exit orders the kill has read as done (booked)
         self.tp_checks: list[dict[str, Any]] = []             # MT-G4 take-profit fills waiting for a print through
+        self.gap_since: pd.Timestamp | None = None            # Notes 1 Patch F: an open data gap (execution health)
         # MT-G27: the PAPER bot owns the plain KILL / HALT / daily_stop-DATE files (the `kill` command, the watchdog
         # and `reset-halt` use them). Any other mode has its own names, so a dry run's simulated kill can never
         # flatten the paper account and a dry bot never swallows the owner's KILL meant for the paper bot.
@@ -255,6 +266,8 @@ class Engine:
         if self.mode is not Mode.PAPER:
             self.raw.update(now, snap.quotes, snap.new_bars)    # idempotent: the runner may call it too
         self._flag_files(now)
+        self._guarded(self._halt_watch, now)
+        self._guarded(self._data_gap_watch, now)
         self._safe(self._refresh, now)
         if self.kill is not None:
             self._safe(self._kill_step, now)
@@ -272,6 +285,7 @@ class Engine:
                 self._safe(self._exit_step, now)
             if self.kill is not None:
                 self._safe(self._kill_step, now)
+        self._guarded(self._diag_step, now)
         decisions = self._signals(now)
         self._verify_tps(now)
         self._marks(now)
@@ -346,6 +360,7 @@ class Engine:
                              "unrealized_honest": round(self._unrealized(), 4),
                              "daily_limit": risk.daily_limit(c.e0), "daily_stopped": c.daily_stopped,
                              "blocked_symbols": sorted(c.blocked_symbols), "e0": c.e0,
+                             "halt_blocks": dict(c.halt_blocks),
                              "day_trades_5_sessions": c.day_trades_5d},
                 "reconcile_mismatches": sorted(self.mm), "last_data_ok": self.last_data_ok}
 
@@ -406,6 +421,19 @@ class Engine:
             self.journal.write("broker_error", step=fn.__name__, error=type(e).__name__, detail=str(e)[:300])
             return None
 
+    def _guarded(self, fn: Callable[..., Any], *a: Any) -> Any:
+        """Run a watch / measurement step that must never stop the tick (the exits and the kill switch run after
+        it): any error is journalled once per step and alerted."""
+        try:
+            return fn(*a)
+        except Exception as e:  # noqa: BLE001 - see the docstring
+            self.journal.write("engine_step_error", step=fn.__name__, error=f"{type(e).__name__}: {str(e)[:200]}")
+            noted = self.__dict__.setdefault("_step_errors", set())
+            if fn.__name__ not in noted:
+                noted.add(fn.__name__)
+                self._alert(f"engine step {fn.__name__} failed: {type(e).__name__}", {"step": fn.__name__})
+            return None
+
     def _cancel_quiet(self, oid: str, why: str, **fields: Any) -> bool:
         """A cancel REQUEST that never stops the tick: a refusal (422 'not cancelable') or a timeout is journalled
         and the caller's confirmation clock decides what happens next."""
@@ -463,6 +491,9 @@ class Engine:
             return
         c = self.counters
         c.blocked_symbols.update(str(x) for x in data.get("symbols") or [])
+        for sym, h in (data.get("halts") or {}).items():
+            why = str((h or {}).get("reason") or Reason.HALTED.value)
+            c.halt_blocks.setdefault(str(sym), why if why == Reason.HALT_SUSPECTED.value else Reason.HALTED.value)
         for x in data.get("rejected") or []:
             cid = str(x.get("cid") or "")
             try:
@@ -477,7 +508,7 @@ class Engine:
             if sid:
                 self.entries_by_setup[sid] = self.entries_by_setup.get(sid, 0) + 1
         self.journal.write("blocked_restored", symbols=sorted(c.blocked_symbols),
-                           rejected=len(data.get("rejected") or []))
+                           rejected=len(data.get("rejected") or []), halts=dict(c.halt_blocks))
 
     def _save_blocked(self, now: pd.Timestamp, spec: OrderSpec, c: Candidate, status: int | None) -> None:
         data = self._read_flag(self.blocked_name) or {"symbols": [], "rejected": []}
@@ -485,6 +516,121 @@ class Engine:
         data.setdefault("rejected", []).append({"cid": spec.client_order_id, "ts": now.isoformat(),
                                                 "setup_id": c.setup_id, "symbol": c.symbol, "status": status})
         self._write_flag(self.blocked_name, data)
+
+    # ---------------------------------------------------------------- halts (Notes 1 Patch G)
+    def _halt_watch(self, now: pd.Timestamp) -> None:
+        """A symbol seen halted (snapshot status True) or suspected halted (the data polls are fresh and its quote was
+        received, but its latest trade is older than HALT_SUSPECT_S, from HALT_SUSPECT_FROM_MIN after the open to the
+        close) gets no new entries for the rest of the session. Written to the blocked file first, so a restart keeps
+        it. Entries only: positions, exits and the kill switch are untouched, and nothing assumes a reopening."""
+        c, st = self.counters, self.session
+        fresh = self.last_data_ok is not None and now - self.last_data_ok <= _sec(C.DATA_SILENCE_S)
+        watch = st.open + pd.Timedelta(minutes=C.HALT_SUSPECT_FROM_MIN) <= now < st.close
+        for sym in C.ALLOWED_SYMBOLS:
+            if sym in c.halt_blocks:
+                continue
+            info: dict[str, Any] = {}
+            why = None
+            if self.halted.get(sym) is True:
+                why = Reason.HALTED
+            elif fresh and watch:
+                lt, q = self.last_trades.get(sym), self.quotes.get(sym)
+                q_ok = q is not None and now - as_ny(q.recv if q.recv is not None else q.ts) <= _sec(C.DATA_SILENCE_S)
+                if q_ok and lt is not None and now - as_ny(lt.ts) > _sec(C.HALT_SUSPECT_S):
+                    why = Reason.HALT_SUSPECTED
+                    info = {"last_trade_ts": as_ny(lt.ts).isoformat(),
+                            "last_trade_age_s": round((now - as_ny(lt.ts)).total_seconds(), 3),
+                            "quote_ts": as_ny(q.ts).isoformat()}
+            if why is None:
+                continue
+            c.halt_blocks[sym] = why.value
+            data = self._read_flag(self.blocked_name) or {"symbols": sorted(c.blocked_symbols), "rejected": []}
+            data.setdefault("halts", {})[sym] = {"reason": why.value, "ts": now.isoformat(), **info}
+            try:
+                self._write_flag(self.blocked_name, data)
+            except OSError as e:
+                self.journal.write("halt_block_not_saved", symbol=sym, error=str(e)[:200])
+            holding = self.trade is not None and self.trade.symbol == sym and self.trade.qty > 1e-9
+            self.journal.write("halt_block", symbol=sym, reason=why.value, position_open=holding, **info,
+                               note="no new entries in this symbol for the rest of the session; exits carry on and a "
+                                    "reopening is never assumed (Notes 1 Patch G)")
+            self._alert(f"{sym}: {why.value}: no new {sym} entries for the rest of the session"
+                        + (" (a position is open: its stop and exits keep working)" if holding else ""),
+                        {"symbol": sym, "reason": why.value})
+
+    # ---------------------------------------------------------------- execution health (Notes 1 Patch F)
+    def _data_gap_watch(self, now: pd.Timestamp) -> None:
+        """A data gap = no successful data poll for more than DATA_SILENCE_S during the session. Journalled when it
+        starts (`data_gap_start`) and when data is back (`data_gap`, with its length) for the execution-health report.
+        Entries are already refused on it (DATA_STALE); this only measures."""
+        st = self.session
+        stale = self.last_data_ok is None or now - self.last_data_ok > _sec(C.DATA_SILENCE_S)
+        if stale and self.gap_since is None and st.open <= now < st.close:
+            self.gap_since = self.last_data_ok if self.last_data_ok is not None and self.last_data_ok >= st.open \
+                else max(st.open, now - _sec(C.DATA_SILENCE_S))
+            self.journal.write("data_gap_start", since=self.gap_since, detected=now)
+        elif not stale and self.gap_since is not None:
+            end = self.last_data_ok
+            self.journal.write("data_gap", start=self.gap_since, end=end,
+                               seconds=round((end - self.gap_since).total_seconds(), 3))
+            self.gap_since = None
+
+    # ---------------------------------------------------------------- excursions (Notes 1 Patch E)
+    def _diag_step(self, now: pd.Timestamp) -> None:
+        t = self.trade
+        if t is not None and t.qty > 1e-9 and t.buys:
+            self._diag_observe(t, now)
+
+    def _diag_observe(self, t: Trade, now: pd.Timestamp) -> None:
+        """Quote-path diagnostics of the open trade (Notes 1 Patch E), from the quotes the engine sees. Long:
+        MFE_R = max(0, max(bid - E) / D), MAE_R = max(0, max(E - bid) / D), E = the average entry fill when first
+        observed (1 share in v1, so one lot), D = the planned risk per share (entry limit - stop-limit: the same R as
+        trade_closed.r). Time to +0.25R / +0.5R / +1R in seconds from the first fill; None = not reached
+        while observed. Seconds without a fresh quote (or between ticks further apart than DATA_SILENCE_S) are counted
+        as unobserved, so "never reached" and "not seen" stay apart. Measurement only: nothing here changes an exit,
+        and it is never added to P&L."""
+        d = t.diag
+        if d is None:
+            e, spec = t.avg_buy(), t.spec
+            per = (spec.limit_price - spec.stop_limit_price) if spec is not None and spec.stop_limit_price else None
+            if not e or not per or per <= 0:
+                t.diag = {"unavailable": "no entry plan (adopted after a restart)" if spec is None else "no risk"}
+                return
+            start = as_ny(t.first_fill_at) if t.first_fill_at is not None and as_ny(t.first_fill_at) <= now else now
+            d = t.diag = {"entry": float(e), "r_per_share": float(per), "start": start, "last": start, "mfe": 0.0,
+                          "mae": 0.0, "hit": {"0.25": None, "0.5": None, "1": None}, "quote_ticks": 0,
+                          "no_quote_s": 0.0}
+        if "unavailable" in d:
+            return
+        gap = max((now - d["last"]).total_seconds(), 0.0)
+        d["last"] = now
+        q = self._fresh_quote(t.symbol)
+        if q is None:
+            d["no_quote_s"] += gap
+            return
+        if gap > C.DATA_SILENCE_S:
+            d["no_quote_s"] += gap                         # the engine did not look in between
+        d["quote_ticks"] += 1
+        fav = (q.bid - d["entry"]) / d["r_per_share"]
+        d["mfe"] = max(d["mfe"], fav, 0.0)
+        d["mae"] = max(d["mae"], -fav, 0.0)
+        for k in d["hit"]:
+            if d["hit"][k] is None and fav >= float(k) - 1e-9:
+                d["hit"][k] = round((now - d["start"]).total_seconds(), 3)
+
+    @staticmethod
+    def _diag_out(t: Trade) -> dict[str, Any] | None:
+        d = t.diag
+        if d is None:
+            return {"unavailable": "no quote observed while the position was open"}
+        if "unavailable" in d:
+            return dict(d)
+        return {"basis": "bid (long)", "entry": round(d["entry"], 4), "r_per_share": round(d["r_per_share"], 4),
+                "mfe_r": round(d["mfe"], 4), "mae_r": round(d["mae"], 4),
+                "t_plus_025r_s": d["hit"]["0.25"], "t_plus_05r_s": d["hit"]["0.5"], "t_plus_1r_s": d["hit"]["1"],
+                "observed_s": round((d["last"] - d["start"]).total_seconds(), 3), "quote_ticks": d["quote_ticks"],
+                "no_quote_s": round(d["no_quote_s"], 3), "gaps": d["no_quote_s"] > 0,
+                "note": "measurement only (Notes 1 Patch E): not P&L, never an exit; a displayed bid is not a fill"}
 
     # ---------------------------------------------------------------- automatic switch-offs (MT-G3, G12, G13)
     def _lane_gate(self, setup_id: str | None, symbol: str) -> None:
@@ -824,6 +970,21 @@ class Engine:
                     t.stop_out = True
         elif side == "buy":
             c.buy_notional += dq * px
+        # Notes 1 Patch F (execution health): submit-to-fill latency, and a fill that raced a cancel request
+        lat: dict[str, Any] = {}
+        race = False
+        if t is not None and t.symbol == v.symbol:
+            j = t.exit
+            if role == "entry":
+                sent, race = t.submitted_at, t.cancel_requested_at is not None
+            elif role in ("exit", "protect") and j is not None and v.id == j.order_id:
+                sent, race = j.order_at, j.order_cancel_at is not None
+            else:
+                sent = None
+            if sent is not None:
+                lat["seen_after_submit_s"] = round((now - as_ny(sent)).total_seconds(), 3)
+        if v.submitted_at is not None and v.filled_at is not None:
+            lat["broker_submit_to_fill_s"] = round((as_ny(v.filled_at) - as_ny(v.submitted_at)).total_seconds(), 3)
         slip = None
         if dec and dec.get("mid"):
             cents, bps = costs.slippage(side, px, float(dec["mid"]))
@@ -834,7 +995,8 @@ class Engine:
         self.journal.write("fill", order_id=v.id, cid=v.client_order_id, symbol=v.symbol, side=side, qty=dq,
                            price=px, role=role, fees=fee, quote_at_fill=_q(q), slippage=slip,
                            quote_at_decision=dec, quote_at_submit=t.submit_quote if t and side == "buy" else None,
-                           feed=q.feed.value if q is not None else None,
+                           feed=q.feed.value if q is not None else None, order_qty=float(v.qty or 0.0),
+                           filled_total=float(v.filled_qty or 0.0), latency=lat or None, cancel_race=race,
                            **{k: w for k, w in self._labels(t).items() if k != "feed"})
         for m in (1, 5):
             self.marks.append((now + pd.Timedelta(minutes=m), {"symbol": v.symbol, "side": side, "fill": px,
@@ -843,6 +1005,8 @@ class Engine:
     def _close_trade(self, now: pd.Timestamp, how: str) -> None:
         t = self.trade
         c = self.counters
+        if t.diag is not None and t.buys:
+            self._guarded(self._diag_observe, t, now)      # the last look (measurement only)
         br = self._pnl(t.buys, t.sells)
         # MT-G4: a take-profit (resting limit) fill is PENDING_VERIFY until a SIP trade printed through the limit;
         # until then the gates count it as at most 0 and it does not reset the loss streak
@@ -878,7 +1042,7 @@ class Engine:
                            tp_limit=t.tp_fill[1] if t.tp_fill else None,
                            tp_filled_at=t.tp_fill[2] if t.tp_fill else None,
                            stop_out=t.stop_out, loss_streak=c.loss_streak,
-                           realized_honest_today=c.realized_honest, **self._labels(t))
+                           realized_honest_today=c.realized_honest, diag=self._diag_out(t), **self._labels(t))
         for g in t.legs.values():
             if not is_done(g):
                 self.lingering.setdefault(g.id, now)
@@ -1072,6 +1236,7 @@ class Engine:
             self.request_kill(f"no price for the exit: {e}")
             return
         t.next_attempt[j.leg] = attempt + 1
+        sent_at = as_ny(self.clock())
         try:
             v = self.broker.submit(spec)
         except ExitDelayed:
@@ -1092,7 +1257,7 @@ class Engine:
         t.sell_ids.add(v.id)
         self.journal.write("exit_order", cid=spec.client_order_id, qty=qty, limit=spec.limit_price,
                            collar=j.collars[j.idx], order_kind=j.kind.value, reason=j.reason.value, tags=spec.reason,
-                           quote=_q(q), **self._labels(t))
+                           quote=_q(q), ack_ms=self._ack_ms(sent_at), ack_status=v.status, **self._labels(t))
         dq, px = self._book(v)
         if dq > 0:
             self._on_fill(now, v, dq, px, "protect" if j.kind is Kind.PROTECT else "exit")
@@ -1196,6 +1361,7 @@ class Engine:
                 continue
             # the id carries the minute (HHMM), so the attempt number wraps at 1000 without ever repeating an id
             self.kill_attempt += 1
+            sent_at = as_ny(self.clock())
             try:
                 v = self.broker.submit(spec)
             except ExitDelayed:
@@ -1212,7 +1378,8 @@ class Engine:
                 continue
             k.orders[sym] = {"id": v.id, "cid": spec.client_order_id, "at": now, "view": v, "cancel_at": None}
             self.journal.write("kill_order", cid=spec.client_order_id, symbol=sym, qty=qty, limit=spec.limit_price,
-                               collar=C.KILL_COLLARS[i], tags=spec.reason)
+                               collar=C.KILL_COLLARS[i], tags=spec.reason, ack_ms=self._ack_ms(sent_at),
+                               ack_status=v.status)
             owner = t if t is not None and t.symbol == sym else None
             if owner is not None:
                 owner.sell_ids.add(v.id)
@@ -1568,6 +1735,8 @@ class Engine:
         q = self.quotes.get(c.symbol)
         spec, reasons, info = O.entry_bracket(c, reg, q, cnt.e0, self.date, 0)
         notes: dict[str, Any] = {"numbers": info}
+        # Notes 1 Patch F: quote age at the decision (execution health; QUOTE_STALE still decides)
+        notes["quote_age_s"] = round((now - as_ny(q.ts)).total_seconds(), 3) if q is not None else None
         planned = spec.qty * spec.limit_price if spec is not None else float(info.get("notional") or 0.0)
         bp, extra = self._buying_power()
         notes.update(extra)
@@ -1618,6 +1787,7 @@ class Engine:
         q = self.quotes.get(c.symbol)
         d = Decision(c, True, (), spec, notes)
         self._journal_decision(d, reg)
+        sent_at = as_ny(self.clock())
         try:
             v = self.broker.submit(spec)
         except RunawayOrders as e:
@@ -1660,10 +1830,18 @@ class Engine:
         self.journal.write("submit" if self.mode is Mode.PAPER else "would_submit", cid=spec.client_order_id,
                            symbol=c.symbol, qty=spec.qty, limit=spec.limit_price, stop=spec.stop_price,
                            stop_limit=spec.stop_limit_price, target=spec.take_profit, quote=_q(q), numbers=info,
-                           **reg.labels())
+                           ack_ms=self._ack_ms(sent_at), ack_status=v.status, **reg.labels())
         self._take_parent(now, v)
         self._safe(self._advance, now)
         return d
+
+    def _ack_ms(self, sent_at: pd.Timestamp) -> float | None:
+        """Notes 1 Patch F: milliseconds from sending an order to the broker's acknowledgement (the submit call
+        returning its order view). Execution health only."""
+        try:
+            return round((as_ny(self.clock()) - sent_at).total_seconds() * 1000.0, 1)
+        except Exception:  # noqa: BLE001 - a measurement never stops an order
+            return None
 
     def _count_submit(self, now: pd.Timestamp, c: Candidate) -> None:
         cnt = self.counters

@@ -68,7 +68,8 @@ class Reason(str, Enum):
     CLOCK_UNVERIFIED = "CLOCK_UNVERIFIED"
     PRICE_AWAY_FROM_LAST_TRADE = "PRICE_AWAY_FROM_LAST_TRADE"
     WILD_MINUTE_PAUSE = "WILD_MINUTE_PAUSE"
-    HALTED = "HALTED"
+    HALTED = "HALTED"                      # halt status True, now or earlier today: no entries in it for the day
+    HALT_SUSPECTED = "HALT_SUSPECTED"      # data fresh but no trade in the symbol for HALT_SUSPECT_S (Notes 1, G)
     LULD_BAND = "LULD_BAND"
     INSUFFICIENT_HISTORY = "INSUFFICIENT_HISTORY"
     # calendar and clock (MT-G20)
@@ -80,6 +81,7 @@ class Reason(str, Enum):
     EVENT_CALENDAR_UNKNOWN = "EVENT_CALENDAR_UNKNOWN"
     RELEASE_BLACKOUT = "RELEASE_BLACKOUT"
     FOMC_BLACKOUT = "FOMC_BLACKOUT"
+    EVENT_HORIZON_OVERLAP = "EVENT_HORIZON_OVERLAP"   # the whole intended hold meets an event window (Notes 1, C)
     # caps and cooldowns (MT-G2, G17, G19, G25)
     MAX_TRADES_DAY = "MAX_TRADES_DAY"
     MAX_TRADES_SETUP = "MAX_TRADES_SETUP"
@@ -355,6 +357,7 @@ class DayCounters:
     test_sessions: int = 0                              # sessions traded or run since the test started
     test_peak: float = 0.0                              # high-water mark of test_honest (MT-G18 drawdown)
     blocked_symbols: set[str] = field(default_factory=set)   # broker rejections block entries (MT-G25)
+    halt_blocks: dict[str, str] = field(default_factory=dict)  # symbol -> HALTED / HALT_SUSPECTED, rest of the day
     wild_pause_until: dict[str, pd.Timestamp] = field(default_factory=dict)  # MT-G22 1% minute
     daily_stopped: bool = False
     day_trades_5d: int = 0                              # MT-G15: our own day trades, last 5 sessions incl. today

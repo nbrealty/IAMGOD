@@ -113,6 +113,9 @@ def check_account(env: dict[str, str] | None = None, make_client: Callable[[str,
         f"{bool(getattr(acct, 'shorting_enabled', False))}; pattern day trader: "
         f"{bool(getattr(acct, 'pattern_day_trader', False))}")
     out(f"  base URL {base}")
+    mf = C.margin_framework(_now().date(), base)                 # Notes 1 Patch G: a record, never a gate
+    out(f"  margin framework: {mf['framework']} (source {mf['source']}, checked {mf['checked']}, effective "
+        f"{mf['effective']}; {mf['use']})")
     out(f"  RULES account ...{rules_num[-4:] if rules_num else '????'}" + (f" ({rules_note})" if rules_note else ""))
     for name, ok in checks.items():
         out(f"  [{'ok' if ok else 'FAIL'}] {name}")
