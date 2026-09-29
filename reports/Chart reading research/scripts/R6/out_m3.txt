@@ -1,0 +1,60 @@
+=== Volatility-managed US market, long-only (weight = min(1, target vol / last month's realized vol)), monthly, Ken French data ===
+target 10% cost 0bp/turn [1927-2026.08] CAGR   9.17%  vol  11.7%  Sharpe  0.53  maxDD  -44.7%  longest underwater  7.2y (1937-03..1944-05)  avg weight 0.78
+target 10% cost 0bp/turn [1927-1972] CAGR   8.79%  vol  12.5%  Sharpe  0.58  maxDD  -44.7%  longest underwater  7.2y (1937-03..1944-05)  avg weight 0.80
+target 10% cost 0bp/turn [1973-2012] CAGR   9.21%  vol  11.3%  Sharpe  0.38  maxDD  -28.7%  longest underwater  4.2y (2000-09..2004-11)  avg weight 0.77
+target 10% cost 0bp/turn [2013-2026.08] CAGR  10.37%  vol   9.5%  Sharpe  0.91  maxDD  -12.0%  longest underwater  1.4y (2022-01..2023-05)  avg weight 0.76
+target 10% cost 0bp/turn [2020-2026.08] CAGR   9.43%  vol  10.1%  Sharpe  0.68  maxDD  -12.0%  longest underwater  1.4y (2022-01..2023-05)  avg weight 0.68
+B&H 1927-2026.08                   CAGR  10.34%  vol  18.4%  Sharpe  0.45  maxDD  -83.7%  longest underwater 15.3y (1929-09..1944-12)
+B&H [1927-1972]                    CAGR   9.37%  vol  21.0%  Sharpe  0.44  maxDD  -83.7%  longest underwater 15.3y (1929-09..1944-12)
+B&H [1973-2012]                    CAGR   9.89%  vol  16.2%  Sharpe  0.34  maxDD  -50.3%  longest underwater  6.0y (2000-09..2006-08)
+B&H [2013-2026.08]                 CAGR  14.98%  vol  14.7%  Sharpe  0.91  maxDD  -24.8%  longest underwater  1.9y (2022-01..2023-11)
+B&H [2020-2026.08]                 CAGR  15.30%  vol  17.5%  Sharpe  0.75  maxDD  -24.8%  longest underwater  1.9y (2022-01..2023-11)
+target 10% cost 5bp/turn [1927-2026.08] CAGR   9.09%  vol  11.7%  Sharpe  0.53  maxDD  -44.9%  longest underwater  7.2y (1937-03..1944-05)  avg weight 0.78
+target 10% cost 5bp/turn [1927-1972] CAGR   8.71%  vol  12.5%  Sharpe  0.57  maxDD  -44.9%  longest underwater  7.2y (1937-03..1944-05)  avg weight 0.80
+target 10% cost 5bp/turn [1973-2012] CAGR   9.13%  vol  11.3%  Sharpe  0.37  maxDD  -28.8%  longest underwater  4.2y (2000-09..2004-11)  avg weight 0.77
+target 10% cost 5bp/turn [2013-2026.08] CAGR  10.25%  vol   9.5%  Sharpe  0.90  maxDD  -12.1%  longest underwater  1.4y (2022-01..2023-05)  avg weight 0.76
+target 10% cost 5bp/turn [2020-2026.08] CAGR   9.32%  vol  10.1%  Sharpe  0.67  maxDD  -12.1%  longest underwater  1.4y (2022-01..2023-05)  avg weight 0.68
+target 15% cost 0bp/turn [1927-2026.08] CAGR  10.01%  vol  14.2%  Sharpe  0.52  maxDD  -61.5%  longest underwater 14.8y (1929-09..1944-05)  avg weight 0.91
+target 15% cost 0bp/turn [1927-1972] CAGR   9.36%  vol  15.1%  Sharpe  0.54  maxDD  -61.5%  longest underwater 14.8y (1929-09..1944-05)  avg weight 0.90
+target 15% cost 0bp/turn [1973-2012] CAGR   9.74%  vol  14.0%  Sharpe  0.37  maxDD  -39.7%  longest underwater  5.3y (2000-09..2005-12)  avg weight 0.91
+target 15% cost 0bp/turn [2013-2026.08] CAGR  13.04%  vol  12.0%  Sharpe  0.95  maxDD  -17.4%  longest underwater  1.5y (2022-01..2023-06)  avg weight 0.91
+target 15% cost 0bp/turn [2020-2026.08] CAGR  12.45%  vol  13.5%  Sharpe  0.74  maxDD  -17.4%  longest underwater  1.5y (2022-01..2023-06)  avg weight 0.87
+target 15% cost 5bp/turn [1927-2026.08] CAGR   9.97%  vol  14.2%  Sharpe  0.51  maxDD  -61.7%  longest underwater 15.2y (1929-09..1944-10)  avg weight 0.91
+target 15% cost 5bp/turn [1927-1972] CAGR   9.32%  vol  15.1%  Sharpe  0.54  maxDD  -61.7%  longest underwater 15.2y (1929-09..1944-10)  avg weight 0.90
+target 15% cost 5bp/turn [1973-2012] CAGR   9.69%  vol  14.0%  Sharpe  0.36  maxDD  -39.7%  longest underwater  5.3y (2000-09..2005-12)  avg weight 0.91
+target 15% cost 5bp/turn [2013-2026.08] CAGR  12.99%  vol  12.0%  Sharpe  0.94  maxDD  -17.4%  longest underwater  1.5y (2022-01..2023-06)  avg weight 0.91
+target 15% cost 5bp/turn [2020-2026.08] CAGR  12.39%  vol  13.5%  Sharpe  0.74  maxDD  -17.4%  longest underwater  1.5y (2022-01..2023-06)  avg weight 0.87
+
+Moreira-Muir style (leverage allowed, c fixed with look-ahead): Sharpe of excess return:
+  [1927-2026.08] managed Sharpe 0.52 vs B&H 0.45; max weight 15.2x, months with weight>2x: 203
+  [1927-1972] managed Sharpe 0.57 vs B&H 0.44; max weight 15.2x, months with weight>2x: 139
+  [1973-2012] managed Sharpe 0.42 vs B&H 0.34; max weight 5.2x, months with weight>2x: 44
+  [2013-2026.08] managed Sharpe 0.63 vs B&H 0.91; max weight 6.0x, months with weight>2x: 20
+Real-time expanding-window c (no look-ahead in c), leverage allowed:
+  [1932-2026.08] managed Sharpe 0.47 vs B&H 0.52
+  [1973-2012] managed Sharpe 0.42 vs B&H 0.34
+  [2013-2026.08] managed Sharpe 0.63 vs B&H 0.91
+
+=== Momentum (Mom factor) scaled by inverse of trailing 126-day realized vol, target 12% ann.; scale capped at 2x ===
+Mom raw [1930-2026.08]             CAGR   5.47%  vol  16.4%  Sharpe  0.42  maxDD  -78.4%  longest underwater 24.4y (1932-07..1956-11)
+Mom vol-scaled [1930-2026.08]      CAGR  12.16%  vol  16.4%  Sharpe  0.79  maxDD  -42.5%  longest underwater 13.8y (1932-07..1946-03)
+Mom raw [1930-1993.02]             CAGR   6.70%  vol  16.3%  Sharpe  0.49  maxDD  -78.4%  longest underwater 24.4y (1932-07..1956-11)
+Mom vol-scaled [1930-1993.02]      CAGR  14.45%  vol  17.4%  Sharpe  0.87  maxDD  -42.5%  longest underwater 13.8y (1932-07..1946-03)
+Mom raw [1993.03-2026.08]          CAGR   3.18%  vol  16.6%  Sharpe  0.28  maxDD  -57.8%  longest underwater 17.8y (2008-12..2026-08)
+Mom vol-scaled [1993.03-2026.08]   CAGR   7.96%  vol  14.3%  Sharpe  0.61  maxDD  -25.2%  longest underwater  3.4y (2008-12..2012-04)
+Mom raw [2010-2026.08]             CAGR   2.19%  vol  12.8%  Sharpe  0.23  maxDD  -25.4%  longest underwater  5.5y (2020-10..2026-03)
+Mom vol-scaled [2010-2026.08]      CAGR   4.46%  vol  11.2%  Sharpe  0.45  maxDD  -18.5%  longest underwater  2.2y (2016-02..2018-04)
+Mom raw [2020-2026.08]             CAGR   1.54%  vol  15.2%  Sharpe  0.18  maxDD  -25.4%  longest underwater  5.5y (2020-10..2026-03)
+Mom vol-scaled [2020-2026.08]      CAGR   3.89%  vol   9.5%  Sharpe  0.45  maxDD  -12.1%  longest underwater  2.1y (2020-04..2022-04)
+
+July/August 2026 and 2009 for raw vs scaled:
+              raw  scale  scaled
+0                               
+2009-03-31 -0.118  0.328  -0.039
+2009-04-30 -0.344  0.294  -0.101
+2009-05-31 -0.125  0.268  -0.034
+2023-01-31 -0.162  0.475  -0.077
+2026-05-31  0.014  0.682   0.009
+2026-06-30  0.046  0.649   0.030
+2026-07-31 -0.122  0.571  -0.070
+2026-08-31 -0.057  0.497  -0.028

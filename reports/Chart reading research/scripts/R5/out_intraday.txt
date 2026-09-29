@@ -1,0 +1,24 @@
+
+=== SPY: 15600 one-minute bars, 40 sessions, 2026-08-03 .. 2026-09-28
+session-level: median ER 0.043 (null p50 0.04, p95 0.13) | share of sessions with ER > 0.13 (null 95th pct): 0.07
+               median R2 0.31 (null median 0.44) | share with R2>0.8: 0.15 (null 0.15)
+               same-sign share of consecutive 1-min returns: mean 0.458 (null 0.500, sd 0.025 per session)
+pooled 1-min return autocorr (within session, n=15560): lag1=-0.015 lag2=-0.008 lag3=-0.003 lag4=-0.032 lag5=-0.015 lag10=+0.007
+   sd of 1-min return: 2.19 bps
+pooled 5-min return autocorr (n=3080): lag1=-0.086 lag2=+0.014 lag3=+0.003
+variance ratios (1-min returns, within sessions, mean not removed): VR(2)=0.991 VR(5)=0.972 VR(10)=0.912 VR(30)=0.959
+avg share of daily volume by 30-min bucket (09:30 first): 11.6 8.4 7.3 7.4 6.0 5.5 4.9 4.7 4.1 5.3 6.4 7.1 21.3
+relative 1-min volume vs same-minute 20-day median: p50 0.98 p90 2.31 p99 6.89 p99.9 30.08 (n=9750)
+median shares per trade in a 1-min bar: 49.4
+
+=== QQQ: 15600 one-minute bars, 40 sessions, 2026-08-03 .. 2026-09-28
+session-level: median ER 0.044 (null p50 0.04, p95 0.13) | share of sessions with ER > 0.13 (null 95th pct): 0.07
+               median R2 0.30 (null median 0.44) | share with R2>0.8: 0.05 (null 0.15)
+               same-sign share of consecutive 1-min returns: mean 0.467 (null 0.500, sd 0.025 per session)
+pooled 1-min return autocorr (within session, n=15560): lag1=-0.011 lag2=-0.016 lag3=+0.010 lag4=-0.034 lag5=-0.013 lag10=+0.014
+   sd of 1-min return: 3.51 bps
+pooled 5-min return autocorr (n=3080): lag1=-0.079 lag2=+0.023 lag3=-0.020
+variance ratios (1-min returns, within sessions, mean not removed): VR(2)=0.984 VR(5)=0.949 VR(10)=0.867 VR(30)=0.842
+avg share of daily volume by 30-min bucket (09:30 first): 14.6 10.0 8.6 7.7 6.6 6.3 4.9 4.7 4.5 5.3 5.0 6.1 15.6
+relative 1-min volume vs same-minute 20-day median: p50 0.96 p90 2.47 p99 7.78 p99.9 25.77 (n=9750)
+median shares per trade in a 1-min bar: 45.5

@@ -1,0 +1,44 @@
+{
+ "A2": {
+  "compared": 35,
+  "agree": 35,
+  "disagree": 0,
+  "ambiguous": 1,
+  "detail": []
+ },
+ "A4": {
+  "compared": 36,
+  "agree": 36,
+  "disagree": 0,
+  "ambiguous": 0,
+  "detail": []
+ },
+ "A7": {
+  "compared": 36,
+  "agree": 36,
+  "disagree": 0,
+  "ambiguous": 0,
+  "detail": []
+ },
+ "B4": {
+  "compared": 33,
+  "agree": 33,
+  "disagree": 0,
+  "ambiguous": 3,
+  "detail": []
+ },
+ "C1": {
+  "compared": 33,
+  "agree": 33,
+  "disagree": 0,
+  "ambiguous": 3,
+  "detail": []
+ },
+ "C2": {
+  "compared": 36,
+  "agree": 36,
+  "disagree": 0,
+  "ambiguous": 0,
+  "detail": []
+ }
+}

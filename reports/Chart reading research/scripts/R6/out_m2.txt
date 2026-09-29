@@ -1,0 +1,143 @@
+Mom factor 1927-01-31 2026-08-31 1196
+Deciles VW 1927-01-31 2026-08-31 ['Lo PRIOR', 'PRIOR 2', 'PRIOR 3'] ... EW 1927-01-31 2026-08-31
+
+=== Momentum factor (long-short, Fama-French UMD/Mom), value-weighted, before any trading cost ===
+1927-1993 (before Jegadeesh-Titman pub. Mar 1993) CAGR   7.47%  vol  16.1%  Sharpe  0.54  maxDD  -78.4%  longest underwater 24.4y (1932-07..1956-11)  mean   8.8%/yr  t= 4.4
+1993.03-2026.08 (after publication) CAGR   3.18%  vol  16.6%  Sharpe  0.28  maxDD  -57.8%  longest underwater 17.8y (2008-12..2026-08)  mean   4.6%/yr  t= 1.6
+2000-2026.08                       CAGR   0.60%  vol  17.6%  Sharpe  0.13  maxDD  -57.8%  longest underwater 17.8y (2008-12..2026-08)  mean   2.2%/yr  t= 0.7
+2010-2026.08                       CAGR   2.19%  vol  12.8%  Sharpe  0.23  maxDD  -25.4%  longest underwater  5.5y (2020-10..2026-03)  mean   3.0%/yr  t= 1.0
+2020-2026.08                       CAGR   1.54%  vol  15.2%  Sharpe  0.18  maxDD  -25.4%  longest underwater  5.5y (2020-10..2026-03)  mean   2.7%/yr  t= 0.5
+1927-2026.08                       CAGR   6.01%  vol  16.3%  Sharpe  0.45  maxDD  -78.4%  longest underwater 24.4y (1932-07..1956-11)  mean   7.4%/yr  t= 4.5
+
+Worst 12 months of Mom factor:
+0
+1932-08-31   -52.6
+1932-07-31   -45.6
+2009-04-30   -34.4
+1939-09-30   -31.4
+2001-01-31   -25.4
+1938-06-30   -24.9
+1931-06-30   -17.5
+1933-04-30   -17.0
+2002-11-30   -16.4
+2023-01-31   -16.2
+1975-01-31   -13.8
+1931-02-28   -13.6
+
+Mom by calendar year (%), 2015-2026(Aug):
+0
+2015    21.1
+2016   -18.2
+2017     3.8
+2018    10.7
+2019    -5.5
+2020    -0.9
+2021    -2.9
+2022    20.2
+2023   -20.5
+2024    18.5
+2025    -2.2
+2026     3.9
+
+Mom cumulative since 2019-01 (index=1 at start):
+0
+2019-01-31    0.914
+2020-01-31    1.002
+2021-01-31    0.977
+2022-01-31    0.887
+2023-01-31    0.915
+2024-01-31    0.916
+2025-01-31    1.040
+2026-02-28    1.071
+2026-03-31    1.088
+2026-04-30    1.191
+2026-05-31    1.208
+2026-06-30    1.264
+2026-07-31    1.110
+2026-08-31    1.046
+Mom max drawdown since 2019: -25.4 at 2021-03-31 ; current drawdown (Aug 2026): -17.2
+
+=== Long-only decile portfolios (Prior 12-2 return deciles): Hi = winners, Lo = losers; CRSP incl. delisted stocks, before trading costs ===
+
+-- VALUE-weighted
+  [1927-2026.08]
+     Market                          CAGR  10.33%  vol  18.4%  Sharpe  0.45  maxDD  -83.7%  longest underwater 15.3y (1929-09..1944-12)
+     Hi PRIOR (top decile)           CAGR  16.85%  vol  22.6%  Sharpe  0.66  maxDD  -75.8%  longest underwater  6.3y (1929-09..1935-12)
+     PRIOR 9 (2nd decile)            CAGR  12.91%  vol  19.1%  Sharpe  0.56  maxDD  -76.4%  longest underwater  7.2y (1937-03..1944-05)
+     Lo PRIOR (bottom decile)        CAGR  -0.82%  vol  33.9%  Sharpe  0.04  maxDD  -97.1%  longest underwater 97.6y (1929-02..2026-08)
+  [1927-1993.02]
+     Market                          CAGR   9.99%  vol  19.8%  Sharpe  0.40  maxDD  -83.7%  longest underwater 15.3y (1929-09..1944-12)
+     Hi PRIOR (top decile)           CAGR  17.93%  vol  22.8%  Sharpe  0.68  maxDD  -75.8%  longest underwater  6.3y (1929-09..1935-12)
+     PRIOR 9 (2nd decile)            CAGR  14.38%  vol  20.9%  Sharpe  0.58  maxDD  -76.4%  longest underwater  7.2y (1937-03..1944-05)
+     Lo PRIOR (bottom decile)        CAGR  -2.30%  vol  34.1%  Sharpe -0.02  maxDD  -97.1%  longest underwater 64.1y (1929-02..1993-02)
+  [1993.03-2026.08]
+     Market                          CAGR  11.00%  vol  15.3%  Sharpe  0.60  maxDD  -50.3%  longest underwater  6.0y (2000-09..2006-08)
+     Hi PRIOR (top decile)           CAGR  14.73%  vol  22.1%  Sharpe  0.63  maxDD  -51.3%  longest underwater  5.8y (2000-03..2005-12)
+     PRIOR 9 (2nd decile)            CAGR  10.06%  vol  15.1%  Sharpe  0.55  maxDD  -51.2%  longest underwater  5.2y (2007-11..2012-12)
+     Lo PRIOR (bottom decile)        CAGR   2.16%  vol  33.5%  Sharpe  0.15  maxDD  -90.1%  longest underwater 27.1y (1999-07..2026-07)
+  [2013-2026.08]
+     Market                          CAGR  14.98%  vol  14.7%  Sharpe  0.91  maxDD  -24.8%  longest underwater  1.9y (2022-01..2023-11)
+     Hi PRIOR (top decile)           CAGR  18.63%  vol  22.1%  Sharpe  0.81  maxDD  -31.2%  longest underwater  2.2y (2021-11..2023-12)
+     PRIOR 9 (2nd decile)            CAGR  12.15%  vol  14.5%  Sharpe  0.75  maxDD  -24.9%  longest underwater  2.3y (2021-11..2024-02)
+     Lo PRIOR (bottom decile)        CAGR   8.72%  vol  32.4%  Sharpe  0.36  maxDD  -50.9%  longest underwater  5.1y (2021-07..2026-07)
+  [2020-2026.08]
+     Market                          CAGR  15.30%  vol  17.5%  Sharpe  0.75  maxDD  -24.8%  longest underwater  1.9y (2022-01..2023-11)
+     Hi PRIOR (top decile)           CAGR  20.66%  vol  27.3%  Sharpe  0.72  maxDD  -31.2%  longest underwater  2.2y (2021-11..2023-12)
+     PRIOR 9 (2nd decile)            CAGR   8.98%  vol  17.3%  Sharpe  0.43  maxDD  -24.9%  longest underwater  2.3y (2021-11..2024-02)
+     Lo PRIOR (bottom decile)        CAGR  11.29%  vol  38.7%  Sharpe  0.39  maxDD  -48.2%  longest underwater  5.1y (2021-07..2026-07)
+
+-- EQUAL-weighted
+  [1927-2026.08]
+     Market                          CAGR  10.33%  vol  18.4%  Sharpe  0.45  maxDD  -83.7%  longest underwater 15.3y (1929-09..1944-12)
+     Hi PRIOR (top decile)           CAGR  19.14%  vol  25.1%  Sharpe  0.70  maxDD  -73.3%  longest underwater  5.9y (1929-09..1935-07)
+     PRIOR 9 (2nd decile)            CAGR  17.24%  vol  21.8%  Sharpe  0.69  maxDD  -77.3%  longest underwater  6.0y (1937-03..1943-02)
+     Lo PRIOR (bottom decile)        CAGR   4.27%  vol  38.4%  Sharpe  0.19  maxDD  -93.9%  longest underwater 14.2y (1928-12..1943-02)
+  [1927-1993.02]
+     Market                          CAGR   9.99%  vol  19.8%  Sharpe  0.40  maxDD  -83.7%  longest underwater 15.3y (1929-09..1944-12)
+     Hi PRIOR (top decile)           CAGR  21.28%  vol  26.1%  Sharpe  0.73  maxDD  -73.3%  longest underwater  5.9y (1929-09..1935-07)
+     PRIOR 9 (2nd decile)            CAGR  18.28%  vol  23.8%  Sharpe  0.67  maxDD  -77.3%  longest underwater  6.0y (1937-03..1943-02)
+     Lo PRIOR (bottom decile)        CAGR   5.22%  vol  40.0%  Sharpe  0.21  maxDD  -93.9%  longest underwater 14.2y (1928-12..1943-02)
+  [1993.03-2026.08]
+     Market                          CAGR  11.00%  vol  15.3%  Sharpe  0.60  maxDD  -50.3%  longest underwater  6.0y (2000-09..2006-08)
+     Hi PRIOR (top decile)           CAGR  15.01%  vol  23.2%  Sharpe  0.62  maxDD  -59.2%  longest underwater  5.3y (2007-11..2013-02)
+     PRIOR 9 (2nd decile)            CAGR  15.21%  vol  17.2%  Sharpe  0.77  maxDD  -52.2%  longest underwater  3.2y (2007-11..2011-01)
+     Lo PRIOR (bottom decile)        CAGR   2.41%  vol  35.0%  Sharpe  0.16  maxDD  -76.5%  longest underwater  6.7y (2014-03..2020-10)
+  [2013-2026.08]
+     Market                          CAGR  14.98%  vol  14.7%  Sharpe  0.91  maxDD  -24.8%  longest underwater  1.9y (2022-01..2023-11)
+     Hi PRIOR (top decile)           CAGR  12.48%  vol  22.0%  Sharpe  0.57  maxDD  -36.0%  longest underwater  3.3y (2021-07..2024-10)
+     PRIOR 9 (2nd decile)            CAGR  14.43%  vol  17.4%  Sharpe  0.77  maxDD  -28.6%  longest underwater  2.7y (2021-11..2024-06)
+     Lo PRIOR (bottom decile)        CAGR  -1.24%  vol  33.2%  Sharpe  0.07  maxDD  -76.5%  longest underwater  6.7y (2014-03..2020-10)
+  [2020-2026.08]
+     Market                          CAGR  15.30%  vol  17.5%  Sharpe  0.75  maxDD  -24.8%  longest underwater  1.9y (2022-01..2023-11)
+     Hi PRIOR (top decile)           CAGR  12.95%  vol  26.8%  Sharpe  0.48  maxDD  -36.0%  longest underwater  3.3y (2021-07..2024-10)
+     PRIOR 9 (2nd decile)            CAGR  13.97%  vol  21.0%  Sharpe  0.60  maxDD  -25.2%  longest underwater  2.7y (2021-11..2024-06)
+     Lo PRIOR (bottom decile)        CAGR  -1.70%  vol  39.7%  Sharpe  0.07  maxDD  -76.5%  longest underwater  5.2y (2021-07..2026-08)
+
+Top-decile (VW) minus market, by calendar year (pts), 2015-2026:
+       Mkt  HiVW  HiEW  HiVW-Mkt
+0                               
+2015   0.2   6.3  -2.3       6.1
+2016  13.6   6.3   4.9      -7.3
+2017  22.3  26.7  19.5       4.4
+2018  -5.0  -0.4  -9.1       4.6
+2019  30.6  28.1  27.0      -2.4
+2020  24.1  47.0  48.3      23.0
+2021  23.9  -5.0  14.2     -28.8
+2022 -19.9 -12.5 -13.0       7.4
+2023  26.7  24.1   9.9      -2.6
+2024  25.0  58.9  16.0      33.9
+2025  17.5   4.4   7.9     -13.1
+2026  12.7  38.8  11.0      26.1
+Share of years top decile VW beat market (all years): 0.703  since 1993: 0.588  since 2013: 0.643
+Hi VW + mkt 10m filter, cost 0bp [1927-2026.08] CAGR  14.55%  vol  18.3%  Sharpe  0.66  maxDD  -54.1%  longest underwater  6.3y (1929-09..1935-12)
+Hi VW + mkt 10m filter, cost 0bp [1993.03-2026.08] CAGR  13.48%  vol  17.5%  Sharpe  0.67  maxDD  -27.8%  longest underwater  3.7y (2000-03..2003-10)
+Hi VW + mkt 10m filter, cost 0bp [2013-2026.08] CAGR  11.54%  vol  17.6%  Sharpe  0.61  maxDD  -26.1%  longest underwater  2.2y (2021-11..2024-01)
+Hi EW + mkt 10m filter, cost 0bp [1927-2026.08] CAGR  16.65%  vol  20.5%  Sharpe  0.70  maxDD  -53.9%  longest underwater  6.1y (1929-09..1935-09)
+Hi EW + mkt 10m filter, cost 0bp [1993.03-2026.08] CAGR  13.37%  vol  18.7%  Sharpe  0.63  maxDD  -39.1%  longest underwater  5.2y (2021-07..2026-08)
+Hi EW + mkt 10m filter, cost 0bp [2013-2026.08] CAGR   8.40%  vol  17.8%  Sharpe  0.44  maxDD  -39.1%  longest underwater  5.2y (2021-07..2026-08)
+Hi VW + mkt 10m filter, cost 20bp [1927-2026.08] CAGR  14.22%  vol  18.3%  Sharpe  0.65  maxDD  -54.3%  longest underwater  6.3y (1929-09..1935-12)
+Hi VW + mkt 10m filter, cost 20bp [1993.03-2026.08] CAGR  13.16%  vol  17.5%  Sharpe  0.66  maxDD  -28.1%  longest underwater  3.7y (2000-03..2003-10)
+Hi VW + mkt 10m filter, cost 20bp [2013-2026.08] CAGR  11.18%  vol  17.6%  Sharpe  0.60  maxDD  -27.0%  longest underwater  2.2y (2018-09..2020-11)
+Hi EW + mkt 10m filter, cost 20bp [1927-2026.08] CAGR  16.31%  vol  20.5%  Sharpe  0.68  maxDD  -54.2%  longest underwater  6.1y (1929-09..1935-09)
+Hi EW + mkt 10m filter, cost 20bp [1993.03-2026.08] CAGR  13.05%  vol  18.7%  Sharpe  0.62  maxDD  -39.6%  longest underwater  5.2y (2021-07..2026-08)
+Hi EW + mkt 10m filter, cost 20bp [2013-2026.08] CAGR   8.05%  vol  17.8%  Sharpe  0.43  maxDD  -39.6%  longest underwater  5.2y (2021-07..2026-08)

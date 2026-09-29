@@ -1,0 +1,983 @@
+[
+  {
+    "id": "F01",
+    "name": "minutes_since_open",
+    "group": "calendar_time",
+    "definition": "k = number of completed regular-session 1-minute bars so far (k=1 at 09:31 ET). Decision time t is the end of bar k. On early-close days the session end comes from the calendar, not from a fixed 16:00. [catalog S4]",
+    "inputs": [
+      "exchange calendar: session open and close"
+    ],
+    "timeframes": [
+      "1m"
+    ],
+    "needs": "NYSE calendar (Alpaca market calendar/clock endpoint or a local calendar). No market data.",
+    "available_free": "yes",
+    "subjectivity": 0,
+    "lookahead_risks": "None if session open/close come from the calendar (half-days, DST). Do not hard-code 390 minutes."
+  },
+  {
+    "id": "F02",
+    "name": "session_phase",
+    "group": "calendar_time",
+    "definition": "Category from k: open_drive (k<=30), morning (31-120), midday (121-270), afternoon (271-360), close (361-390); bucket edges scale on half-days. Edges are our parameters, not evidence. [catalog S4, E2]",
+    "inputs": [
+      "F01"
+    ],
+    "timeframes": [
+      "1m"
+    ],
+    "needs": "Calendar only.",
+    "available_free": "yes",
+    "subjectivity": 0,
+    "lookahead_risks": "None. Bucket edges are arbitrary; changing them counts as a new trial (MT-G7)."
+  },
+  {
+    "id": "F03",
+    "name": "event_risk_today",
+    "group": "calendar_time",
+    "definition": "Highest impact class (NONE/MEDIUM/HIGH) among scheduled events dated today in a calendar built before the session, plus minutes_to_next_event and minutes_since_last_event. Unknown coverage is treated as BLOCK, not as 'no event'. [catalog S1]",
+    "inputs": [
+      "official calendars: Federal Reserve FOMC, BLS CPI/jobs, BEA GDP/PCE, others; repo file lab/scalp/live/events_2026.json"
+    ],
+    "timeframes": [
+      "1D",
+      "1m"
+    ],
+    "needs": "Official free web calendars (Fed FOMC and BLS CPI dates were verified in this research; other releases need checking). Not Alpaca market data.",
+    "available_free": "yes",
+    "subjectivity": 1,
+    "lookahead_risks": "Use the calendar as it stood before the session. Unscheduled events (speeches, geopolitics) are absent. Dates can move. Impact classes are a judgment call."
+  },
+  {
+    "id": "F04",
+    "name": "megacap_earnings_flag",
+    "group": "calendar_time",
+    "definition": "1 if any of the top-10 weights of SPY/QQQ reports after yesterday's close or before today's open (2 if after today's close). [catalog S2]",
+    "inputs": [
+      "earnings calendar",
+      "index weights"
+    ],
+    "timeframes": [
+      "1D"
+    ],
+    "needs": "External earnings calendar (company investor-relations pages or a vendor). Not on Alpaca.",
+    "available_free": "no",
+    "subjectivity": 0,
+    "lookahead_risks": "Use only dates and before-open/after-close timing announced before the session; estimated dates are not confirmed dates."
+  },
+  {
+    "id": "F05",
+    "name": "expiry_calendar_flags",
+    "group": "calendar_time",
+    "definition": "Integers/booleans: is_monthly_opex (third Friday, or the prior trading day if a holiday), is_quarterly_opex (Mar/Jun/Sep/Dec), days_to_month_end, is_half_day, is_day_before_holiday. [catalog S3]",
+    "inputs": [
+      "exchange calendar"
+    ],
+    "timeframes": [
+      "1D"
+    ],
+    "needs": "Calendar only (Alpaca calendar endpoint or local).",
+    "available_free": "yes",
+    "subjectivity": 0,
+    "lookahead_risks": "None. Rebalance dates and VIX-expiry weekday were not verified; do not add them without a source."
+  },
+  {
+    "id": "F06",
+    "name": "daily_trend_state",
+    "group": "trend_mtf",
+    "definition": "Score -2..+2 = sign(C_prev - SMA50_prev) + sign(SMA50_prev - SMA200_prev), from completed daily bars up to yesterday. [catalog C1, C4, A1]",
+    "inputs": [
+      "daily close, SPY and QQQ"
+    ],
+    "timeframes": [
+      "1D"
+    ],
+    "needs": "Alpaca daily bars, SIP history since 2016 (free when older than 15 minutes).",
+    "available_free": "yes",
+    "subjectivity": 0,
+    "lookahead_risks": "Exclude today's forming daily bar. Keep raw versus dividend-adjusted series consistent. SMA200 needs 200 completed daily bars."
+  },
+  {
+    "id": "F07",
+    "name": "price_vs_daily_ma_atr",
+    "group": "trend_mtf",
+    "definition": "(P_t - SMA20_daily_prev) / ATR14_daily_prev, where P_t is the last completed 1-minute close and the daily values are as of yesterday. [catalog C3, K1]",
+    "inputs": [
+      "1m close",
+      "daily close and range"
+    ],
+    "timeframes": [
+      "1m",
+      "1D"
+    ],
+    "needs": "Alpaca 1-minute and daily bars.",
+    "available_free": "yes",
+    "subjectivity": 0,
+    "lookahead_risks": "Daily inputs must end yesterday. Live P_t comes from IEX bars and may differ slightly from SIP history."
+  },
+  {
+    "id": "F08",
+    "name": "weekly_trend_state",
+    "group": "trend_mtf",
+    "definition": "Score -2..+2 = sign(C_w - SMA10_w) + sign(SMA10_w - SMA30_w) from the last completed weekly bar (built from daily bars; a holiday week ends on its last trading day). [catalog A1, C4]",
+    "inputs": [
+      "daily bars aggregated to weekly"
+    ],
+    "timeframes": [
+      "1W"
+    ],
+    "needs": "Alpaca daily bars since 2016; 30 weekly bars need about 30 weeks of history.",
+    "available_free": "yes",
+    "subjectivity": 0,
+    "lookahead_risks": "Never use the current week's forming bar. Week boundaries with holidays are a common bug."
+  },
+  {
+    "id": "F09",
+    "name": "ema_stack_5m",
+    "group": "trend_mtf",
+    "definition": "(EMA9>EMA20) + (EMA20>EMA50) - (EMA9<EMA20) - (EMA20<EMA50) on completed 5-minute closes; range -2..+2. EMAs use alpha=2/(n+1), SMA-seeded, warmed up over at least 250 5-minute bars including prior sessions. [catalog C1]",
+    "inputs": [
+      "5m close from 1m bars"
+    ],
+    "timeframes": [
+      "5m"
+    ],
+    "needs": "Alpaca 1-minute bars aggregated to 5 minutes (IEX live, SIP history).",
+    "available_free": "yes",
+    "subjectivity": 0,
+    "lookahead_risks": "Exclude the forming 5m bar. Overnight gaps sit inside the warm-up. Live IEX bars are not identical to SIP bars (small price differences)."
+  },
+  {
+    "id": "F10",
+    "name": "ema20_slope_5m_atr",
+    "group": "trend_mtf",
+    "definition": "(EMA20_t - EMA20_(t-6 bars)) / (6 x ATR14_5m) on completed 5m bars: slope in ATR per bar. |slope|<0.02 treated as flat (our parameter). [catalog C2]",
+    "inputs": [
+      "5m close",
+      "ATR14 5m"
+    ],
+    "timeframes": [
+      "5m"
+    ],
+    "needs": "Alpaca 1-minute bars.",
+    "available_free": "yes",
+    "subjectivity": 0,
+    "lookahead_risks": "Completed bars only; slope thresholds are parameters."
+  },
+  {
+    "id": "F11",
+    "name": "mtf_alignment_score",
+    "group": "trend_mtf",
+    "definition": "Mean over frames {weekly, daily, 60m, 15m, 5m} of sign(last completed close - EMA20), each frame from its own last CLOSED bar; range -1..+1. Weekly and daily are as of the prior session. [catalog A1]",
+    "inputs": [
+      "closed bars per frame"
+    ],
+    "timeframes": [
+      "1W",
+      "1D",
+      "60m",
+      "15m",
+      "5m"
+    ],
+    "needs": "Alpaca daily and 1-minute bars aggregated by us.",
+    "available_free": "yes",
+    "subjectivity": 1,
+    "lookahead_risks": "Classic bug: using the forming higher-timeframe bar. Frames are built from the same prices, so agreement is not independent confirmation."
+  },
+  {
+    "id": "F12",
+    "name": "swing_structure_5m",
+    "group": "trend_mtf",
+    "definition": "From the last two CONFIRMED fractal swing highs and lows (N=3 bars on each side) on 5m bars: +1 if higher high and higher low, -1 if lower high and lower low, 0 otherwise; also bars_since_last_confirmation. A swing at bar j is confirmed only when bar j+3 has completed. [catalog B1, B2]",
+    "inputs": [
+      "5m high and low"
+    ],
+    "timeframes": [
+      "5m"
+    ],
+    "needs": "Alpaca 1-minute bars.",
+    "available_free": "yes",
+    "subjectivity": 1,
+    "lookahead_risks": "Swing at bar j is known only after bar j+N: store confirmed_at and never use it earlier. Libraries that look N bars forward leak the future."
+  },
+  {
+    "id": "F13",
+    "name": "break_of_structure_5m",
+    "group": "trend_mtf",
+    "definition": "+1 if the last completed 5m CLOSE is above the most recent confirmed swing high, -1 if below the most recent confirmed swing low, else 0; change_of_character=1 on the first break against the prior trend. [catalog B3]",
+    "inputs": [
+      "5m close",
+      "confirmed swings from F12"
+    ],
+    "timeframes": [
+      "5m"
+    ],
+    "needs": "Alpaca 1-minute bars.",
+    "available_free": "yes",
+    "subjectivity": 1,
+    "lookahead_risks": "Use closes, not the forming bar's wick; use only confirmed swings. Educators define BOS/CHoCH differently."
+  },
+  {
+    "id": "F14",
+    "name": "adx_di",
+    "group": "trend_mtf",
+    "definition": "Wilder ADX(14), +DI and -DI on completed 5m bars and on daily bars (prior session); outputs ADX and sign(+DI - -DI). [catalog J4]",
+    "inputs": [
+      "high, low, close"
+    ],
+    "timeframes": [
+      "5m",
+      "1D"
+    ],
+    "needs": "Alpaca bars.",
+    "available_free": "yes",
+    "subjectivity": 0,
+    "lookahead_risks": "Wilder smoothing needs about 150 bars to settle; warm up. Completed bars only."
+  },
+  {
+    "id": "F15",
+    "name": "regression_trend_30m",
+    "group": "trend_mtf",
+    "definition": "OLS slope (per minute, divided by ATR14_1m) and R-squared of the last 30 completed 1-minute closes. [catalog B4]",
+    "inputs": [
+      "1m close"
+    ],
+    "timeframes": [
+      "1m"
+    ],
+    "needs": "Alpaca 1-minute bars.",
+    "available_free": "yes",
+    "subjectivity": 0,
+    "lookahead_risks": "Completed bars only. Slope over a short window is noisy."
+  },
+  {
+    "id": "F16",
+    "name": "vwap_distance_atr",
+    "group": "vwap",
+    "definition": "VWAP_t = sum(TP_i x v_i) / sum(v_i) over completed bars since 09:30, TP=(h+l+c)/3; feature = (P_t - VWAP_t) / ATR14_5m. [catalog D1]",
+    "inputs": [
+      "1m high, low, close, volume"
+    ],
+    "timeframes": [
+      "1m"
+    ],
+    "needs": "Alpaca 1-minute bars. Volume-based: live IEX volume is about 2.5% of SIP volume, so it is not the same measurement as the SIP backtest.",
+    "available_free": "delayed",
+    "subjectivity": 0,
+    "lookahead_risks": "Completed bars only. Feed mismatch (MT-G35): compute on the same feed for backtest and live, or keep shadow-only. Few data points early in the day."
+  },
+  {
+    "id": "F17",
+    "name": "vwap_sigma_z",
+    "group": "vwap",
+    "definition": "sigma_t^2 = sum(v_i x (TP_i - VWAP_t)^2) / sum(v_i); z_t = (P_t - VWAP_t) / sigma_t; undefined before 15 completed minutes. [catalog D2]",
+    "inputs": [
+      "1m high, low, close, volume"
+    ],
+    "timeframes": [
+      "1m"
+    ],
+    "needs": "Alpaca 1-minute bars (volume-based).",
+    "available_free": "delayed",
+    "subjectivity": 1,
+    "lookahead_risks": "Running sums must not include the forming bar. sigma definition differs between vendors; ours is volume-weighted about the current VWAP."
+  },
+  {
+    "id": "F18",
+    "name": "vwap_side_streak_and_crosses",
+    "group": "vwap",
+    "definition": "Signed count of consecutive completed 1-minute closes on the same side of VWAP (positive above), and the number of side changes since 09:30 (a chop measure). [catalog D1]",
+    "inputs": [
+      "1m close",
+      "VWAP"
+    ],
+    "timeframes": [
+      "1m"
+    ],
+    "needs": "Alpaca 1-minute bars (volume-based).",
+    "available_free": "delayed",
+    "subjectivity": 0,
+    "lookahead_risks": "Completed bars only. High cross counts mean a range day; the cost of trading flips is large."
+  },
+  {
+    "id": "F19",
+    "name": "anchored_vwap_prior_day_extremes",
+    "group": "vwap",
+    "definition": "AVWAP anchored at the START of the minute bar that made yesterday's regular-session low, and another at the high: sum from anchor to t of TP x v over sum of v; feature = (P_t - AVWAP)/ATR14_5m for each. [catalog D3]",
+    "inputs": [
+      "yesterday's 1m bars",
+      "today's 1m bars"
+    ],
+    "timeframes": [
+      "1m"
+    ],
+    "needs": "Alpaca 1-minute bars (volume-based).",
+    "available_free": "delayed",
+    "subjectivity": 1,
+    "lookahead_risks": "Anchors are yesterday's, already complete. Do not anchor at today's swing before it is confirmed (hindsight). Anchor rule is a design choice."
+  },
+  {
+    "id": "F20",
+    "name": "rvol_5m_time_of_day",
+    "group": "volume",
+    "definition": "Sum of volume over the last 5 completed 1m bars divided by the mean of the same 5 minute-of-day slots' sums over the previous 20 sessions (baseline excludes today; missing minutes count as 0). [catalog E1, E2]",
+    "inputs": [
+      "1m volume, today and prior 20 sessions"
+    ],
+    "timeframes": [
+      "1m",
+      "5m"
+    ],
+    "needs": "Alpaca 1-minute bars; a minute with no eligible trade has no bar.",
+    "available_free": "delayed",
+    "subjectivity": 0,
+    "lookahead_risks": "Baseline must exclude today and use the same feed. Alpaca emits no bar for empty minutes; treat consistently. Early closes and opex days distort baselines."
+  },
+  {
+    "id": "F21",
+    "name": "rvol_cumulative_time_of_day",
+    "group": "volume",
+    "definition": "Cumulative volume since the open divided by the mean cumulative volume at the same minute over the previous 20 sessions. [catalog E2]",
+    "inputs": [
+      "1m volume"
+    ],
+    "timeframes": [
+      "1m"
+    ],
+    "needs": "Alpaca 1-minute bars.",
+    "available_free": "delayed",
+    "subjectivity": 0,
+    "lookahead_risks": "Exclude today from its own baseline; align by minutes since open (half-days differ)."
+  },
+  {
+    "id": "F22",
+    "name": "volume_climax_flag",
+    "group": "volume",
+    "definition": "1 if z_vol >= 3 and the last completed 5m bar's range >= 2 x ATR14_5m, where z_vol=(vol - mean20)/sd20 for the same time slot over 20 sessions; also returns the bar's CLV=((c-l)-(h-c))/(h-l). [catalog E1, E4]",
+    "inputs": [
+      "5m volume, range, close"
+    ],
+    "timeframes": [
+      "5m"
+    ],
+    "needs": "Alpaca 1-minute bars.",
+    "available_free": "delayed",
+    "subjectivity": 1,
+    "lookahead_risks": "Completed bar only. Thresholds are ours. 'Climax' is judged with hindsight in books; here it is only a flag."
+  },
+  {
+    "id": "F23",
+    "name": "updown_volume_ratio_30m",
+    "group": "volume",
+    "definition": "Sum of volume of up bars (c>o) divided by sum of volume of down bars (c<o) over the last 30 completed 1m bars; a bar-colour stand-in for delta. [catalog E3, P3]",
+    "inputs": [
+      "1m open, close, volume"
+    ],
+    "timeframes": [
+      "1m"
+    ],
+    "needs": "Alpaca 1-minute bars.",
+    "available_free": "delayed",
+    "subjectivity": 0,
+    "lookahead_risks": "Completed bars only. Bar colour is a crude proxy for who was aggressive."
+  },
+  {
+    "id": "F24",
+    "name": "signed_volume_tick_rule_30m",
+    "group": "volume",
+    "definition": "Sum over trades in the last 30 completed minutes of size x sign, sign=+1 if price > previous trade price, -1 if lower, carry the previous sign if equal (tick rule). [catalog P1, P3]",
+    "inputs": [
+      "trades: price, size, timestamp, conditions"
+    ],
+    "timeframes": [
+      "tick",
+      "1m"
+    ],
+    "needs": "Alpaca trades: SIP history (free after 15 minutes); live free trades are IEX only.",
+    "available_free": "delayed",
+    "subjectivity": 0,
+    "lookahead_risks": "Use trades with timestamps before t only. Exclude conditions that do not update price. IEX prints are a small biased sample; tick rule misclassifies many trades."
+  },
+  {
+    "id": "F25",
+    "name": "prior_day_levels_distance",
+    "group": "levels",
+    "definition": "Signed distances (P_t - PDH), (P_t - PDL), (P_t - PDC) in ATR14_daily_prev units, plus a location code: above PDH / inside / below PDL. PDC=closing-auction price when available. [catalog F1]",
+    "inputs": [
+      "yesterday's regular-session high, low, close"
+    ],
+    "timeframes": [
+      "1D",
+      "1m"
+    ],
+    "needs": "Alpaca daily/minute bars and the historical auctions endpoint (SIP only).",
+    "available_free": "yes",
+    "subjectivity": 0,
+    "lookahead_risks": "Levels come from the previous regular session only. Daily bars and minute bars follow different update rules in Alpaca (odd lots, extended hours); take all levels from one source."
+  },
+  {
+    "id": "F26",
+    "name": "gap_open_atr",
+    "group": "levels",
+    "definition": "gap = official_open_today - official_close_prev (auction prices); gap_pct = gap/close_prev; gap_atr = gap/ATR14_daily_prev; fixed once at 09:31. [catalog G1]",
+    "inputs": [
+      "opening auction price",
+      "previous closing auction price"
+    ],
+    "timeframes": [
+      "1D"
+    ],
+    "needs": "Alpaca historical auctions (SIP only) for research; live fallback is the first regular trade.",
+    "available_free": "delayed",
+    "subjectivity": 0,
+    "lookahead_risks": "The first 1-minute bar's open is not the official opening-cross price. Never use the day's high or low to describe the gap."
+  },
+  {
+    "id": "F27",
+    "name": "gap_fill_fraction",
+    "group": "levels",
+    "definition": "For a gap up: (open - min low so far)/(open - close_prev), capped at 1; mirrored for gap down; 0 when no gap; filled=1 when price has traded at close_prev. [catalog G2]",
+    "inputs": [
+      "open",
+      "prior close",
+      "lows/highs so far"
+    ],
+    "timeframes": [
+      "1m"
+    ],
+    "needs": "Alpaca 1-minute bars.",
+    "available_free": "yes",
+    "subjectivity": 0,
+    "lookahead_risks": "Uses lows so far only. 'All gaps get filled' is false for breakaway/runaway gaps (StockCharts)."
+  },
+  {
+    "id": "F28",
+    "name": "premarket_range_position",
+    "group": "levels",
+    "definition": "(P_t - PML)/(PMH - PML), PMH/PML=max/min price 04:00-09:29 ET from SIP extended-hours data; plus (PMH-PML)/ATR14_daily_prev. Undefined if the range is zero. [catalog F2]",
+    "inputs": [
+      "extended-hours 1m bars"
+    ],
+    "timeframes": [
+      "1m"
+    ],
+    "needs": "Alpaca SIP history with extended hours. Live free IEX trades only from 08:00 ET, so the live value is not comparable.",
+    "available_free": "delayed",
+    "subjectivity": 0,
+    "lookahead_risks": "Minutes without eligible trades have no bars. Feed coverage differs (04:00 versus 08:00). Compute on SIP for backtests and flag the feed."
+  },
+  {
+    "id": "F29",
+    "name": "opening_range_state",
+    "group": "levels",
+    "definition": "For n in {5,15,30}: after the n-th minute completes, ORH/ORL=max high/min low of bars 09:30..09:30+n; state=+1 above ORH, -1 below ORL, else 0; distance to the nearer edge in ATR14_5m; width/ATR14_daily_prev. [catalog F3, R4]",
+    "inputs": [
+      "1m high, low, close"
+    ],
+    "timeframes": [
+      "1m"
+    ],
+    "needs": "Alpaca 1-minute bars (IEX live, SIP history).",
+    "available_free": "yes",
+    "subjectivity": 0,
+    "lookahead_risks": "Undefined until the window has closed. IEX extremes can differ slightly from SIP extremes."
+  },
+  {
+    "id": "F30",
+    "name": "weekly_levels_distance",
+    "group": "levels",
+    "definition": "Distances in ATR14_daily_prev units from P_t to the prior week's high and low and to this week's high and low so far. [catalog F4]",
+    "inputs": [
+      "daily highs/lows",
+      "today's so-far high/low"
+    ],
+    "timeframes": [
+      "1W",
+      "1D"
+    ],
+    "needs": "Alpaca daily bars since 2016.",
+    "available_free": "yes",
+    "subjectivity": 0,
+    "lookahead_risks": "Prior week only from completed days; this week's extremes use days already closed plus today's so-far values."
+  },
+  {
+    "id": "F31",
+    "name": "round_number_distance",
+    "group": "levels",
+    "definition": "Distance in ATR14_5m units from P_t to the nearest multiple of $5 and of $10, using RAW (unadjusted) prices. R=5 and 10 are our choice. [catalog F5]",
+    "inputs": [
+      "1m close (raw)"
+    ],
+    "timeframes": [
+      "1m"
+    ],
+    "needs": "Alpaca bars requested with raw (unadjusted) prices.",
+    "available_free": "yes",
+    "subjectivity": 1,
+    "lookahead_risks": "Dividend-adjusted series shift historical levels, and the adjustment factor depends on later events. Use raw prices for this feature only."
+  },
+  {
+    "id": "F32",
+    "name": "pivot_points_daily",
+    "group": "levels",
+    "definition": "P=(H+L+C)/3 of the prior day; R1=2P-L, S1=2P-H, R2=P+(H-L), S2=P-(H-L); features: signed distance to P and to the nearest of R1/R2/S1/S2 in ATR units. Numeric formulas are standard but were not verified in the source text. [catalog F6]",
+    "inputs": [
+      "prior-day high, low, close"
+    ],
+    "timeframes": [
+      "1D",
+      "1m"
+    ],
+    "needs": "Alpaca daily bars.",
+    "available_free": "yes",
+    "subjectivity": 0,
+    "lookahead_risks": "Prior period only. Levels are static all day."
+  },
+  {
+    "id": "F33",
+    "name": "prior_day_value_area",
+    "group": "levels",
+    "definition": "From yesterday's regular-session 1m bars: allocate each bar's volume at its typical price into $0.05 bins; POC=max bin; VAH/VAL=smallest contiguous range around POC holding 70% of volume, grown one bin at a time toward the larger neighbour; features: open location (inside/above/below) and distance of P_t to POC/VAH/VAL in ATR. Bin size and allocation rule are our choices. [catalog E5, F8]",
+    "inputs": [
+      "yesterday's 1m high, low, close, volume"
+    ],
+    "timeframes": [
+      "1D",
+      "1m"
+    ],
+    "needs": "Alpaca SIP 1-minute bars (trade-level data is better).",
+    "available_free": "delayed",
+    "subjectivity": 1,
+    "lookahead_risks": "Only yesterday's completed profile. Do not build 'today's' profile from bars after t. Bin size and volume allocation change POC."
+  },
+  {
+    "id": "F34",
+    "name": "bar_shape_5m",
+    "group": "candles_momentum",
+    "definition": "For the last completed 5m bar: body/range, upper_shadow/range, lower_shadow/range, CLV=((c-l)-(h-c))/(h-l), inside_bar, outside_bar; plus signed run length of same-colour 5m bars and run displacement in ATR14_5m. Raw metrics, not named patterns. [catalog H1, H2]",
+    "inputs": [
+      "5m open, high, low, close"
+    ],
+    "timeframes": [
+      "5m"
+    ],
+    "needs": "Alpaca 1-minute bars aggregated.",
+    "available_free": "yes",
+    "subjectivity": 0,
+    "lookahead_risks": "Completed bar only. Candle shape depends on the data source (IEX-only bars differ from SIP bars); named patterns multiply trials."
+  },
+  {
+    "id": "F35",
+    "name": "rsi14",
+    "group": "candles_momentum",
+    "definition": "Wilder RSI(14): first averages are simple means of 14 gains/losses, then avg=(prev x 13 + current)/14; RSI=100-100/(1+AvgGain/AvgLoss); on completed 5m bars and on daily bars (prior session). [catalog J1]",
+    "inputs": [
+      "close"
+    ],
+    "timeframes": [
+      "5m",
+      "1D"
+    ],
+    "needs": "Alpaca bars.",
+    "available_free": "yes",
+    "subjectivity": 0,
+    "lookahead_risks": "Values depend on history length; warm up at least 250 bars. Completed bars only."
+  },
+  {
+    "id": "F36",
+    "name": "macd_hist_5m",
+    "group": "candles_momentum",
+    "definition": "MACD=EMA12(c)-EMA26(c); signal=EMA9(MACD); histogram=MACD-signal, and its 1-bar change, on completed 5m closes. [catalog J2]",
+    "inputs": [
+      "5m close"
+    ],
+    "timeframes": [
+      "5m"
+    ],
+    "needs": "Alpaca bars.",
+    "available_free": "yes",
+    "subjectivity": 0,
+    "lookahead_risks": "Completed bars only; warm up over prior sessions."
+  },
+  {
+    "id": "F37",
+    "name": "stochastic_14_3_3_5m",
+    "group": "candles_momentum",
+    "definition": "%K=(close - LL14)/(HH14 - LL14) x 100, smoothed once with a 3-bar SMA; %D=3-bar SMA of that (slow 14,3,3) on completed 5m bars. [catalog J3]",
+    "inputs": [
+      "5m high, low, close"
+    ],
+    "timeframes": [
+      "5m"
+    ],
+    "needs": "Alpaca bars.",
+    "available_free": "yes",
+    "subjectivity": 0,
+    "lookahead_risks": "Completed bars only."
+  },
+  {
+    "id": "F38",
+    "name": "return_30m_z",
+    "group": "candles_momentum",
+    "definition": "(P_t - P_(t-30min)) / (sigma_1m x sqrt(30)), where sigma_1m is the standard deviation of 1-minute returns at the same time slots over the previous 20 sessions (excludes today). [catalog K6]",
+    "inputs": [
+      "1m close, prior 20 sessions"
+    ],
+    "timeframes": [
+      "1m"
+    ],
+    "needs": "Alpaca 1-minute bars.",
+    "available_free": "yes",
+    "subjectivity": 0,
+    "lookahead_risks": "Baseline excludes today. Missing minutes must be handled the same way live and in history."
+  },
+  {
+    "id": "F39",
+    "name": "atr14_multi",
+    "group": "volatility_range",
+    "definition": "Wilder ATR(14) on 1m and 5m (completed bars) and on daily bars (prior session); also ATR as a percent of price. TR=max(h-l,|h-prev c|,|l-prev c|). [catalog K1]",
+    "inputs": [
+      "high, low, close"
+    ],
+    "timeframes": [
+      "1m",
+      "5m",
+      "1D"
+    ],
+    "needs": "Alpaca bars.",
+    "available_free": "yes",
+    "subjectivity": 0,
+    "lookahead_risks": "Completed bars only. Daily ATR must end yesterday."
+  },
+  {
+    "id": "F40",
+    "name": "realized_vol_ratio",
+    "group": "volatility_range",
+    "definition": "RV60=sqrt(sum of squared 1-minute log returns over the last 60 completed minutes); ratio to the median RV60 at the same time of day over the previous 20 sessions. [catalog K6]",
+    "inputs": [
+      "1m close"
+    ],
+    "timeframes": [
+      "1m"
+    ],
+    "needs": "Alpaca 1-minute bars.",
+    "available_free": "yes",
+    "subjectivity": 0,
+    "lookahead_risks": "Baseline excludes today. Bid-ask bounce inflates 1-minute RV; keep the same feed."
+  },
+  {
+    "id": "F41",
+    "name": "bollinger_pctb_bandwidth_5m",
+    "group": "volatility_range",
+    "definition": "middle=SMA20(c), bands=middle +/- 2 x SD20(c); %b=(c-lower)/(upper-lower); BandWidth=(upper-lower)/middle x 100; plus BandWidth percentile over the last 120 bars; completed 5m bars. [catalog K2]",
+    "inputs": [
+      "5m close"
+    ],
+    "timeframes": [
+      "5m"
+    ],
+    "needs": "Alpaca bars.",
+    "available_free": "yes",
+    "subjectivity": 0,
+    "lookahead_risks": "Completed bars only. Bollinger's own rule: a band tag is not a signal."
+  },
+  {
+    "id": "F42",
+    "name": "squeeze_state_5m",
+    "group": "volatility_range",
+    "definition": "on = BB(20,2) upper < KC upper and BB lower > KC lower with KC = EMA20 +/- 1.5 x ATR20; also bars_in_squeeze and just_fired (turned off on the last completed bar). Keltner variants differ; this is ours. [catalog K3, K4]",
+    "inputs": [
+      "5m high, low, close"
+    ],
+    "timeframes": [
+      "5m"
+    ],
+    "needs": "Alpaca bars.",
+    "available_free": "yes",
+    "subjectivity": 1,
+    "lookahead_risks": "Completed bars only. State carries no direction. Variant choice changes the signal count."
+  },
+  {
+    "id": "F43",
+    "name": "nr7_inside_day_prior",
+    "group": "volatility_range",
+    "definition": "NR7=1 if the prior day's range is smaller than each of the 6 days before it; NR4 likewise with 3 days; inside_day=1 if the prior high <= the day-before high and the prior low >= the day-before low. [catalog K5]",
+    "inputs": [
+      "daily high, low"
+    ],
+    "timeframes": [
+      "1D"
+    ],
+    "needs": "Alpaca daily bars since 2016.",
+    "available_free": "yes",
+    "subjectivity": 0,
+    "lookahead_risks": "Prior completed day only. Use one range definition (absolute range, as Crabel did)."
+  },
+  {
+    "id": "F44",
+    "name": "day_range_used",
+    "group": "volatility_range",
+    "definition": "(HOD - LOD) so far divided by ATR14_daily_prev; and, when VIX1D is available, divided by open x VIX1D/sqrt(252)/100 (approximate expected move). [catalog K6, M2]",
+    "inputs": [
+      "1m high, low",
+      "ATR14 daily",
+      "VIX1D (optional)"
+    ],
+    "timeframes": [
+      "1m",
+      "1D"
+    ],
+    "needs": "Alpaca bars; VIX1D is not on Alpaca.",
+    "available_free": "yes",
+    "subjectivity": 0,
+    "lookahead_risks": "HOD/LOD so far only. The VIX1D part is optional and needs an outside source."
+  },
+  {
+    "id": "F45",
+    "name": "initial_balance_state",
+    "group": "volatility_range",
+    "definition": "After 10:30 ET: IB=high/low of bars 09:30-10:29; IB width/ATR14_daily_prev; extension_up=max(0,HOD-IBH)/IB width and extension_down likewise; state in {inside, ext_up, ext_down, both}. Before 10:30 only the developing IB is reported. Thresholds are ours. [catalog E6, R1]",
+    "inputs": [
+      "1m high, low"
+    ],
+    "timeframes": [
+      "1m"
+    ],
+    "needs": "Alpaca 1-minute bars.",
+    "available_free": "yes",
+    "subjectivity": 1,
+    "lookahead_risks": "Do not label the FINAL day type (trend, neutral...) as an input; it is known only at the close. Only IB width, open location and extension so far are causal."
+  },
+  {
+    "id": "F46",
+    "name": "advance_decline_proxy",
+    "group": "breadth_internals",
+    "definition": "Among N index constituents (S&P 500 preferred, point-in-time list): 100 x (count(last price > prior close) - count(last price < prior close)) / N; also coverage = share of names with a trade in the last 2 minutes. PROXY for NYSE ADD. [catalog L2]",
+    "inputs": [
+      "snapshots: latest trade, previous daily close, for ~500 symbols"
+    ],
+    "timeframes": [
+      "1m"
+    ],
+    "needs": "Alpaca multi-symbol snapshots (latest trade and previous daily bar); free IEX live; 200 REST calls a minute.",
+    "available_free": "yes",
+    "subjectivity": 1,
+    "lookahead_risks": "Point-in-time constituents avoid survivorship bias. IEX last trades can be stale for quiet names: skip stale ones and report coverage."
+  },
+  {
+    "id": "F47",
+    "name": "tick_proxy_1m",
+    "group": "breadth_internals",
+    "definition": "Among constituents: count(last completed 1m close > previous 1m close) - count(<), divided by N. PROXY for NYSE TICK; not the same measurement. [catalog L1]",
+    "inputs": [
+      "1m bars for ~500 symbols"
+    ],
+    "timeframes": [
+      "1m"
+    ],
+    "needs": "Alpaca 1-minute bars for constituents (SIP history; live IEX bars are sparse for quiet names).",
+    "available_free": "delayed",
+    "subjectivity": 1,
+    "lookahead_risks": "Completed bars only. Real $TICK is trade-by-trade; this is a bar-level stand-in and will differ."
+  },
+  {
+    "id": "F48",
+    "name": "pct_above_vwap_proxy",
+    "group": "breadth_internals",
+    "definition": "Share of constituents whose last completed 1m close is above their own session VWAP. Practitioner extension, no source verified. [catalog L5]",
+    "inputs": [
+      "1m bars and volume for constituents"
+    ],
+    "timeframes": [
+      "1m"
+    ],
+    "needs": "Alpaca 1-minute bars for constituents (volume-based).",
+    "available_free": "delayed",
+    "subjectivity": 1,
+    "lookahead_risks": "Own-VWAP uses completed bars only; feed mismatch for volume; survivorship if the list is today's."
+  },
+  {
+    "id": "F49",
+    "name": "ad_volume_trin_proxy",
+    "group": "breadth_internals",
+    "definition": "adv/dec = count up / count down versus prior close; advvol/decvol = volume of advancing constituents / volume of declining ones; TRIN_proxy=(adv/dec)/(advvol/decvol). [catalog L3, L4]",
+    "inputs": [
+      "constituent price vs prior close",
+      "constituent volume so far"
+    ],
+    "timeframes": [
+      "1m"
+    ],
+    "needs": "Alpaca snapshots/bars for constituents (volume-based).",
+    "available_free": "delayed",
+    "subjectivity": 1,
+    "lookahead_risks": "Ratios blow up when a denominator is near zero: cap them. Feed mismatch for volume."
+  },
+  {
+    "id": "F50",
+    "name": "sector_leadership",
+    "group": "sector_relative_strength",
+    "definition": "For the 11 Select Sector SPDR ETFs: return since open minus SPY's return since open; outputs: rank per sector, mean of top 3 minus mean of bottom 3, and risk_on_spread = mean(XLK,XLY,XLC) - mean(XLU,XLP,XLV) (our grouping). [catalog O2]",
+    "inputs": [
+      "1m or latest-trade prices for 11 sector ETFs and SPY"
+    ],
+    "timeframes": [
+      "1m",
+      "1D"
+    ],
+    "needs": "Alpaca bars/snapshots. 12 symbols fit inside the free 30-symbol WebSocket limit.",
+    "available_free": "yes",
+    "subjectivity": 1,
+    "lookahead_risks": "Since-open returns use the first regular trade; IEX prints can be sparse in small ETFs. Sector weights are dominated by a few stocks."
+  },
+  {
+    "id": "F51",
+    "name": "qqq_spy_relative_strength",
+    "group": "sector_relative_strength",
+    "definition": "RS=QQQ/SPY (price relative); outputs: return of RS since open, slope over the last 30 completed minutes in bps per minute, and RS versus its 20-day mean. [catalog O1]",
+    "inputs": [
+      "1m close QQQ, SPY"
+    ],
+    "timeframes": [
+      "1m",
+      "1D"
+    ],
+    "needs": "Alpaca bars.",
+    "available_free": "yes",
+    "subjectivity": 0,
+    "lookahead_risks": "Completed bars only; both series aligned on the same timestamps."
+  },
+  {
+    "id": "F52",
+    "name": "vix_daily_context",
+    "group": "vol_complex_cross_asset",
+    "definition": "Prior-day VIX close, its 1-day change, its 252-day percentile, and expected daily move VIX/sqrt(252) percent (rough). [catalog M1]",
+    "inputs": [
+      "VIX daily close"
+    ],
+    "timeframes": [
+      "1D"
+    ],
+    "needs": "Not on Alpaca. VIX daily close is on FRED (series VIXCLS, verified) and on Cboe pages; license terms not checked.",
+    "available_free": "no",
+    "subjectivity": 0,
+    "lookahead_risks": "VIX is disseminated until 16:15 ET, after the equity close, and FRED posts it later; use only the PRIOR day's value. Never use today's final VIX before it exists."
+  },
+  {
+    "id": "F53",
+    "name": "vix1d_and_term_structure",
+    "group": "vol_complex_cross_asset",
+    "definition": "VIX1D/VIX ratio (intraday, from 09:31 ET), VIX3M/VIX - 1 and VIX9D versus VIX (daily). [catalog M2, M3]",
+    "inputs": [
+      "VIX1D, VIX, VIX3M, VIX9D"
+    ],
+    "timeframes": [
+      "1m",
+      "1D"
+    ],
+    "needs": "Not on Alpaca. Cboe publishes the indices (methodology verified); data access route not verified.",
+    "available_free": "no",
+    "subjectivity": 1,
+    "lookahead_risks": "VIX1D history begins in 2022 (launched 24 April 2023). Use values as of t only. VIX1D changes mechanically as the day passes."
+  },
+  {
+    "id": "F54",
+    "name": "cross_asset_etf_proxies",
+    "group": "vol_complex_cross_asset",
+    "definition": "Return since open of TLT (rates; price moves opposite to yields), UUP (dollar), USO (oil), GLD, and HYG minus IEF (credit); risk_on flag when SPY up, TLT down and HYG-IEF up. ETF tickers are standard; not each verified. [catalog N2-N5]",
+    "inputs": [
+      "latest trade or 1m close for ETFs"
+    ],
+    "timeframes": [
+      "1m",
+      "1D"
+    ],
+    "needs": "Alpaca bars/snapshots (IEX live; SIP history).",
+    "available_free": "yes",
+    "subjectivity": 1,
+    "lookahead_risks": "Sparse IEX prints: use the last trade not older than 2 minutes or skip. Correlations flip between regimes."
+  },
+  {
+    "id": "F55",
+    "name": "futures_overnight_change",
+    "group": "vol_complex_cross_asset",
+    "definition": "ES and NQ futures change from the prior cash close to 09:29 ET; premium to fair value. [catalog N1] Proxy on our data: F28.",
+    "inputs": [
+      "ES and NQ prices"
+    ],
+    "timeframes": [
+      "1m"
+    ],
+    "needs": "Not on Alpaca (no futures endpoints in its documentation index).",
+    "available_free": "no",
+    "subjectivity": 0,
+    "lookahead_risks": "Use futures values at or before t. Cash-close alignment and carry adjustments."
+  },
+  {
+    "id": "F56",
+    "name": "spread_and_quote_imbalance",
+    "group": "options_flow",
+    "definition": "Quoted spread in bps of the midpoint, and top-of-book size imbalance (bid_size - ask_size)/(bid_size + ask_size) from the latest quote. IEX top of book is not the national best bid and offer. [catalog P2]",
+    "inputs": [
+      "latest quote: bid, ask, sizes, timestamp"
+    ],
+    "timeframes": [
+      "tick",
+      "1m"
+    ],
+    "needs": "Alpaca latest quotes (IEX live). SIP quote history free after 15 minutes.",
+    "available_free": "yes",
+    "subjectivity": 0,
+    "lookahead_risks": "Use the last quote with a timestamp at or before t; drop stale or crossed quotes. IEX-only quotes are wider than the NBBO."
+  },
+  {
+    "id": "F57",
+    "name": "option_open_interest_walls",
+    "group": "options_flow",
+    "definition": "For SPY/QQQ options expiring today, the next weekly and the next monthly: strike with the largest call OI above spot, the largest put OI below spot, total call and put OI within +/-3% of spot, and distance of P_t to each strike in ATR14_5m. [catalog Q5]",
+    "inputs": [
+      "option contracts: strike, expiration, type, open_interest, open_interest_date"
+    ],
+    "timeframes": [
+      "1D"
+    ],
+    "needs": "Alpaca option contracts endpoint (open_interest, open_interest_date; free). It returns only current OI: save a snapshot every day to build history.",
+    "available_free": "yes",
+    "subjectivity": 1,
+    "lookahead_risks": "OI is published once a day: use the value dated before today. Same-day 0DTE trades are not in OI."
+  },
+  {
+    "id": "F58",
+    "name": "gex_proxy_and_flip",
+    "group": "options_flow",
+    "definition": "Per-strike dollar GEX = gamma x OI x 100 x S^2 x 0.01, with calls positive and puts negative (a convention, not data); summed; flip level = spot at which the recomputed total crosses zero. Gamma from our own Black-Scholes using mid-quote IV, because Alpaca omits Greeks for 0DTE. [catalog Q6]",
+    "inputs": [
+      "option chain: quotes, OI, expiry",
+      "spot"
+    ],
+    "timeframes": [
+      "1D",
+      "1m"
+    ],
+    "needs": "Alpaca option chain snapshots (indicative feed: quotes not actual OPRA, trades delayed 15 minutes) and contract OI.",
+    "available_free": "delayed",
+    "subjectivity": 2,
+    "lookahead_risks": "OI from before today; IV from the indicative feed is unreliable when bid/ask are wide; sign convention is the model. Vendors disagree. Shadow-only."
+  },
+  {
+    "id": "F59",
+    "name": "options_sentiment_daily",
+    "group": "options_flow",
+    "definition": "Prior-day Cboe total/index/equity put-call ratios, SKEW index (100 - 10 x S), and SPX 0DTE share of SPX volume. [catalog M4, Q4, Q7]",
+    "inputs": [
+      "Cboe daily statistics"
+    ],
+    "timeframes": [
+      "1D"
+    ],
+    "needs": "Not on Alpaca. Cboe statistics pages; terms of use and download route not verified.",
+    "available_free": "no",
+    "subjectivity": 1,
+    "lookahead_risks": "Publication lag: use the prior day's value only. Definitions and exchange coverage change over time."
+  }
+]

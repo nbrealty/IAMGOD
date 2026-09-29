@@ -1,0 +1,131 @@
+{
+  "_note": "Frozen setup versions (MT-G10). Change a parameter or a listed code file -> CODE_HASH_MISMATCH at startup and the setup runs shadow-only until a new version is registered. EXPLORATORY: 1 share, results never count as proof of an edge. model_slip_bps = the lab backtest's 'realistic' cost per side (lab/scalp/backtest.py COSTS['realistic'], 1.5 bps): MT-G3 holds a setup in shadow when its median slippage over >= 30 fills passes 1.5x it, MT-G13 at 2x. backtest_mean_r is null because the backtest has no R for the live bracket (overlay stops, 1 share): the MT-G13 CUSUM stays OFF until a baseline is registered. uses_volume (MT-G35): a setup that decides on volume runs shadow-only on the IEX live feed.",
+  "account_last4": "GWRL",
+  "test_start": null,
+  "setups": [
+    {
+      "setup_id": "ORB5_QQQ",
+      "symbol": "QQQ",
+      "version": 1,
+      "lane": "EXPLORATORY",
+      "source": "Zarattini & Aziz (2023), Can Day Trading Really Be Profitable? SSRN 4416622 https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4416622 ; tested in reports/Minute trading backtest results.md (lost after costs out of sample)",
+      "registered": "2026-09-28",
+      "params": {
+        "overlay_stop_pct": null,
+        "overlay_target_pct": null
+      },
+      "code_hash": "40f041cb5f30624965b8de535e73819d864133a41b47f97fa6888ade17ffdd3c",
+      "code_files": [
+        "lab/scalp/signals.py",
+        "lab/scalp/live/sizing.py",
+        "lab/scalp/live/orders.py"
+      ],
+      "opening_window": true,
+      "tested_on_release_days": true,
+      "feed_live": "IEX",
+      "feed_backtest": "SIP",
+      "backtest_mean_r": null,
+      "model_slip_bps": 1.5,
+      "uses_volume": false,
+      "max_hold": "until_flatten",
+      "deviations": [
+        "Long only: short signals are rejected as SHORT_DISABLED and logged as shadow trades (shorts need the owner's OK).",
+        "Everything is flat by 15:50 (MT-G20 flatten), not at the backtest's 15:55 open.",
+        "Live bars and quotes are IEX (real time, free plan); the backtest used SIP bars (FEED_MISMATCH, MT-G35).",
+        "Entry is a marketable buy limit at ask + min($0.02, 0.05%) sent a second or so after the signal bar closes; the backtest filled at the next bar's open with a modelled cost.",
+        "The stop leg is a stop-limit with its limit max($0.05, half the stop distance) below the stop, so a fast drop can leave it unfilled (then the stop watchdog sells); the backtest filled stops at the stop price.",
+        "Size is 1 share (EXPLORATORY lane); the backtest used $1,000 of notional per trade.",
+        "Half days are not traded (the backtest skipped them).",
+        "Target is 10R measured from the entry limit (not the fill); stop is the other end of the first 5-minute candle, rounded down to the cent.",
+        "The paper sized at 1% risk with up to 4x leverage; here it is 1 share.",
+        "Guardrail change 2026-09-28 (owner-approved Notes 1 Patch C; a guardrail fix is exempt from the MT-G10 20-session rule and no v1 trade exists yet, so the version stays 1): no entry when [decision, decision + ENTRY_TIMEOUT_S + max hold (max_hold until_flatten = the 15:50 flatten) + 60 s exit allowance] meets any scheduled event window [t - 5 min, t + 10 min] (every 08:30 / 10:00 release in the calendar, the FOMC statement 14:00 and press conference 14:30): EVENT_HORIZON_OVERLAP. The backtest had no such filter, so days with an in-session release or an FOMC afternoon are skipped here and not in the backtest.",
+        "Guardrail change 2026-09-28 (owner-approved Notes 1 Patch G, same exemption): after a halt (status HALTED) or a suspected halt (data fresh but no trade in the symbol for 60 s after 09:35: HALT_SUSPECTED) no new entries in that symbol for the rest of the session, kept across a restart; exits are unaffected. The backtest had no halt rule.",
+        "With the whole hold checked, ORB5's 9:35 entry is refused on every day with a 10:00 release (and on FOMC days), which the backtest traded."
+      ]
+    },
+    {
+      "setup_id": "LAST30_MOM_SPY",
+      "symbol": "SPY",
+      "version": 1,
+      "lane": "EXPLORATORY",
+      "source": "Gao, Han, Li & Zhou (2018), Market Intraday Momentum, Journal of Financial Economics 129 https://www.sciencedirect.com/science/article/abs/pii/S0304405X18301351 ; tested in reports/Minute trading backtest results.md (lost after costs out of sample)",
+      "registered": "2026-09-28",
+      "params": {
+        "overlay_stop_pct": 0.005,
+        "overlay_target_pct": 0.01
+      },
+      "code_hash": "01fd80539ac90ae71710099648c95daa0f3458dbe145eb11e66c77020c8130ea",
+      "code_files": [
+        "lab/scalp/signals.py",
+        "lab/scalp/live/sizing.py",
+        "lab/scalp/live/orders.py"
+      ],
+      "opening_window": false,
+      "tested_on_release_days": true,
+      "feed_live": "IEX",
+      "feed_backtest": "SIP",
+      "backtest_mean_r": null,
+      "model_slip_bps": 1.5,
+      "uses_volume": false,
+      "max_hold": "until_flatten",
+      "deviations": [
+        "Long only: short signals are rejected as SHORT_DISABLED and logged as shadow trades (shorts need the owner's OK).",
+        "Everything is flat by 15:50 (MT-G20 flatten), not at the backtest's 15:55 open.",
+        "Live bars and quotes are IEX (real time, free plan); the backtest used SIP bars (FEED_MISMATCH, MT-G35).",
+        "Entry is a marketable buy limit at ask + min($0.02, 0.05%) sent a second or so after the signal bar closes; the backtest filled at the next bar's open with a modelled cost.",
+        "The stop leg is a stop-limit with its limit max($0.05, half the stop distance) below the stop, so a fast drop can leave it unfilled (then the stop watchdog sells); the backtest filled stops at the stop price.",
+        "Size is 1 share (EXPLORATORY lane); the backtest used $1,000 of notional per trade.",
+        "Half days are not traded (the backtest skipped them).",
+        "Overlay bracket added (the backtest had no stop or target): stop 0.5% and target 1.0% from the entry limit, because MT-G16 needs a bracket.",
+        "The papers hold to the 16:00 close; the backtest used the 15:55 open; live is flat by 15:50, so the trade lasts about 20 minutes, not 25-30.",
+        "On FOMC days the 15:30 entry falls in the FOMC blackout (13:58-15:30:59) and is skipped.",
+        "Guardrail change 2026-09-28 (owner-approved Notes 1 Patch C; a guardrail fix is exempt from the MT-G10 20-session rule and no v1 trade exists yet, so the version stays 1): no entry when [decision, decision + ENTRY_TIMEOUT_S + max hold (max_hold until_flatten = the 15:50 flatten) + 60 s exit allowance] meets any scheduled event window [t - 5 min, t + 10 min] (every 08:30 / 10:00 release in the calendar, the FOMC statement 14:00 and press conference 14:30): EVENT_HORIZON_OVERLAP. The backtest had no such filter, so days with an in-session release or an FOMC afternoon are skipped here and not in the backtest.",
+        "Guardrail change 2026-09-28 (owner-approved Notes 1 Patch G, same exemption): after a halt (status HALTED) or a suspected halt (data fresh but no trade in the symbol for 60 s after 09:35: HALT_SUSPECTED) no new entries in that symbol for the rest of the session, kept across a restart; exits are unaffected. The backtest had no halt rule.",
+        "A 15:30 entry holds to 15:50 (+60 s): it is refused only when an event window reaches into 15:30-15:51 (the FOMC blackout already skips FOMC days)."
+      ]
+    },
+    {
+      "setup_id": "NOISE_MOM_SPY",
+      "symbol": "SPY",
+      "version": 1,
+      "lane": "EXPLORATORY",
+      "source": "Zarattini, Aziz & Barbon (2024), Beat the Market: An Effective Intraday Momentum Strategy for SPY, SSRN 4824172 https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4824172 ; tested in reports/Minute trading backtest results.md (lost after costs out of sample)",
+      "registered": "2026-09-28",
+      "params": {
+        "overlay_stop_pct": 0.005,
+        "overlay_target_pct": 0.01
+      },
+      "code_hash": "01fd80539ac90ae71710099648c95daa0f3458dbe145eb11e66c77020c8130ea",
+      "code_files": [
+        "lab/scalp/signals.py",
+        "lab/scalp/live/sizing.py",
+        "lab/scalp/live/orders.py"
+      ],
+      "opening_window": false,
+      "tested_on_release_days": true,
+      "feed_live": "IEX",
+      "feed_backtest": "SIP",
+      "backtest_mean_r": null,
+      "model_slip_bps": 1.5,
+      "uses_volume": true,
+      "max_hold": "until_flatten",
+      "deviations": [
+        "Long only: short signals are rejected as SHORT_DISABLED and logged as shadow trades (shorts need the owner's OK).",
+        "Everything is flat by 15:50 (MT-G20 flatten), not at the backtest's 15:55 open.",
+        "Live bars and quotes are IEX (real time, free plan); the backtest used SIP bars (FEED_MISMATCH, MT-G35).",
+        "Entry is a marketable buy limit at ask + min($0.02, 0.05%) sent a second or so after the signal bar closes; the backtest filled at the next bar's open with a modelled cost.",
+        "The stop leg is a stop-limit with its limit max($0.05, half the stop distance) below the stop, so a fast drop can leave it unfilled (then the stop watchdog sells); the backtest filled stops at the stop price.",
+        "Size is 1 share (EXPLORATORY lane); the backtest used $1,000 of notional per trade.",
+        "Half days are not traded (the backtest skipped them).",
+        "Overlay bracket added (the backtest had none): stop 0.5% and target 1.0% from the entry limit (MT-G16); the setup's own band/VWAP exits still go out as EXIT orders.",
+        "A reverse signal (long to short) only exits: the short side is not taken.",
+        "The paper sized at min(4x, 2% / daily volatility); here it is 1 share.",
+        "The 10:00 check is skipped on days with a 10:00 release (release blackout 9:58-10:05).",
+        "Its band_or_vwap exit uses the session VWAP, i.e. volume (MT-G35): on the free IEX live feed the VWAP is built from a few % of trades, so the setup runs SHADOW-only (decisions logged, no orders) until it runs on a SIP live feed.",
+        "Guardrail change 2026-09-28 (owner-approved Notes 1 Patch C; a guardrail fix is exempt from the MT-G10 20-session rule and no v1 trade exists yet, so the version stays 1): no entry when [decision, decision + ENTRY_TIMEOUT_S + max hold (max_hold until_flatten = the 15:50 flatten) + 60 s exit allowance] meets any scheduled event window [t - 5 min, t + 10 min] (every 08:30 / 10:00 release in the calendar, the FOMC statement 14:00 and press conference 14:30): EVENT_HORIZON_OVERLAP. The backtest had no such filter, so days with an in-session release or an FOMC afternoon are skipped here and not in the backtest.",
+        "Guardrail change 2026-09-28 (owner-approved Notes 1 Patch G, same exemption): after a halt (status HALTED) or a suspected halt (data fresh but no trade in the symbol for 60 s after 09:35: HALT_SUSPECTED) no new entries in that symbol for the rest of the session, kept across a restart; exits are unaffected. The backtest had no halt rule.",
+        "Its :00 / :30 checks are refused until 10:10 on days with a 10:00 release and all day on FOMC days (the hold runs to the 15:50 flatten)."
+      ]
+    }
+  ]
+}

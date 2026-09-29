@@ -1,0 +1,4987 @@
+{
+ "c_0001.png": {
+  "session": "R03",
+  "kind": "real",
+  "symbol": "SPY",
+  "date": "2026-08-11",
+  "post_cutoff": true,
+  "chart_type": "C",
+  "daily_source": "evals",
+  "matched_session": "X02",
+  "truth": {
+   "C1": "yes",
+   "C2": "yes",
+   "C3": "up",
+   "C4": {
+    "direction": "down",
+    "third": "middle third"
+   },
+   "C5": null
+  },
+  "metrics": {
+   "C1": {
+    "close_vs_sma50_pct": 3.482426828777352
+   },
+   "C2": {
+    "sma20_vs_sma50_pct": 0.5816793483366389
+   },
+   "C3": {
+    "net60_pct": 4.219489120151376
+   },
+   "C4": {
+    "gap_pct": -1.42212645613089,
+    "candle_number": 27,
+    "second_largest_abs_pct": 1.3617701657159031,
+    "ratio_largest_to_second": 1.044321936208124
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "C4_runner_up_gap_within_15pct"
+  ]
+ },
+ "c_0002.png": {
+  "session": "X11",
+  "kind": "synthetic",
+  "symbol": "QQQ",
+  "date": "2026-08-31",
+  "post_cutoff": true,
+  "chart_type": "B",
+  "daily_source": "evals",
+  "matched_session": "R21",
+  "truth": {
+   "B1": "flat",
+   "B2": "range",
+   "B3": "down",
+   "B4": "below",
+   "B5": "yes",
+   "B6": null,
+   "B7": "up"
+  },
+  "metrics": {
+   "B1": {
+    "chg_pct": -0.1371722911971629
+   },
+   "B2": {
+    "net_over_range": 0.17043478260867903
+   },
+   "B3": {
+    "ema_last_minus_5_earlier_pct": -0.08264330400179487
+   },
+   "B4": {
+    "close_vs_vwap_pct": -0.16942354216651356
+   },
+   "B5": {
+    "range_0930_1029_pct": 0.6676651316434056,
+    "range_1100_1159_pct": 0.4143163081057678
+   },
+   "B7": {
+    "close_1159": 713.45,
+    "close_1229": 714.28,
+    "move_pct": 0.11633611325250204
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "B1_within_0.03pp_of_threshold"
+  ],
+  "note": "symbol/date are those of the matched real session; the price path itself is synthetic"
+ },
+ "c_0003.png": {
+  "session": "R14",
+  "kind": "real",
+  "symbol": "QQQ",
+  "date": "2026-08-10",
+  "post_cutoff": true,
+  "chart_type": "C",
+  "daily_source": "evals",
+  "matched_session": "X08",
+  "truth": {
+   "C1": "yes",
+   "C2": "no",
+   "C3": "flat",
+   "C4": {
+    "direction": "down",
+    "third": "middle third"
+   },
+   "C5": null
+  },
+  "metrics": {
+   "C1": {
+    "close_vs_sma50_pct": 1.2208783967671
+   },
+   "C2": {
+    "sma20_vs_sma50_pct": -1.9559728138109245
+   },
+   "C3": {
+    "net60_pct": 1.9535881655468268
+   },
+   "C4": {
+    "gap_pct": -3.010119645134157,
+    "candle_number": 28,
+    "second_largest_abs_pct": 2.3228674631842194,
+    "ratio_largest_to_second": 1.295863708473424
+   }
+  },
+  "flags": [],
+  "soft_flags": []
+ },
+ "c_0004.png": {
+  "session": "X08",
+  "kind": "synthetic",
+  "symbol": "QQQ",
+  "date": "2026-08-10",
+  "post_cutoff": true,
+  "chart_type": "A",
+  "daily_source": "evals",
+  "matched_session": "R14",
+  "truth": {
+   "A1": "up",
+   "A2": "above",
+   "A3": "5+",
+   "A4": "second",
+   "A5": ">0.50%",
+   "A6": "yes",
+   "A7": "09:30-09:39",
+   "A8": null
+  },
+  "metrics": {
+   "A1": {
+    "chg_pct": 0.5709217892577945
+   },
+   "A2": {
+    "close_vs_vwap_pct": 0.42720168801633207
+   },
+   "A3": {
+    "crosses": 7
+   },
+   "A4": {
+    "highest_high_bar": 59,
+    "bars_at_that_high": 1,
+    "first_half_high_minus_second_half_high_pct": -0.38523363449919246
+   },
+   "A5": {
+    "range_pct": 0.7621528740092013
+   },
+   "A6": {
+    "first15_high": 723.2,
+    "max_close_after_0945": 725.76,
+    "margin_pct": 0.3539823008849474
+   },
+   "A7": {
+    "peak_bar": 0,
+    "bars_at_peak": 1,
+    "peak_over_best_bar_in_other_blocks": 1.1870670076667746
+   }
+  },
+  "flags": [],
+  "soft_flags": [],
+  "note": "symbol/date are those of the matched real session; the price path itself is synthetic"
+ },
+ "c_0005.png": {
+  "session": "R17",
+  "kind": "real",
+  "symbol": "QQQ",
+  "date": "2026-08-20",
+  "post_cutoff": true,
+  "chart_type": "B",
+  "daily_source": "evals",
+  "matched_session": "X09",
+  "truth": {
+   "B1": "flat",
+   "B2": "range",
+   "B3": "down",
+   "B4": "below",
+   "B5": "no",
+   "B6": null,
+   "B7": "up"
+  },
+  "metrics": {
+   "B1": {
+    "chg_pct": -0.07450622056652811
+   },
+   "B2": {
+    "net_over_range": 0.11018711018710316
+   },
+   "B3": {
+    "ema_last_minus_5_earlier_pct": -0.08052777174869519
+   },
+   "B4": {
+    "close_vs_vwap_pct": -0.11237544084256035
+   },
+   "B5": {
+    "range_0930_1029_pct": 0.546847543403402,
+    "range_1100_1159_pct": 0.6368173191818335
+   },
+   "B7": {
+    "close_1159": 710.82,
+    "close_1229": 711.1,
+    "move_pct": 0.039391125742094246
+   }
+  },
+  "flags": [],
+  "soft_flags": []
+ },
+ "c_0006.png": {
+  "session": "X08",
+  "kind": "synthetic",
+  "symbol": "QQQ",
+  "date": "2026-08-10",
+  "post_cutoff": true,
+  "chart_type": "C",
+  "daily_source": "evals",
+  "matched_session": "R14",
+  "truth": {
+   "C1": "no",
+   "C2": "yes",
+   "C3": "flat",
+   "C4": {
+    "direction": "down",
+    "third": "first third"
+   },
+   "C5": null
+  },
+  "metrics": {
+   "C1": {
+    "close_vs_sma50_pct": -4.289410042337338
+   },
+   "C2": {
+    "sma20_vs_sma50_pct": 1.3873612917705724
+   },
+   "C3": {
+    "net60_pct": -2.9424092547573166
+   },
+   "C4": {
+    "gap_pct": -2.104795549256455,
+    "candle_number": 3,
+    "second_largest_abs_pct": 2.064073616495543,
+    "ratio_largest_to_second": 1.0197289149163444
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "C3_within_0.5pp_of_threshold",
+   "C4_runner_up_gap_within_15pct"
+  ],
+  "note": "symbol/date are those of the matched real session; the price path itself is synthetic"
+ },
+ "c_0007.png": {
+  "session": "R13",
+  "kind": "real",
+  "symbol": "QQQ",
+  "date": "2026-08-07",
+  "post_cutoff": true,
+  "chart_type": "C",
+  "daily_source": "evals",
+  "matched_session": "X07",
+  "truth": {
+   "C1": "yes",
+   "C2": "no",
+   "C3": "flat",
+   "C4": {
+    "direction": "down",
+    "third": "middle third"
+   },
+   "C5": null
+  },
+  "metrics": {
+   "C1": {
+    "close_vs_sma50_pct": 0.03217126321528596
+   },
+   "C2": {
+    "sma20_vs_sma50_pct": -1.9540819672223098
+   },
+   "C3": {
+    "net60_pct": 1.0188054506091504
+   },
+   "C4": {
+    "gap_pct": -3.010119645134157,
+    "candle_number": 29,
+    "second_largest_abs_pct": 2.3228674631842194,
+    "ratio_largest_to_second": 1.295863708473424
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "C1_close_within_0.2pct_of_sma50"
+  ]
+ },
+ "c_0008.png": {
+  "session": "R20",
+  "kind": "real",
+  "symbol": "QQQ",
+  "date": "2026-08-28",
+  "post_cutoff": true,
+  "chart_type": "A",
+  "daily_source": "evals",
+  "matched_session": "X10",
+  "truth": {
+   "A1": "flat",
+   "A2": "above",
+   "A3": "5+",
+   "A4": "second",
+   "A5": ">0.50%",
+   "A6": "no",
+   "A7": "10:20-10:29",
+   "A8": null
+  },
+  "metrics": {
+   "A1": {
+    "chg_pct": 0.07510326699211589
+   },
+   "A2": {
+    "close_vs_vwap_pct": 0.10629044799181919
+   },
+   "A3": {
+    "crosses": 11
+   },
+   "A4": {
+    "highest_high_bar": 30,
+    "bars_at_that_high": 1,
+    "first_half_high_minus_second_half_high_pct": -0.011126409924763344
+   },
+   "A5": {
+    "range_pct": 0.6745386016884358
+   },
+   "A6": {
+    "first15_high": 720.77,
+    "max_close_after_0945": 720.67,
+    "margin_pct": -0.013874051361739692
+   },
+   "A7": {
+    "peak_bar": 50,
+    "bars_at_peak": 1,
+    "peak_over_best_bar_in_other_blocks": 1.9406044009093224
+   }
+  },
+  "flags": [],
+  "soft_flags": []
+ },
+ "c_0009.png": {
+  "session": "X09",
+  "kind": "synthetic",
+  "symbol": "QQQ",
+  "date": "2026-08-20",
+  "post_cutoff": true,
+  "chart_type": "C",
+  "daily_source": "evals",
+  "matched_session": "R17",
+  "truth": {
+   "C1": "yes",
+   "C2": "yes",
+   "C3": "up",
+   "C4": {
+    "direction": "down",
+    "third": "middle third"
+   },
+   "C5": null
+  },
+  "metrics": {
+   "C1": {
+    "close_vs_sma50_pct": 15.26487109453145
+   },
+   "C2": {
+    "sma20_vs_sma50_pct": 3.380272736127421
+   },
+   "C3": {
+    "net60_pct": 25.300765585125774
+   },
+   "C4": {
+    "gap_pct": -3.0099495554750444,
+    "candle_number": 24,
+    "second_largest_abs_pct": 2.323257952995661,
+    "ratio_largest_to_second": 1.2955726898917737
+   }
+  },
+  "flags": [],
+  "soft_flags": [],
+  "note": "symbol/date are those of the matched real session; the price path itself is synthetic"
+ },
+ "c_0010.png": {
+  "session": "X12",
+  "kind": "synthetic",
+  "symbol": "QQQ",
+  "date": "2026-09-16",
+  "post_cutoff": true,
+  "chart_type": "B",
+  "daily_source": "evals",
+  "matched_session": "R24",
+  "truth": {
+   "B1": "up",
+   "B2": "trend",
+   "B3": "up",
+   "B4": "above",
+   "B5": "yes",
+   "B6": null,
+   "B7": "up"
+  },
+  "metrics": {
+   "B1": {
+    "chg_pct": 0.5485959901591952
+   },
+   "B2": {
+    "net_over_range": 0.7791164658634501
+   },
+   "B3": {
+    "ema_last_minus_5_earlier_pct": 0.04292332849027414
+   },
+   "B4": {
+    "close_vs_vwap_pct": 0.1666138478602308
+   },
+   "B5": {
+    "range_0930_1029_pct": 0.5797019483641126,
+    "range_1100_1159_pct": 0.2615728303594184
+   },
+   "B7": {
+    "close_1159": 711.14,
+    "close_1229": 711.29,
+    "move_pct": 0.021092893101215537
+   }
+  },
+  "flags": [],
+  "soft_flags": [],
+  "note": "symbol/date are those of the matched real session; the price path itself is synthetic"
+ },
+ "c_0011.png": {
+  "session": "X07",
+  "kind": "synthetic",
+  "symbol": "QQQ",
+  "date": "2026-08-07",
+  "post_cutoff": true,
+  "chart_type": "C",
+  "daily_source": "evals",
+  "matched_session": "R13",
+  "truth": {
+   "C1": "yes",
+   "C2": "no",
+   "C3": "down",
+   "C4": {
+    "direction": "down",
+    "third": "first third"
+   },
+   "C5": null
+  },
+  "metrics": {
+   "C1": {
+    "close_vs_sma50_pct": 1.8661536266110446
+   },
+   "C2": {
+    "sma20_vs_sma50_pct": -0.7478773879616596
+   },
+   "C3": {
+    "net60_pct": -4.850044028523559
+   },
+   "C4": {
+    "gap_pct": -3.3069144575020526,
+    "candle_number": 12,
+    "second_largest_abs_pct": 3.103723354915311,
+    "ratio_largest_to_second": 1.0654668858501681
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "C4_runner_up_gap_within_15pct"
+  ],
+  "note": "symbol/date are those of the matched real session; the price path itself is synthetic"
+ },
+ "c_0012.png": {
+  "session": "X07",
+  "kind": "synthetic",
+  "symbol": "QQQ",
+  "date": "2026-08-07",
+  "post_cutoff": true,
+  "chart_type": "B",
+  "daily_source": "evals",
+  "matched_session": "R13",
+  "truth": {
+   "B1": "down",
+   "B2": "range",
+   "B3": "down",
+   "B4": "below",
+   "B5": "yes",
+   "B6": null,
+   "B7": "up"
+  },
+  "metrics": {
+   "B1": {
+    "chg_pct": -0.7075340561579102
+   },
+   "B2": {
+    "net_over_range": 0.44184027777778123
+   },
+   "B3": {
+    "ema_last_minus_5_earlier_pct": -0.07138738438599024
+   },
+   "B4": {
+    "close_vs_vwap_pct": -0.36082042844362006
+   },
+   "B5": {
+    "range_0930_1029_pct": 1.1523491798721106,
+    "range_1100_1159_pct": 0.3252710592160178
+   },
+   "B7": {
+    "close_1159": 714.31,
+    "close_1229": 715.86,
+    "move_pct": 0.21699262225085558
+   }
+  },
+  "flags": [],
+  "soft_flags": [],
+  "note": "symbol/date are those of the matched real session; the price path itself is synthetic"
+ },
+ "c_0013.png": {
+  "session": "X04",
+  "kind": "synthetic",
+  "symbol": "SPY",
+  "date": "2026-09-15",
+  "post_cutoff": true,
+  "chart_type": "B",
+  "daily_source": "evals",
+  "matched_session": "R09",
+  "truth": {
+   "B1": "flat",
+   "B2": "range",
+   "B3": "up",
+   "B4": "above",
+   "B5": "yes",
+   "B6": null,
+   "B7": "down"
+  },
+  "metrics": {
+   "B1": {
+    "chg_pct": 0.1345202769535092
+   },
+   "B2": {
+    "net_over_range": 0.27199999999999513
+   },
+   "B3": {
+    "ema_last_minus_5_earlier_pct": 0.05318515017977976
+   },
+   "B4": {
+    "close_vs_vwap_pct": 0.22483753576589827
+   },
+   "B5": {
+    "range_0930_1029_pct": 0.4510385756676504,
+    "range_1100_1159_pct": 0.28618529508736684
+   },
+   "B7": {
+    "close_1159": 759.27,
+    "close_1229": 757.86,
+    "move_pct": -0.1857046900312076
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "B1_within_0.03pp_of_threshold"
+  ],
+  "note": "symbol/date are those of the matched real session; the price path itself is synthetic"
+ },
+ "c_0014.png": {
+  "session": "X12",
+  "kind": "synthetic",
+  "symbol": "QQQ",
+  "date": "2026-09-16",
+  "post_cutoff": true,
+  "chart_type": "A",
+  "daily_source": "evals",
+  "matched_session": "R24",
+  "truth": {
+   "A1": "up",
+   "A2": "above",
+   "A3": "2-4",
+   "A4": "second",
+   "A5": ">0.50%",
+   "A6": "yes",
+   "A7": "09:30-09:39",
+   "A8": null
+  },
+  "metrics": {
+   "A1": {
+    "chg_pct": 0.5330430110567441
+   },
+   "A2": {
+    "close_vs_vwap_pct": 0.2773479369240661
+   },
+   "A3": {
+    "crosses": 4
+   },
+   "A4": {
+    "highest_high_bar": 57,
+    "bars_at_that_high": 2,
+    "first_half_high_minus_second_half_high_pct": -0.14846025506886693
+   },
+   "A5": {
+    "range_pct": 0.5797019483641126
+   },
+   "A6": {
+    "first15_high": 710.17,
+    "max_close_after_0945": 711.17,
+    "margin_pct": 0.14081135502765907
+   },
+   "A7": {
+    "peak_bar": 0,
+    "bars_at_peak": 1,
+    "peak_over_best_bar_in_other_blocks": 1.5434262485481998
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "A3_count_next_to_a_class_boundary"
+  ],
+  "note": "symbol/date are those of the matched real session; the price path itself is synthetic"
+ },
+ "c_0015.png": {
+  "session": "R03",
+  "kind": "real",
+  "symbol": "SPY",
+  "date": "2026-08-11",
+  "post_cutoff": true,
+  "chart_type": "B",
+  "daily_source": "evals",
+  "matched_session": "X02",
+  "truth": {
+   "B1": "down",
+   "B2": "trend",
+   "B3": "down",
+   "B4": "below",
+   "B5": "no",
+   "B6": null,
+   "B7": "down"
+  },
+  "metrics": {
+   "B1": {
+    "chg_pct": -0.32616714772006894
+   },
+   "B2": {
+    "net_over_range": 0.884210526315776
+   },
+   "B3": {
+    "ema_last_minus_5_earlier_pct": -0.054711192635958916
+   },
+   "B4": {
+    "close_vs_vwap_pct": -0.1460916268784973
+   },
+   "B5": {
+    "range_0930_1029_pct": 0.2614514438073666,
+    "range_1100_1159_pct": 0.26533438604211107
+   },
+   "B7": {
+    "close_1159": 770.09,
+    "close_1229": 769.91,
+    "move_pct": -0.023373891363354105
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "B5_ranges_within_5pct"
+  ]
+ },
+ "c_0016.png": {
+  "session": "R06",
+  "kind": "real",
+  "symbol": "SPY",
+  "date": "2026-09-08",
+  "post_cutoff": true,
+  "chart_type": "A",
+  "daily_source": "evals",
+  "matched_session": null,
+  "truth": {
+   "A1": "down",
+   "A2": "below",
+   "A3": "0-1",
+   "A4": "first",
+   "A5": "0.25-0.50%",
+   "A6": "no",
+   "A7": "09:30-09:39",
+   "A8": null
+  },
+  "metrics": {
+   "A1": {
+    "chg_pct": -0.3076281349392529
+   },
+   "A2": {
+    "close_vs_vwap_pct": -0.10798697130013357
+   },
+   "A3": {
+    "crosses": 0
+   },
+   "A4": {
+    "highest_high_bar": 0,
+    "bars_at_that_high": 1,
+    "first_half_high_minus_second_half_high_pct": 0.26852286354866595
+   },
+   "A5": {
+    "range_pct": 0.48229834715052033
+   },
+   "A6": {
+    "first15_high": 767.79,
+    "max_close_after_0945": 766.06,
+    "margin_pct": -0.22532202815874758
+   },
+   "A7": {
+    "peak_bar": 0,
+    "bars_at_peak": 1,
+    "peak_over_best_bar_in_other_blocks": 1.4637045301965828
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "A5_within_0.03pp_of_threshold"
+  ]
+ },
+ "c_0017.png": {
+  "session": "R22",
+  "kind": "real",
+  "symbol": "QQQ",
+  "date": "2026-09-11",
+  "post_cutoff": true,
+  "chart_type": "A",
+  "daily_source": "evals",
+  "matched_session": null,
+  "truth": {
+   "A1": "up",
+   "A2": "above",
+   "A3": "5+",
+   "A4": "first",
+   "A5": "0.25-0.50%",
+   "A6": "yes",
+   "A7": "09:30-09:39",
+   "A8": null
+  },
+  "metrics": {
+   "A1": {
+    "chg_pct": 0.11190219747940766
+   },
+   "A2": {
+    "close_vs_vwap_pct": 0.1358339897221672
+   },
+   "A3": {
+    "crosses": 7
+   },
+   "A4": {
+    "highest_high_bar": 29,
+    "bars_at_that_high": 1,
+    "first_half_high_minus_second_half_high_pct": 0.016785329621911087
+   },
+   "A5": {
+    "range_pct": 0.43501979270116514
+   },
+   "A6": {
+    "first15_high": 715.43,
+    "max_close_after_0945": 716.12,
+    "margin_pct": 0.09644549431810923
+   },
+   "A7": {
+    "peak_bar": 0,
+    "bars_at_peak": 1,
+    "peak_over_best_bar_in_other_blocks": 1.5457497502801516
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "A1_within_0.02pp_of_threshold"
+  ]
+ },
+ "c_0018.png": {
+  "session": "R06",
+  "kind": "real",
+  "symbol": "SPY",
+  "date": "2026-09-08",
+  "post_cutoff": true,
+  "chart_type": "C",
+  "daily_source": "evals",
+  "matched_session": null,
+  "truth": {
+   "C1": "yes",
+   "C2": "yes",
+   "C3": "up",
+   "C4": {
+    "direction": "down",
+    "third": "first third"
+   },
+   "C5": null
+  },
+  "metrics": {
+   "C1": {
+    "close_vs_sma50_pct": 1.7613664961548814
+   },
+   "C2": {
+    "sma20_vs_sma50_pct": 1.611362919910686
+   },
+   "C3": {
+    "net60_pct": 5.956501951481874
+   },
+   "C4": {
+    "gap_pct": -1.42212645613089,
+    "candle_number": 8,
+    "second_largest_abs_pct": 1.3617701657159031,
+    "ratio_largest_to_second": 1.044321936208124
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "C4_runner_up_gap_within_15pct"
+  ]
+ },
+ "c_0019.png": {
+  "session": "R17",
+  "kind": "real",
+  "symbol": "QQQ",
+  "date": "2026-08-20",
+  "post_cutoff": true,
+  "chart_type": "A",
+  "daily_source": "evals",
+  "matched_session": "X09",
+  "truth": {
+   "A1": "flat",
+   "A2": "below",
+   "A3": "5+",
+   "A4": "first",
+   "A5": ">0.50%",
+   "A6": "no",
+   "A7": "09:30-09:39",
+   "A8": null
+  },
+  "metrics": {
+   "A1": {
+    "chg_pct": 0.0
+   },
+   "A2": {
+    "close_vs_vwap_pct": -0.0911814681908929
+   },
+   "A3": {
+    "crosses": 12
+   },
+   "A4": {
+    "highest_high_bar": 7,
+    "bars_at_that_high": 1,
+    "first_half_high_minus_second_half_high_pct": 0.18837421803613294
+   },
+   "A5": {
+    "range_pct": 0.546847543403402
+   },
+   "A6": {
+    "first15_high": 714.2,
+    "max_close_after_0945": 712.8,
+    "margin_pct": -0.19602352282275248
+   },
+   "A7": {
+    "peak_bar": 0,
+    "bars_at_peak": 1,
+    "peak_over_best_bar_in_other_blocks": 1.5430366929831831
+   }
+  },
+  "flags": [],
+  "soft_flags": []
+ },
+ "c_0020.png": {
+  "session": "R19",
+  "kind": "real",
+  "symbol": "QQQ",
+  "date": "2026-08-27",
+  "post_cutoff": true,
+  "chart_type": "C",
+  "daily_source": "evals",
+  "matched_session": null,
+  "truth": {
+   "C1": "no",
+   "C2": "yes",
+   "C3": "down",
+   "C4": {
+    "direction": "down",
+    "third": "first third"
+   },
+   "C5": null
+  },
+  "metrics": {
+   "C1": {
+    "close_vs_sma50_pct": -0.13221453156874174
+   },
+   "C2": {
+    "sma20_vs_sma50_pct": 0.3270510819162187
+   },
+   "C3": {
+    "net60_pct": -4.073919088565214
+   },
+   "C4": {
+    "gap_pct": -3.010119645134157,
+    "candle_number": 15,
+    "second_largest_abs_pct": 2.3228674631842194,
+    "ratio_largest_to_second": 1.295863708473424
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "C1_close_within_0.2pct_of_sma50"
+  ]
+ },
+ "c_0021.png": {
+  "session": "R07",
+  "kind": "real",
+  "symbol": "SPY",
+  "date": "2026-09-09",
+  "post_cutoff": true,
+  "chart_type": "B",
+  "daily_source": "evals",
+  "matched_session": null,
+  "truth": {
+   "B1": "down",
+   "B2": "range",
+   "B3": "down",
+   "B4": "below",
+   "B5": "no",
+   "B6": null,
+   "B7": "down"
+  },
+  "metrics": {
+   "B1": {
+    "chg_pct": -0.25059368398956394
+   },
+   "B2": {
+    "net_over_range": 0.5426136363636449
+   },
+   "B3": {
+    "ema_last_minus_5_earlier_pct": -0.020657684274594246
+   },
+   "B4": {
+    "close_vs_vwap_pct": -0.10283529777469491
+   },
+   "B5": {
+    "range_0930_1029_pct": 0.2479696663561561,
+    "range_1100_1159_pct": 0.4618271034781479
+   },
+   "B7": {
+    "close_1159": 760.28,
+    "close_1229": 759.74,
+    "move_pct": -0.07102646393433165
+   }
+  },
+  "flags": [],
+  "soft_flags": []
+ },
+ "c_0022.png": {
+  "session": "R23",
+  "kind": "real",
+  "symbol": "QQQ",
+  "date": "2026-09-14",
+  "post_cutoff": true,
+  "chart_type": "B",
+  "daily_source": "evals",
+  "matched_session": null,
+  "truth": {
+   "B1": "up",
+   "B2": "trend",
+   "B3": "up",
+   "B4": "above",
+   "B5": "no",
+   "B6": null,
+   "B7": "up"
+  },
+  "metrics": {
+   "B1": {
+    "chg_pct": 0.9222886421861753
+   },
+   "B2": {
+    "net_over_range": 0.8202531645569667
+   },
+   "B3": {
+    "ema_last_minus_5_earlier_pct": 0.2024496905917328
+   },
+   "B4": {
+    "close_vs_vwap_pct": 0.5222835775564816
+   },
+   "B5": {
+    "range_0930_1029_pct": 0.7144890407059467,
+    "range_1100_1159_pct": 0.7643040136635361
+   },
+   "B7": {
+    "close_1159": 709.08,
+    "close_1229": 709.55,
+    "move_pct": 0.06628307102158892
+   }
+  },
+  "flags": [],
+  "soft_flags": []
+ },
+ "c_0023.png": {
+  "session": "R15",
+  "kind": "real",
+  "symbol": "QQQ",
+  "date": "2026-08-14",
+  "post_cutoff": true,
+  "chart_type": "C",
+  "daily_source": "evals",
+  "matched_session": null,
+  "truth": {
+   "C1": "yes",
+   "C2": "no",
+   "C3": "up",
+   "C4": {
+    "direction": "down",
+    "third": "middle third"
+   },
+   "C5": null
+  },
+  "metrics": {
+   "C1": {
+    "close_vs_sma50_pct": 2.6716444815833684
+   },
+   "C2": {
+    "sma20_vs_sma50_pct": -1.4982723096128914
+   },
+   "C3": {
+    "net60_pct": 4.725694891953425
+   },
+   "C4": {
+    "gap_pct": -3.010119645134157,
+    "candle_number": 24,
+    "second_largest_abs_pct": 2.3228674631842194,
+    "ratio_largest_to_second": 1.295863708473424
+   }
+  },
+  "flags": [],
+  "soft_flags": []
+ },
+ "c_0024.png": {
+  "session": "R16",
+  "kind": "real",
+  "symbol": "QQQ",
+  "date": "2026-08-17",
+  "post_cutoff": true,
+  "chart_type": "A",
+  "daily_source": "evals",
+  "matched_session": null,
+  "truth": {
+   "A1": "flat",
+   "A2": "below",
+   "A3": "5+",
+   "A4": "first",
+   "A5": "0.25-0.50%",
+   "A6": "no",
+   "A7": "09:30-09:39",
+   "A8": null
+  },
+  "metrics": {
+   "A1": {
+    "chg_pct": -0.06692434817050508
+   },
+   "A2": {
+    "close_vs_vwap_pct": -0.03490066929917601
+   },
+   "A3": {
+    "crosses": 11
+   },
+   "A4": {
+    "highest_high_bar": 1,
+    "bars_at_that_high": 1,
+    "first_half_high_minus_second_half_high_pct": 0.0792165753855035
+   },
+   "A5": {
+    "range_pct": 0.35101137713919583
+   },
+   "A6": {
+    "first15_high": 733.32,
+    "max_close_after_0945": 732.86,
+    "margin_pct": -0.06272841324388434
+   },
+   "A7": {
+    "peak_bar": 0,
+    "bars_at_peak": 1,
+    "peak_over_best_bar_in_other_blocks": 1.2688303089992194
+   }
+  },
+  "flags": [],
+  "soft_flags": []
+ },
+ "c_0025.png": {
+  "session": "R18",
+  "kind": "real",
+  "symbol": "QQQ",
+  "date": "2026-08-25",
+  "post_cutoff": true,
+  "chart_type": "C",
+  "daily_source": "evals",
+  "matched_session": null,
+  "truth": {
+   "C1": "no",
+   "C2": "no",
+   "C3": "down",
+   "C4": {
+    "direction": "down",
+    "third": "first third"
+   },
+   "C5": null
+  },
+  "metrics": {
+   "C1": {
+    "close_vs_sma50_pct": -0.9577166176213625
+   },
+   "C2": {
+    "sma20_vs_sma50_pct": -0.3851472790393218
+   },
+   "C3": {
+    "net60_pct": -4.167006220628577
+   },
+   "C4": {
+    "gap_pct": -3.010119645134157,
+    "candle_number": 17,
+    "second_largest_abs_pct": 2.3228674631842194,
+    "ratio_largest_to_second": 1.295863708473424
+   }
+  },
+  "flags": [],
+  "soft_flags": []
+ },
+ "c_0026.png": {
+  "session": "R05",
+  "kind": "real",
+  "symbol": "SPY",
+  "date": "2026-09-04",
+  "post_cutoff": true,
+  "chart_type": "A",
+  "daily_source": "evals",
+  "matched_session": "X03",
+  "truth": {
+   "A1": "down",
+   "A2": "below",
+   "A3": "5+",
+   "A4": "first",
+   "A5": "0.25-0.50%",
+   "A6": "no",
+   "A7": "09:30-09:39",
+   "A8": null
+  },
+  "metrics": {
+   "A1": {
+    "chg_pct": -0.10388261264772103
+   },
+   "A2": {
+    "close_vs_vwap_pct": -0.10165390962523224
+   },
+   "A3": {
+    "crosses": 9
+   },
+   "A4": {
+    "highest_high_bar": 6,
+    "bars_at_that_high": 1,
+    "first_half_high_minus_second_half_high_pct": 0.06622516556291272
+   },
+   "A5": {
+    "range_pct": 0.2739903908583319
+   },
+   "A6": {
+    "first15_high": 770.96,
+    "max_close_after_0945": 770.61,
+    "margin_pct": -0.04539794541870146
+   },
+   "A7": {
+    "peak_bar": 0,
+    "bars_at_peak": 1,
+    "peak_over_best_bar_in_other_blocks": 1.4393952431145625
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "A1_within_0.02pp_of_threshold",
+   "A5_within_0.03pp_of_threshold"
+  ]
+ },
+ "c_0027.png": {
+  "session": "X02",
+  "kind": "synthetic",
+  "symbol": "SPY",
+  "date": "2026-08-11",
+  "post_cutoff": true,
+  "chart_type": "C",
+  "daily_source": "evals",
+  "matched_session": "R03",
+  "truth": {
+   "C1": "yes",
+   "C2": "yes",
+   "C3": "up",
+   "C4": {
+    "direction": "up",
+    "third": "middle third"
+   },
+   "C5": null
+  },
+  "metrics": {
+   "C1": {
+    "close_vs_sma50_pct": 0.8432500216720262
+   },
+   "C2": {
+    "sma20_vs_sma50_pct": 1.955203604326794
+   },
+   "C3": {
+    "net60_pct": 4.619933472957993
+   },
+   "C4": {
+    "gap_pct": 2.6038073710939136,
+    "candle_number": 34,
+    "second_largest_abs_pct": 1.3611402287341479,
+    "ratio_largest_to_second": 1.9129604107840077
+   }
+  },
+  "flags": [],
+  "soft_flags": [],
+  "note": "symbol/date are those of the matched real session; the price path itself is synthetic"
+ },
+ "c_0028.png": {
+  "session": "X03",
+  "kind": "synthetic",
+  "symbol": "SPY",
+  "date": "2026-09-04",
+  "post_cutoff": true,
+  "chart_type": "B",
+  "daily_source": "evals",
+  "matched_session": "R05",
+  "truth": {
+   "B1": "flat",
+   "B2": "range",
+   "B3": "down",
+   "B4": "below",
+   "B5": "yes",
+   "B6": null,
+   "B7": "down"
+  },
+  "metrics": {
+   "B1": {
+    "chg_pct": -0.12595766783535245
+   },
+   "B2": {
+    "net_over_range": 0.36603773584907007
+   },
+   "B3": {
+    "ema_last_minus_5_earlier_pct": -0.004661365908453785
+   },
+   "B4": {
+    "close_vs_vwap_pct": -0.010961966090294872
+   },
+   "B5": {
+    "range_0930_1029_pct": 0.20906375795349952,
+    "range_1100_1159_pct": 0.17660044150110552
+   },
+   "B7": {
+    "close_1159": 769.13,
+    "close_1229": 768.77,
+    "move_pct": -0.046806131603238654
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "B1_within_0.03pp_of_threshold",
+   "B3_ema_change_below_0.005pct"
+  ],
+  "note": "symbol/date are those of the matched real session; the price path itself is synthetic"
+ },
+ "c_0029.png": {
+  "session": "R20",
+  "kind": "real",
+  "symbol": "QQQ",
+  "date": "2026-08-28",
+  "post_cutoff": true,
+  "chart_type": "B",
+  "daily_source": "evals",
+  "matched_session": "X10",
+  "truth": {
+   "B1": "down",
+   "B2": "range",
+   "B3": "down",
+   "B4": "below",
+   "B5": "no",
+   "B6": null,
+   "B7": "down"
+  },
+  "metrics": {
+   "B1": {
+    "chg_pct": -0.2628614344723945
+   },
+   "B2": {
+    "net_over_range": 0.2574931880108962
+   },
+   "B3": {
+    "ema_last_minus_5_earlier_pct": -0.11860642159403634
+   },
+   "B4": {
+    "close_vs_vwap_pct": -0.37910664869108546
+   },
+   "B5": {
+    "range_0930_1029_pct": 0.6745386016884358,
+    "range_1100_1159_pct": 0.892894396461796
+   },
+   "B7": {
+    "close_1159": 717.12,
+    "close_1229": 715.56,
+    "move_pct": -0.2175368139223588
+   }
+  },
+  "flags": [],
+  "soft_flags": []
+ },
+ "c_0030.png": {
+  "session": "R10",
+  "kind": "real",
+  "symbol": "SPY",
+  "date": "2026-09-17",
+  "post_cutoff": true,
+  "chart_type": "A",
+  "daily_source": "evals",
+  "matched_session": null,
+  "truth": {
+   "A1": "down",
+   "A2": "above",
+   "A3": "0-1",
+   "A4": "first",
+   "A5": "0.25-0.50%",
+   "A6": "no",
+   "A7": "09:30-09:39",
+   "A8": null
+  },
+  "metrics": {
+   "A1": {
+    "chg_pct": -0.19310091164648213
+   },
+   "A2": {
+    "close_vs_vwap_pct": 0.03741768725313843
+   },
+   "A3": {
+    "crosses": 1
+   },
+   "A4": {
+    "highest_high_bar": 0,
+    "bars_at_that_high": 1,
+    "first_half_high_minus_second_half_high_pct": 0.14975172739930986
+   },
+   "A5": {
+    "range_pct": 0.45188240548563446
+   },
+   "A6": {
+    "first15_high": 761.52,
+    "max_close_after_0945": 760.36,
+    "margin_pct": -0.15232692509716816
+   },
+   "A7": {
+    "peak_bar": 0,
+    "bars_at_peak": 1,
+    "peak_over_best_bar_in_other_blocks": 1.4313469769171971
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "A3_count_next_to_a_class_boundary"
+  ]
+ },
+ "c_0031.png": {
+  "session": "R08",
+  "kind": "real",
+  "symbol": "SPY",
+  "date": "2026-09-10",
+  "post_cutoff": true,
+  "chart_type": "A",
+  "daily_source": "evals",
+  "matched_session": null,
+  "truth": {
+   "A1": "flat",
+   "A2": "above",
+   "A3": "5+",
+   "A4": "second",
+   "A5": "0.25-0.50%",
+   "A6": "yes",
+   "A7": "09:40-09:49",
+   "A8": null
+  },
+  "metrics": {
+   "A1": {
+    "chg_pct": 0.09125294257676941
+   },
+   "A2": {
+    "close_vs_vwap_pct": 0.08687721552724792
+   },
+   "A3": {
+    "crosses": 5
+   },
+   "A4": {
+    "highest_high_bar": 54,
+    "bars_at_that_high": 1,
+    "first_half_high_minus_second_half_high_pct": -0.14944322479963967
+   },
+   "A5": {
+    "range_pct": 0.4575872192980184
+   },
+   "A6": {
+    "first15_high": 756.86,
+    "max_close_after_0945": 757.56,
+    "margin_pct": 0.09248738207858764
+   },
+   "A7": {
+    "peak_bar": 15,
+    "bars_at_peak": 1,
+    "peak_over_best_bar_in_other_blocks": 1.446919534767223
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "A1_within_0.02pp_of_threshold",
+   "A3_count_next_to_a_class_boundary"
+  ]
+ },
+ "c_0032.png": {
+  "session": "R14",
+  "kind": "real",
+  "symbol": "QQQ",
+  "date": "2026-08-10",
+  "post_cutoff": true,
+  "chart_type": "B",
+  "daily_source": "evals",
+  "matched_session": "X08",
+  "truth": {
+   "B1": "flat",
+   "B2": "range",
+   "B3": "up",
+   "B4": "above",
+   "B5": "yes",
+   "B6": null,
+   "B7": "down"
+  },
+  "metrics": {
+   "B1": {
+    "chg_pct": 0.1288731223324735
+   },
+   "B2": {
+    "net_over_range": 0.21478060046191208
+   },
+   "B3": {
+    "ema_last_minus_5_earlier_pct": 0.020630399105825425
+   },
+   "B4": {
+    "close_vs_vwap_pct": 0.07512591308787009
+   },
+   "B5": {
+    "range_0930_1029_pct": 0.6000221717199611,
+    "range_1100_1159_pct": 0.3783049720081903
+   },
+   "B7": {
+    "close_1159": 722.57,
+    "close_1229": 721.73,
+    "move_pct": -0.11625171263683898
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "B1_within_0.03pp_of_threshold"
+  ]
+ },
+ "c_0033.png": {
+  "session": "R05",
+  "kind": "real",
+  "symbol": "SPY",
+  "date": "2026-09-04",
+  "post_cutoff": true,
+  "chart_type": "B",
+  "daily_source": "evals",
+  "matched_session": "X03",
+  "truth": {
+   "B1": "down",
+   "B2": "range",
+   "B3": "down",
+   "B4": "below",
+   "B5": "yes",
+   "B6": null,
+   "B7": "up"
+  },
+  "metrics": {
+   "B1": {
+    "chg_pct": -0.2661991949097553
+   },
+   "B2": {
+    "net_over_range": 0.5310880829015702
+   },
+   "B3": {
+    "ema_last_minus_5_earlier_pct": -0.022564156818760672
+   },
+   "B4": {
+    "close_vs_vwap_pct": -0.12379781662819056
+   },
+   "B5": {
+    "range_0930_1029_pct": 0.2739903908583319,
+    "range_1100_1159_pct": 0.13634592910011095
+   },
+   "B7": {
+    "close_1159": 768.05,
+    "close_1229": 768.75,
+    "move_pct": 0.09113989974611769
+   }
+  },
+  "flags": [],
+  "soft_flags": []
+ },
+ "c_0034.png": {
+  "session": "R15",
+  "kind": "real",
+  "symbol": "QQQ",
+  "date": "2026-08-14",
+  "post_cutoff": true,
+  "chart_type": "A",
+  "daily_source": "evals",
+  "matched_session": null,
+  "truth": {
+   "A1": "down",
+   "A2": "below",
+   "A3": "5+",
+   "A4": "first",
+   "A5": "0.25-0.50%",
+   "A6": "yes",
+   "A7": "10:20-10:29",
+   "A8": null
+  },
+  "metrics": {
+   "A1": {
+    "chg_pct": -0.2661571009349495
+   },
+   "A2": {
+    "close_vs_vwap_pct": -0.17806412335225064
+   },
+   "A3": {
+    "crosses": 7
+   },
+   "A4": {
+    "highest_high_bar": 18,
+    "bars_at_that_high": 1,
+    "first_half_high_minus_second_half_high_pct": 0.031392888828228785
+   },
+   "A5": {
+    "range_pct": 0.48454241452261715
+   },
+   "A6": {
+    "first15_high": 733.33,
+    "max_close_after_0945": 733.36,
+    "margin_pct": 0.004090927686029033
+   },
+   "A7": {
+    "peak_bar": 52,
+    "bars_at_peak": 1,
+    "peak_over_best_bar_in_other_blocks": 2.0535274532595205
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "A5_within_0.03pp_of_threshold",
+   "A6_close_within_0.01pct_of_level"
+  ]
+ },
+ "c_0035.png": {
+  "session": "R18",
+  "kind": "real",
+  "symbol": "QQQ",
+  "date": "2026-08-25",
+  "post_cutoff": true,
+  "chart_type": "B",
+  "daily_source": "evals",
+  "matched_session": null,
+  "truth": {
+   "B1": "flat",
+   "B2": "range",
+   "B3": "up",
+   "B4": "below",
+   "B5": "yes",
+   "B6": null,
+   "B7": "up"
+  },
+  "metrics": {
+   "B1": {
+    "chg_pct": -0.10978493412903134
+   },
+   "B2": {
+    "net_over_range": 0.1183611532625163
+   },
+   "B3": {
+    "ema_last_minus_5_earlier_pct": 0.0006270249684359186
+   },
+   "B4": {
+    "close_vs_vwap_pct": -0.03616179930729935
+   },
+   "B5": {
+    "range_0930_1029_pct": 0.689674586195245,
+    "range_1100_1159_pct": 0.37861727282964397
+   },
+   "B7": {
+    "close_1159": 709.7,
+    "close_1229": 710.42,
+    "move_pct": 0.10145131745806779
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "B3_ema_change_below_0.005pct"
+  ]
+ },
+ "c_0036.png": {
+  "session": "R24",
+  "kind": "real",
+  "symbol": "QQQ",
+  "date": "2026-09-16",
+  "post_cutoff": true,
+  "chart_type": "A",
+  "daily_source": "evals",
+  "matched_session": "X12",
+  "truth": {
+   "A1": "up",
+   "A2": "above",
+   "A3": "2-4",
+   "A4": "second",
+   "A5": "0.25-0.50%",
+   "A6": "yes",
+   "A7": "09:30-09:39",
+   "A8": null
+  },
+  "metrics": {
+   "A1": {
+    "chg_pct": 0.2233973361988495
+   },
+   "A2": {
+    "close_vs_vwap_pct": 0.0789886114783922
+   },
+   "A3": {
+    "crosses": 4
+   },
+   "A4": {
+    "highest_high_bar": 30,
+    "bars_at_that_high": 1,
+    "first_half_high_minus_second_half_high_pct": -0.007069535955653441
+   },
+   "A5": {
+    "range_pct": 0.3760993128411006
+   },
+   "A6": {
+    "first15_high": 708.07,
+    "max_close_after_0945": 709.47,
+    "margin_pct": 0.1977205643509894
+   },
+   "A7": {
+    "peak_bar": 0,
+    "bars_at_peak": 1,
+    "peak_over_best_bar_in_other_blocks": 1.5434262485481998
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "A3_count_next_to_a_class_boundary",
+   "A4_two_halves_within_0.01pct"
+  ]
+ },
+ "c_0037.png": {
+  "session": "X09",
+  "kind": "synthetic",
+  "symbol": "QQQ",
+  "date": "2026-08-20",
+  "post_cutoff": true,
+  "chart_type": "A",
+  "daily_source": "evals",
+  "matched_session": "R17",
+  "truth": {
+   "A1": "up",
+   "A2": "below",
+   "A3": "0-1",
+   "A4": "second",
+   "A5": ">0.50%",
+   "A6": "yes",
+   "A7": "09:30-09:39",
+   "A8": null
+  },
+  "metrics": {
+   "A1": {
+    "chg_pct": 0.2193013284599532
+   },
+   "A2": {
+    "close_vs_vwap_pct": -0.27027722424685097
+   },
+   "A3": {
+    "crosses": 1
+   },
+   "A4": {
+    "highest_high_bar": 33,
+    "bars_at_that_high": 1,
+    "first_half_high_minus_second_half_high_pct": -0.13776621916075324
+   },
+   "A5": {
+    "range_pct": 1.08526042032755
+   },
+   "A6": {
+    "first15_high": 716.2,
+    "max_close_after_0945": 717.62,
+    "margin_pct": 0.19826864004468536
+   },
+   "A7": {
+    "peak_bar": 0,
+    "bars_at_peak": 1,
+    "peak_over_best_bar_in_other_blocks": 1.5430366929831831
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "A3_count_next_to_a_class_boundary"
+  ],
+  "note": "symbol/date are those of the matched real session; the price path itself is synthetic"
+ },
+ "c_0038.png": {
+  "session": "X10",
+  "kind": "synthetic",
+  "symbol": "QQQ",
+  "date": "2026-08-28",
+  "post_cutoff": true,
+  "chart_type": "C",
+  "daily_source": "evals",
+  "matched_session": "R20",
+  "truth": {
+   "C1": "yes",
+   "C2": "yes",
+   "C3": "up",
+   "C4": {
+    "direction": "up",
+    "third": "first third"
+   },
+   "C5": null
+  },
+  "metrics": {
+   "C1": {
+    "close_vs_sma50_pct": 6.727751270250093
+   },
+   "C2": {
+    "sma20_vs_sma50_pct": 2.0702613689143945
+   },
+   "C3": {
+    "net60_pct": 24.31594996475235
+   },
+   "C4": {
+    "gap_pct": 3.1028419899694404,
+    "candle_number": 19,
+    "second_largest_abs_pct": 2.3223291096325926,
+    "ratio_largest_to_second": 1.3360905554253375
+   }
+  },
+  "flags": [],
+  "soft_flags": [],
+  "note": "symbol/date are those of the matched real session; the price path itself is synthetic"
+ },
+ "c_0039.png": {
+  "session": "R12",
+  "kind": "real",
+  "symbol": "SPY",
+  "date": "2026-09-25",
+  "post_cutoff": true,
+  "chart_type": "C",
+  "daily_source": "evals",
+  "matched_session": "X06",
+  "truth": {
+   "C1": "yes",
+   "C2": "yes",
+   "C3": "up",
+   "C4": {
+    "direction": "up",
+    "third": "last third"
+   },
+   "C5": null
+  },
+  "metrics": {
+   "C1": {
+    "close_vs_sma50_pct": 1.0168043570031093
+   },
+   "C2": {
+    "sma20_vs_sma50_pct": 0.5871557313651854
+   },
+   "C3": {
+    "net60_pct": 3.233532934131733
+   },
+   "C4": {
+    "gap_pct": 1.2071578611502654,
+    "candle_number": 55,
+    "second_largest_abs_pct": 1.1510829794621147,
+    "ratio_largest_to_second": 1.0487148908364137
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "C3_within_0.5pp_of_threshold",
+   "C4_runner_up_gap_within_15pct"
+  ]
+ },
+ "c_0040.png": {
+  "session": "R07",
+  "kind": "real",
+  "symbol": "SPY",
+  "date": "2026-09-09",
+  "post_cutoff": true,
+  "chart_type": "C",
+  "daily_source": "evals",
+  "matched_session": null,
+  "truth": {
+   "C1": "yes",
+   "C2": "yes",
+   "C3": "up",
+   "C4": {
+    "direction": "down",
+    "third": "first third"
+   },
+   "C5": null
+  },
+  "metrics": {
+   "C1": {
+    "close_vs_sma50_pct": 1.1036368515518147
+   },
+   "C2": {
+    "sma20_vs_sma50_pct": 1.4654774072288435
+   },
+   "C3": {
+    "net60_pct": 3.674455209096572
+   },
+   "C4": {
+    "gap_pct": -1.42212645613089,
+    "candle_number": 7,
+    "second_largest_abs_pct": 1.3617701657159031,
+    "ratio_largest_to_second": 1.044321936208124
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "C4_runner_up_gap_within_15pct"
+  ]
+ },
+ "c_0041.png": {
+  "session": "R22",
+  "kind": "real",
+  "symbol": "QQQ",
+  "date": "2026-09-11",
+  "post_cutoff": true,
+  "chart_type": "B",
+  "daily_source": "evals",
+  "matched_session": null,
+  "truth": {
+   "B1": "flat",
+   "B2": "range",
+   "B3": "up",
+   "B4": "above",
+   "B5": "no",
+   "B6": null,
+   "B7": "down"
+  },
+  "metrics": {
+   "B1": {
+    "chg_pct": 0.11190219747940766
+   },
+   "B2": {
+    "net_over_range": 0.20050125313284872
+   },
+   "B3": {
+    "ema_last_minus_5_earlier_pct": 0.04885163940906434
+   },
+   "B4": {
+    "close_vs_vwap_pct": 0.12659028472614686
+   },
+   "B5": {
+    "range_0930_1029_pct": 0.43501979270116514,
+    "range_1100_1159_pct": 0.47278678435047705
+   },
+   "B7": {
+    "close_1159": 715.71,
+    "close_1229": 714.51,
+    "move_pct": -0.167665674644768
+   }
+  },
+  "flags": [],
+  "soft_flags": []
+ },
+ "c_0042.png": {
+  "session": "R02",
+  "kind": "real",
+  "symbol": "SPY",
+  "date": "2026-08-06",
+  "post_cutoff": true,
+  "chart_type": "A",
+  "daily_source": "evals",
+  "matched_session": "X01",
+  "truth": {
+   "A1": "flat",
+   "A2": "below",
+   "A3": "2-4",
+   "A4": "second",
+   "A5": "0.25-0.50%",
+   "A6": "yes",
+   "A7": "09:30-09:39",
+   "A8": null
+  },
+  "metrics": {
+   "A1": {
+    "chg_pct": 0.031237797735261807
+   },
+   "A2": {
+    "close_vs_vwap_pct": -0.03262949864270004
+   },
+   "A3": {
+    "crosses": 4
+   },
+   "A4": {
+    "highest_high_bar": 52,
+    "bars_at_that_high": 1,
+    "first_half_high_minus_second_half_high_pct": -0.03904724716906866
+   },
+   "A5": {
+    "range_pct": 0.359234673955485
+   },
+   "A6": {
+    "first15_high": 768.99,
+    "max_close_after_0945": 769.85,
+    "margin_pct": 0.11183500435636429
+   },
+   "A7": {
+    "peak_bar": 0,
+    "bars_at_peak": 1,
+    "peak_over_best_bar_in_other_blocks": 3.1906081742535486
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "A3_count_next_to_a_class_boundary"
+  ]
+ },
+ "c_0043.png": {
+  "session": "X01",
+  "kind": "synthetic",
+  "symbol": "SPY",
+  "date": "2026-08-06",
+  "post_cutoff": true,
+  "chart_type": "B",
+  "daily_source": "evals",
+  "matched_session": "R02",
+  "truth": {
+   "B1": "flat",
+   "B2": "range",
+   "B3": "up",
+   "B4": "above",
+   "B5": "no",
+   "B6": null,
+   "B7": "up"
+  },
+  "metrics": {
+   "B1": {
+    "chg_pct": 0.10152284263960087
+   },
+   "B2": {
+    "net_over_range": 0.254901960784337
+   },
+   "B3": {
+    "ema_last_minus_5_earlier_pct": 0.05712950440701636
+   },
+   "B4": {
+    "close_vs_vwap_pct": 0.13474504413606425
+   },
+   "B5": {
+    "range_0930_1029_pct": 0.3201874267864163,
+    "range_1100_1159_pct": 0.3527267994273118
+   },
+   "B7": {
+    "close_1159": 769.08,
+    "close_1229": 769.73,
+    "move_pct": 0.08451656524679496
+   }
+  },
+  "flags": [],
+  "soft_flags": [],
+  "note": "symbol/date are those of the matched real session; the price path itself is synthetic"
+ },
+ "c_0044.png": {
+  "session": "R16",
+  "kind": "real",
+  "symbol": "QQQ",
+  "date": "2026-08-17",
+  "post_cutoff": true,
+  "chart_type": "C",
+  "daily_source": "evals",
+  "matched_session": null,
+  "truth": {
+   "C1": "yes",
+   "C2": "no",
+   "C3": "up",
+   "C4": {
+    "direction": "down",
+    "third": "middle third"
+   },
+   "C5": null
+  },
+  "metrics": {
+   "C1": {
+    "close_vs_sma50_pct": 2.5667025544559463
+   },
+   "C2": {
+    "sma20_vs_sma50_pct": -1.213523170656694
+   },
+   "C3": {
+    "net60_pct": 3.769643922816779
+   },
+   "C4": {
+    "gap_pct": -3.010119645134157,
+    "candle_number": 23,
+    "second_largest_abs_pct": 2.3228674631842194,
+    "ratio_largest_to_second": 1.295863708473424
+   }
+  },
+  "flags": [],
+  "soft_flags": []
+ },
+ "c_0045.png": {
+  "session": "X05",
+  "kind": "synthetic",
+  "symbol": "SPY",
+  "date": "2026-09-21",
+  "post_cutoff": true,
+  "chart_type": "B",
+  "daily_source": "evals",
+  "matched_session": "R11",
+  "truth": {
+   "B1": "flat",
+   "B2": "range",
+   "B3": "up",
+   "B4": "above",
+   "B5": "yes",
+   "B6": null,
+   "B7": "down"
+  },
+  "metrics": {
+   "B1": {
+    "chg_pct": 0.1291939083114757
+   },
+   "B2": {
+    "net_over_range": 0.31629392971246345
+   },
+   "B3": {
+    "ema_last_minus_5_earlier_pct": 0.0103876717865381
+   },
+   "B4": {
+    "close_vs_vwap_pct": 0.10662436417747667
+   },
+   "B5": {
+    "range_0930_1029_pct": 0.25969280559579394,
+    "range_1100_1159_pct": 0.15137872084980467
+   },
+   "B7": {
+    "close_1159": 767.28,
+    "close_1229": 766.22,
+    "move_pct": -0.13815034928578163
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "B1_within_0.03pp_of_threshold"
+  ],
+  "note": "symbol/date are those of the matched real session; the price path itself is synthetic"
+ },
+ "c_0046.png": {
+  "session": "R11",
+  "kind": "real",
+  "symbol": "SPY",
+  "date": "2026-09-21",
+  "post_cutoff": true,
+  "chart_type": "B",
+  "daily_source": "evals",
+  "matched_session": "X05",
+  "truth": {
+   "B1": "up",
+   "B2": "trend",
+   "B3": "up",
+   "B4": "above",
+   "B5": "yes",
+   "B6": null,
+   "B7": "up"
+  },
+  "metrics": {
+   "B1": {
+    "chg_pct": 0.5807200929152101
+   },
+   "B2": {
+    "net_over_range": 0.8348968105065687
+   },
+   "B3": {
+    "ema_last_minus_5_earlier_pct": 0.08704954283669242
+   },
+   "B4": {
+    "close_vs_vwap_pct": 0.27138548401208773
+   },
+   "B5": {
+    "range_0930_1029_pct": 0.42542640514687535,
+    "range_1100_1159_pct": 0.2929700244032944
+   },
+   "B7": {
+    "close_1159": 770.74,
+    "close_1229": 771.82,
+    "move_pct": 0.14012507460363643
+   }
+  },
+  "flags": [],
+  "soft_flags": []
+ },
+ "c_0047.png": {
+  "session": "X06",
+  "kind": "synthetic",
+  "symbol": "SPY",
+  "date": "2026-09-25",
+  "post_cutoff": true,
+  "chart_type": "A",
+  "daily_source": "evals",
+  "matched_session": "R12",
+  "truth": {
+   "A1": "down",
+   "A2": "below",
+   "A3": "5+",
+   "A4": "first",
+   "A5": "0.25-0.50%",
+   "A6": "yes",
+   "A7": "09:30-09:39",
+   "A8": null
+  },
+  "metrics": {
+   "A1": {
+    "chg_pct": -0.1808106561215439
+   },
+   "A2": {
+    "close_vs_vwap_pct": -0.09400490432500686
+   },
+   "A3": {
+    "crosses": 14
+   },
+   "A4": {
+    "highest_high_bar": 16,
+    "bars_at_that_high": 1,
+    "first_half_high_minus_second_half_high_pct": 0.09625891045319854
+   },
+   "A5": {
+    "range_pct": 0.36032051615588506
+   },
+   "A6": {
+    "first15_high": 768.8,
+    "max_close_after_0945": 769.52,
+    "margin_pct": 0.09365244536940764
+   },
+   "A7": {
+    "peak_bar": 0,
+    "bars_at_peak": 1,
+    "peak_over_best_bar_in_other_blocks": 1.1271423330698205
+   }
+  },
+  "flags": [],
+  "soft_flags": [],
+  "note": "symbol/date are those of the matched real session; the price path itself is synthetic"
+ },
+ "c_0048.png": {
+  "session": "X08",
+  "kind": "synthetic",
+  "symbol": "QQQ",
+  "date": "2026-08-10",
+  "post_cutoff": true,
+  "chart_type": "B",
+  "daily_source": "evals",
+  "matched_session": "R14",
+  "truth": {
+   "B1": "up",
+   "B2": "range",
+   "B3": "down",
+   "B4": "above",
+   "B5": "yes",
+   "B6": null,
+   "B7": "down"
+  },
+  "metrics": {
+   "B1": {
+    "chg_pct": 0.2896180921235114
+   },
+   "B2": {
+    "net_over_range": 0.3725490196078479
+   },
+   "B3": {
+    "ema_last_minus_5_earlier_pct": -0.017893884156694462
+   },
+   "B4": {
+    "close_vs_vwap_pct": 0.024798333828379704
+   },
+   "B5": {
+    "range_0930_1029_pct": 0.7621528740092013,
+    "range_1100_1159_pct": 0.36029044953162553
+   },
+   "B7": {
+    "close_1159": 723.73,
+    "close_1229": 723.34,
+    "move_pct": -0.053887499481852785
+   }
+  },
+  "flags": [],
+  "soft_flags": [],
+  "note": "symbol/date are those of the matched real session; the price path itself is synthetic"
+ },
+ "c_0049.png": {
+  "session": "R09",
+  "kind": "real",
+  "symbol": "SPY",
+  "date": "2026-09-15",
+  "post_cutoff": true,
+  "chart_type": "B",
+  "daily_source": "evals",
+  "matched_session": "X04",
+  "truth": {
+   "B1": "down",
+   "B2": "trend",
+   "B3": "down",
+   "B4": "below",
+   "B5": "yes",
+   "B6": null,
+   "B7": "up"
+  },
+  "metrics": {
+   "B1": {
+    "chg_pct": -0.39696669963732445
+   },
+   "B2": {
+    "net_over_range": 0.7183770883054778
+   },
+   "B3": {
+    "ema_last_minus_5_earlier_pct": -0.018846645007508656
+   },
+   "B4": {
+    "close_vs_vwap_pct": -0.10388942712665772
+   },
+   "B5": {
+    "range_0930_1029_pct": 0.41806791955160866,
+    "range_1100_1159_pct": 0.17276623804814495
+   },
+   "B7": {
+    "close_1159": 755.24,
+    "close_1229": 755.7,
+    "move_pct": 0.060907790900910364
+   }
+  },
+  "flags": [],
+  "soft_flags": []
+ },
+ "c_0050.png": {
+  "session": "X03",
+  "kind": "synthetic",
+  "symbol": "SPY",
+  "date": "2026-09-04",
+  "post_cutoff": true,
+  "chart_type": "C",
+  "daily_source": "evals",
+  "matched_session": "R05",
+  "truth": {
+   "C1": "no",
+   "C2": "no",
+   "C3": "down",
+   "C4": {
+    "direction": "down",
+    "third": "last third"
+   },
+   "C5": null
+  },
+  "metrics": {
+   "C1": {
+    "close_vs_sma50_pct": -5.470934653995252
+   },
+   "C2": {
+    "sma20_vs_sma50_pct": -2.1741634217519623
+   },
+   "C3": {
+    "net60_pct": -6.187386539366624
+   },
+   "C4": {
+    "gap_pct": -2.538819599900499,
+    "candle_number": 57,
+    "second_largest_abs_pct": 1.16463466621195,
+    "ratio_largest_to_second": 2.179927898040486
+   }
+  },
+  "flags": [],
+  "soft_flags": [],
+  "note": "symbol/date are those of the matched real session; the price path itself is synthetic"
+ },
+ "c_0051.png": {
+  "session": "X12",
+  "kind": "synthetic",
+  "symbol": "QQQ",
+  "date": "2026-09-16",
+  "post_cutoff": true,
+  "chart_type": "C",
+  "daily_source": "evals",
+  "matched_session": "R24",
+  "truth": {
+   "C1": "yes",
+   "C2": "yes",
+   "C3": "up",
+   "C4": {
+    "direction": "up",
+    "third": "first third"
+   },
+   "C5": null
+  },
+  "metrics": {
+   "C1": {
+    "close_vs_sma50_pct": 13.054655733151632
+   },
+   "C2": {
+    "sma20_vs_sma50_pct": 6.259157464793907
+   },
+   "C3": {
+    "net60_pct": 35.31335062090293
+   },
+   "C4": {
+    "gap_pct": 3.1038374717832884,
+    "candle_number": 15,
+    "second_largest_abs_pct": 2.3235599377270377,
+    "ratio_largest_to_second": 1.3358112357624554
+   }
+  },
+  "flags": [],
+  "soft_flags": [],
+  "note": "symbol/date are those of the matched real session; the price path itself is synthetic"
+ },
+ "c_0052.png": {
+  "session": "X11",
+  "kind": "synthetic",
+  "symbol": "QQQ",
+  "date": "2026-08-31",
+  "post_cutoff": true,
+  "chart_type": "A",
+  "daily_source": "evals",
+  "matched_session": "R21",
+  "truth": {
+   "A1": "flat",
+   "A2": "below",
+   "A3": "5+",
+   "A4": "first",
+   "A5": ">0.50%",
+   "A6": "yes",
+   "A7": "09:30-09:39",
+   "A8": null
+  },
+  "metrics": {
+   "A1": {
+    "chg_pct": 0.07138558011283713
+   },
+   "A2": {
+    "close_vs_vwap_pct": -0.12832827311080042
+   },
+   "A3": {
+    "crosses": 9
+   },
+   "A4": {
+    "highest_high_bar": 20,
+    "bars_at_that_high": 1,
+    "first_half_high_minus_second_half_high_pct": 0.1091779460548931
+   },
+   "A5": {
+    "range_pct": 0.6676651316434056
+   },
+   "A6": {
+    "first15_high": 717.59,
+    "max_close_after_0945": 717.93,
+    "margin_pct": 0.047380816343589593
+   },
+   "A7": {
+    "peak_bar": 0,
+    "bars_at_peak": 1,
+    "peak_over_best_bar_in_other_blocks": 1.14459316369412
+   }
+  },
+  "flags": [],
+  "soft_flags": [],
+  "note": "symbol/date are those of the matched real session; the price path itself is synthetic"
+ },
+ "c_0053.png": {
+  "session": "R23",
+  "kind": "real",
+  "symbol": "QQQ",
+  "date": "2026-09-14",
+  "post_cutoff": true,
+  "chart_type": "C",
+  "daily_source": "evals",
+  "matched_session": null,
+  "truth": {
+   "C1": "yes",
+   "C2": "yes",
+   "C3": "flat",
+   "C4": {
+    "direction": "down",
+    "third": "first third"
+   },
+   "C5": null
+  },
+  "metrics": {
+   "C1": {
+    "close_vs_sma50_pct": 0.6303523372806374
+   },
+   "C2": {
+    "sma20_vs_sma50_pct": 0.7404744706880795
+   },
+   "C3": {
+    "net60_pct": -2.655325645429518
+   },
+   "C4": {
+    "gap_pct": -3.010119645134157,
+    "candle_number": 4,
+    "second_largest_abs_pct": 2.1496590973122176,
+    "ratio_largest_to_second": 1.4002776760732893
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "C3_within_0.5pp_of_threshold"
+  ]
+ },
+ "c_0054.png": {
+  "session": "X05",
+  "kind": "synthetic",
+  "symbol": "SPY",
+  "date": "2026-09-21",
+  "post_cutoff": true,
+  "chart_type": "C",
+  "daily_source": "evals",
+  "matched_session": "R11",
+  "truth": {
+   "C1": "no",
+   "C2": "no",
+   "C3": "flat",
+   "C4": {
+    "direction": "up",
+    "third": "last third"
+   },
+   "C5": null
+  },
+  "metrics": {
+   "C1": {
+    "close_vs_sma50_pct": -2.3008058586935998
+   },
+   "C2": {
+    "sma20_vs_sma50_pct": -0.17436244900311815
+   },
+   "C3": {
+    "net60_pct": -0.5210932683556879
+   },
+   "C4": {
+    "gap_pct": 1.3619319895987303,
+    "candle_number": 47,
+    "second_largest_abs_pct": 1.193031004687406,
+    "ratio_largest_to_second": 1.1415730054354951
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "C2_averages_within_0.2pct",
+   "C4_runner_up_gap_within_15pct"
+  ],
+  "note": "symbol/date are those of the matched real session; the price path itself is synthetic"
+ },
+ "c_0055.png": {
+  "session": "R22",
+  "kind": "real",
+  "symbol": "QQQ",
+  "date": "2026-09-11",
+  "post_cutoff": true,
+  "chart_type": "C",
+  "daily_source": "evals",
+  "matched_session": null,
+  "truth": {
+   "C1": "no",
+   "C2": "yes",
+   "C3": "down",
+   "C4": {
+    "direction": "down",
+    "third": "first third"
+   },
+   "C5": null
+  },
+  "metrics": {
+   "C1": {
+    "close_vs_sma50_pct": -0.2707530371672484
+   },
+   "C2": {
+    "sma20_vs_sma50_pct": 0.8322627177857367
+   },
+   "C3": {
+    "net60_pct": -4.41633138012042
+   },
+   "C4": {
+    "gap_pct": -3.010119645134157,
+    "candle_number": 5,
+    "second_largest_abs_pct": 2.1496590973122176,
+    "ratio_largest_to_second": 1.4002776760732893
+   }
+  },
+  "flags": [],
+  "soft_flags": []
+ },
+ "c_0056.png": {
+  "session": "X10",
+  "kind": "synthetic",
+  "symbol": "QQQ",
+  "date": "2026-08-28",
+  "post_cutoff": true,
+  "chart_type": "B",
+  "daily_source": "evals",
+  "matched_session": "R20",
+  "truth": {
+   "B1": "up",
+   "B2": "range",
+   "B3": "up",
+   "B4": "above",
+   "B5": "yes",
+   "B6": null,
+   "B7": "down"
+  },
+  "metrics": {
+   "B1": {
+    "chg_pct": 0.3073670741714274
+   },
+   "B2": {
+    "net_over_range": 0.35587761674718577
+   },
+   "B3": {
+    "ema_last_minus_5_earlier_pct": 0.044165458588718565
+   },
+   "B4": {
+    "close_vs_vwap_pct": 0.0875391564497896
+   },
+   "B5": {
+    "range_0930_1029_pct": 0.7830210984548349,
+    "range_1100_1159_pct": 0.3477003101486767
+   },
+   "B7": {
+    "close_1159": 721.22,
+    "close_1229": 718.11,
+    "move_pct": -0.4312137766562252
+   }
+  },
+  "flags": [],
+  "soft_flags": [],
+  "note": "symbol/date are those of the matched real session; the price path itself is synthetic"
+ },
+ "c_0057.png": {
+  "session": "R03",
+  "kind": "real",
+  "symbol": "SPY",
+  "date": "2026-08-11",
+  "post_cutoff": true,
+  "chart_type": "A",
+  "daily_source": "evals",
+  "matched_session": "X02",
+  "truth": {
+   "A1": "flat",
+   "A2": "above",
+   "A3": "5+",
+   "A4": "first",
+   "A5": "0.25-0.50%",
+   "A6": "no",
+   "A7": "09:30-09:39",
+   "A8": null
+  },
+  "metrics": {
+   "A1": {
+    "chg_pct": -0.08542472916477362
+   },
+   "A2": {
+    "close_vs_vwap_pct": 0.050653767141684014
+   },
+   "A3": {
+    "crosses": 5
+   },
+   "A4": {
+    "highest_high_bar": 0,
+    "bars_at_that_high": 1,
+    "first_half_high_minus_second_half_high_pct": 0.06859864614748533
+   },
+   "A5": {
+    "range_pct": 0.2614514438073666
+   },
+   "A6": {
+    "first15_high": 772.69,
+    "max_close_after_0945": 772.11,
+    "margin_pct": -0.07506244418848951
+   },
+   "A7": {
+    "peak_bar": 0,
+    "bars_at_peak": 1,
+    "peak_over_best_bar_in_other_blocks": 1.7132774357885798
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "A1_within_0.02pp_of_threshold",
+   "A3_count_next_to_a_class_boundary",
+   "A5_within_0.03pp_of_threshold"
+  ]
+ },
+ "c_0058.png": {
+  "session": "R09",
+  "kind": "real",
+  "symbol": "SPY",
+  "date": "2026-09-15",
+  "post_cutoff": true,
+  "chart_type": "A",
+  "daily_source": "evals",
+  "matched_session": "X04",
+  "truth": {
+   "A1": "down",
+   "A2": "below",
+   "A3": "5+",
+   "A4": "first",
+   "A5": "0.25-0.50%",
+   "A6": "no",
+   "A7": "10:00-10:09",
+   "A8": null
+  },
+  "metrics": {
+   "A1": {
+    "chg_pct": -0.3494889548302016
+   },
+   "A2": {
+    "close_vs_vwap_pct": -0.18542478721741418
+   },
+   "A3": {
+    "crosses": 6
+   },
+   "A4": {
+    "highest_high_bar": 0,
+    "bars_at_that_high": 1,
+    "first_half_high_minus_second_half_high_pct": 0.10682492581603155
+   },
+   "A5": {
+    "range_pct": 0.41806791955160866
+   },
+   "A6": {
+    "first15_high": 758.47,
+    "max_close_after_0945": 757.91,
+    "margin_pct": -0.07383284770657861
+   },
+   "A7": {
+    "peak_bar": 38,
+    "bars_at_peak": 1,
+    "peak_over_best_bar_in_other_blocks": 2.2408619573650888
+   }
+  },
+  "flags": [],
+  "soft_flags": []
+ },
+ "c_0059.png": {
+  "session": "R13",
+  "kind": "real",
+  "symbol": "QQQ",
+  "date": "2026-08-07",
+  "post_cutoff": true,
+  "chart_type": "B",
+  "daily_source": "evals",
+  "matched_session": "X07",
+  "truth": {
+   "B1": "up",
+   "B2": "range",
+   "B3": "up",
+   "B4": "above",
+   "B5": "yes",
+   "B6": null,
+   "B7": "down"
+  },
+  "metrics": {
+   "B1": {
+    "chg_pct": 0.3266611064776326
+   },
+   "B2": {
+    "net_over_range": 0.33619456366237765
+   },
+   "B3": {
+    "ema_last_minus_5_earlier_pct": 0.0837852916941717
+   },
+   "B4": {
+    "close_vs_vwap_pct": 0.24654117151403643
+   },
+   "B5": {
+    "range_0930_1029_pct": 0.8618293021962811,
+    "range_1100_1159_pct": 0.4837364470392019
+   },
+   "B7": {
+    "close_1159": 721.75,
+    "close_1229": 719.35,
+    "move_pct": -0.3325251125736006
+   }
+  },
+  "flags": [],
+  "soft_flags": []
+ },
+ "c_0060.png": {
+  "session": "R19",
+  "kind": "real",
+  "symbol": "QQQ",
+  "date": "2026-08-27",
+  "post_cutoff": true,
+  "chart_type": "B",
+  "daily_source": "evals",
+  "matched_session": null,
+  "truth": {
+   "B1": "up",
+   "B2": "range",
+   "B3": "down",
+   "B4": "above",
+   "B5": "yes",
+   "B6": null,
+   "B7": "up"
+  },
+  "metrics": {
+   "B1": {
+    "chg_pct": 0.24434856672113092
+   },
+   "B2": {
+    "net_over_range": 0.34584980237153745
+   },
+   "B3": {
+    "ema_last_minus_5_earlier_pct": -0.009494138594157153
+   },
+   "B4": {
+    "close_vs_vwap_pct": 0.16004239232345618
+   },
+   "B5": {
+    "range_0930_1029_pct": 0.6646281014814491,
+    "range_1100_1159_pct": 0.40771303704325285
+   },
+   "B7": {
+    "close_1159": 717.94,
+    "close_1229": 718.14,
+    "move_pct": 0.027857481126547512
+   }
+  },
+  "flags": [],
+  "soft_flags": []
+ },
+ "c_0061.png": {
+  "session": "R21",
+  "kind": "real",
+  "symbol": "QQQ",
+  "date": "2026-08-31",
+  "post_cutoff": true,
+  "chart_type": "B",
+  "daily_source": "evals",
+  "matched_session": "X11",
+  "truth": {
+   "B1": "down",
+   "B2": "range",
+   "B3": "down",
+   "B4": "below",
+   "B5": "yes",
+   "B6": null,
+   "B7": "up"
+  },
+  "metrics": {
+   "B1": {
+    "chg_pct": -0.17076550536790913
+   },
+   "B2": {
+    "net_over_range": 0.31853785900780696
+   },
+   "B3": {
+    "ema_last_minus_5_earlier_pct": -0.014571714457467522
+   },
+   "B4": {
+    "close_vs_vwap_pct": -0.09362484201567156
+   },
+   "B5": {
+    "range_0930_1029_pct": 0.5360917094746919,
+    "range_1100_1159_pct": 0.2029590022815296
+   },
+   "B7": {
+    "close_1159": 713.21,
+    "close_1229": 714.1,
+    "move_pct": 0.12478793062351556
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "B1_within_0.03pp_of_threshold"
+  ]
+ },
+ "c_0062.png": {
+  "session": "R19",
+  "kind": "real",
+  "symbol": "QQQ",
+  "date": "2026-08-27",
+  "post_cutoff": true,
+  "chart_type": "A",
+  "daily_source": "evals",
+  "matched_session": null,
+  "truth": {
+   "A1": "up",
+   "A2": "above",
+   "A3": "5+",
+   "A4": "second",
+   "A5": ">0.50%",
+   "A6": "yes",
+   "A7": "09:30-09:39",
+   "A8": null
+  },
+  "metrics": {
+   "A1": {
+    "chg_pct": 0.2792555048241496
+   },
+   "A2": {
+    "close_vs_vwap_pct": 0.27600682871706805
+   },
+   "A3": {
+    "crosses": 6
+   },
+   "A4": {
+    "highest_high_bar": 57,
+    "bars_at_that_high": 1,
+    "first_half_high_minus_second_half_high_pct": -0.06422876610954113
+   },
+   "A5": {
+    "range_pct": 0.6646281014814491
+   },
+   "A6": {
+    "first15_high": 717.72,
+    "max_close_after_0945": 718.27,
+    "margin_pct": 0.07663155548123246
+   },
+   "A7": {
+    "peak_bar": 0,
+    "bars_at_peak": 1,
+    "peak_over_best_bar_in_other_blocks": 1.2259698693250158
+   }
+  },
+  "flags": [],
+  "soft_flags": []
+ },
+ "c_0063.png": {
+  "session": "X10",
+  "kind": "synthetic",
+  "symbol": "QQQ",
+  "date": "2026-08-28",
+  "post_cutoff": true,
+  "chart_type": "A",
+  "daily_source": "evals",
+  "matched_session": "R20",
+  "truth": {
+   "A1": "up",
+   "A2": "above",
+   "A3": "5+",
+   "A4": "second",
+   "A5": ">0.50%",
+   "A6": "yes",
+   "A7": "10:20-10:29",
+   "A8": null
+  },
+  "metrics": {
+   "A1": {
+    "chg_pct": 0.3296198940209383
+   },
+   "A2": {
+    "close_vs_vwap_pct": 0.2665316923036176
+   },
+   "A3": {
+    "crosses": 7
+   },
+   "A4": {
+    "highest_high_bar": 32,
+    "bars_at_that_high": 1,
+    "first_half_high_minus_second_half_high_pct": -0.12795371413472312
+   },
+   "A5": {
+    "range_pct": 0.7830210984548349
+   },
+   "A6": {
+    "first15_high": 720.2,
+    "max_close_after_0945": 721.86,
+    "margin_pct": 0.2304915301305055
+   },
+   "A7": {
+    "peak_bar": 58,
+    "bars_at_peak": 1,
+    "peak_over_best_bar_in_other_blocks": 1.9406044009093224
+   }
+  },
+  "flags": [],
+  "soft_flags": [],
+  "note": "symbol/date are those of the matched real session; the price path itself is synthetic"
+ },
+ "c_0064.png": {
+  "session": "R18",
+  "kind": "real",
+  "symbol": "QQQ",
+  "date": "2026-08-25",
+  "post_cutoff": true,
+  "chart_type": "A",
+  "daily_source": "evals",
+  "matched_session": null,
+  "truth": {
+   "A1": "down",
+   "A2": "below",
+   "A3": "2-4",
+   "A4": "first",
+   "A5": ">0.50%",
+   "A6": "yes",
+   "A7": "09:30-09:39",
+   "A8": null
+  },
+  "metrics": {
+   "A1": {
+    "chg_pct": -0.27023983785611216
+   },
+   "A2": {
+    "close_vs_vwap_pct": -0.30375918603837704
+   },
+   "A3": {
+    "crosses": 3
+   },
+   "A4": {
+    "highest_high_bar": 19,
+    "bars_at_that_high": 1,
+    "first_half_high_minus_second_half_high_pct": 0.3321698006981055
+   },
+   "A5": {
+    "range_pct": 0.689674586195245
+   },
+   "A6": {
+    "first15_high": 712.39,
+    "max_close_after_0945": 713.1,
+    "margin_pct": 0.09966450960849915
+   },
+   "A7": {
+    "peak_bar": 0,
+    "bars_at_peak": 1,
+    "peak_over_best_bar_in_other_blocks": 1.1618952292999618
+   }
+  },
+  "flags": [],
+  "soft_flags": []
+ },
+ "c_0065.png": {
+  "session": "R04",
+  "kind": "real",
+  "symbol": "SPY",
+  "date": "2026-08-19",
+  "post_cutoff": true,
+  "chart_type": "C",
+  "daily_source": "evals",
+  "matched_session": null,
+  "truth": {
+   "C1": "yes",
+   "C2": "yes",
+   "C3": "up",
+   "C4": {
+    "direction": "down",
+    "third": "middle third"
+   },
+   "C5": null
+  },
+  "metrics": {
+   "C1": {
+    "close_vs_sma50_pct": 2.390772030834798
+   },
+   "C2": {
+    "sma20_vs_sma50_pct": 1.2211458778602635
+   },
+   "C3": {
+    "net60_pct": 3.1071544014653396
+   },
+   "C4": {
+    "gap_pct": -1.42212645613089,
+    "candle_number": 21,
+    "second_largest_abs_pct": 1.3617701657159031,
+    "ratio_largest_to_second": 1.044321936208124
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "C3_within_0.5pp_of_threshold",
+   "C4_runner_up_gap_within_15pct",
+   "C4_gap_straddles_a_thirds_line"
+  ]
+ },
+ "c_0066.png": {
+  "session": "R01",
+  "kind": "real",
+  "symbol": "SPY",
+  "date": "2026-08-03",
+  "post_cutoff": true,
+  "chart_type": "C",
+  "daily_source": "evals",
+  "matched_session": null,
+  "truth": {
+   "C1": "yes",
+   "C2": "yes",
+   "C3": "flat",
+   "C4": {
+    "direction": "down",
+    "third": "middle third"
+   },
+   "C5": null
+  },
+  "metrics": {
+   "C1": {
+    "close_vs_sma50_pct": 0.3773005432535115
+   },
+   "C2": {
+    "sma20_vs_sma50_pct": 0.1978100134837124
+   },
+   "C3": {
+    "net60_pct": 2.855802012450126
+   },
+   "C4": {
+    "gap_pct": -1.42212645613089,
+    "candle_number": 33,
+    "second_largest_abs_pct": 1.3617701657159031,
+    "ratio_largest_to_second": 1.044321936208124
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "C2_averages_within_0.2pct",
+   "C3_within_0.5pp_of_threshold",
+   "C4_runner_up_gap_within_15pct"
+  ]
+ },
+ "c_0067.png": {
+  "session": "X06",
+  "kind": "synthetic",
+  "symbol": "SPY",
+  "date": "2026-09-25",
+  "post_cutoff": true,
+  "chart_type": "C",
+  "daily_source": "evals",
+  "matched_session": "R12",
+  "truth": {
+   "C1": "yes",
+   "C2": "yes",
+   "C3": "up",
+   "C4": {
+    "direction": "down",
+    "third": "middle third"
+   },
+   "C5": null
+  },
+  "metrics": {
+   "C1": {
+    "close_vs_sma50_pct": 3.73280288189497
+   },
+   "C2": {
+    "sma20_vs_sma50_pct": 1.5662778292356627
+   },
+   "C3": {
+    "net60_pct": 8.060600306527977
+   },
+   "C4": {
+    "gap_pct": -1.422782765045405,
+    "candle_number": 23,
+    "second_largest_abs_pct": 1.3616112619618814,
+    "ratio_largest_to_second": 1.0449258204543523
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "C4_runner_up_gap_within_15pct"
+  ],
+  "note": "symbol/date are those of the matched real session; the price path itself is synthetic"
+ },
+ "c_0068.png": {
+  "session": "R04",
+  "kind": "real",
+  "symbol": "SPY",
+  "date": "2026-08-19",
+  "post_cutoff": true,
+  "chart_type": "B",
+  "daily_source": "evals",
+  "matched_session": null,
+  "truth": {
+   "B1": "flat",
+   "B2": "range",
+   "B3": "down",
+   "B4": "above",
+   "B5": "yes",
+   "B6": null,
+   "B7": "up"
+  },
+  "metrics": {
+   "B1": {
+    "chg_pct": 0.033834341856975314
+   },
+   "B2": {
+    "net_over_range": 0.05963302752293506
+   },
+   "B3": {
+    "ema_last_minus_5_earlier_pct": -0.02310821100159899
+   },
+   "B4": {
+    "close_vs_vwap_pct": 0.03760544475659433
+   },
+   "B5": {
+    "range_0930_1029_pct": 0.3279328518446199,
+    "range_1100_1159_pct": 0.3123170017567802
+   },
+   "B7": {
+    "close_1159": 768.71,
+    "close_1229": 768.76,
+    "move_pct": 0.006504403481155663
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "B5_ranges_within_5pct"
+  ]
+ },
+ "c_0069.png": {
+  "session": "X03",
+  "kind": "synthetic",
+  "symbol": "SPY",
+  "date": "2026-09-04",
+  "post_cutoff": true,
+  "chart_type": "A",
+  "daily_source": "evals",
+  "matched_session": "R05",
+  "truth": {
+   "A1": "flat",
+   "A2": "below",
+   "A3": "2-4",
+   "A4": "first",
+   "A5": "<0.25%",
+   "A6": "no",
+   "A7": "09:30-09:39",
+   "A8": null
+  },
+  "metrics": {
+   "A1": {
+    "chg_pct": -0.09868848201531888
+   },
+   "A2": {
+    "close_vs_vwap_pct": -0.040978862593255005
+   },
+   "A3": {
+    "crosses": 3
+   },
+   "A4": {
+    "highest_high_bar": 2,
+    "bars_at_that_high": 1,
+    "first_half_high_minus_second_half_high_pct": 0.053239838981946265
+   },
+   "A5": {
+    "range_pct": 0.20906375795349952
+   },
+   "A6": {
+    "first15_high": 770.55,
+    "max_close_after_0945": 770.07,
+    "margin_pct": -0.0622931672182081
+   },
+   "A7": {
+    "peak_bar": 0,
+    "bars_at_peak": 1,
+    "peak_over_best_bar_in_other_blocks": 1.4393952431145625
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "A1_within_0.02pp_of_threshold"
+  ],
+  "note": "symbol/date are those of the matched real session; the price path itself is synthetic"
+ },
+ "c_0070.png": {
+  "session": "R14",
+  "kind": "real",
+  "symbol": "QQQ",
+  "date": "2026-08-10",
+  "post_cutoff": true,
+  "chart_type": "A",
+  "daily_source": "evals",
+  "matched_session": "X08",
+  "truth": {
+   "A1": "up",
+   "A2": "above",
+   "A3": "5+",
+   "A4": "second",
+   "A5": ">0.50%",
+   "A6": "yes",
+   "A7": "09:30-09:39",
+   "A8": null
+  },
+  "metrics": {
+   "A1": {
+    "chg_pct": 0.17737375976940584
+   },
+   "A2": {
+    "close_vs_vwap_pct": 0.13013220589537244
+   },
+   "A3": {
+    "crosses": 6
+   },
+   "A4": {
+    "highest_high_bar": 45,
+    "bars_at_that_high": 1,
+    "first_half_high_minus_second_half_high_pct": -0.19677401474418812
+   },
+   "A5": {
+    "range_pct": 0.6000221717199611
+   },
+   "A6": {
+    "first15_high": 722.5,
+    "max_close_after_0945": 723.61,
+    "margin_pct": 0.1536332179930877
+   },
+   "A7": {
+    "peak_bar": 0,
+    "bars_at_peak": 1,
+    "peak_over_best_bar_in_other_blocks": 1.1870670076667746
+   }
+  },
+  "flags": [],
+  "soft_flags": []
+ },
+ "c_0071.png": {
+  "session": "R07",
+  "kind": "real",
+  "symbol": "SPY",
+  "date": "2026-09-09",
+  "post_cutoff": true,
+  "chart_type": "A",
+  "daily_source": "evals",
+  "matched_session": null,
+  "truth": {
+   "A1": "flat",
+   "A2": "above",
+   "A3": "5+",
+   "A4": "first",
+   "A5": "<0.25%",
+   "A6": "no",
+   "A7": "09:30-09:39",
+   "A8": null
+  },
+  "metrics": {
+   "A1": {
+    "chg_pct": -0.013120088166995725
+   },
+   "A2": {
+    "close_vs_vwap_pct": 0.048040602407062316
+   },
+   "A3": {
+    "crosses": 18
+   },
+   "A4": {
+    "highest_high_bar": 4,
+    "bars_at_that_high": 1,
+    "first_half_high_minus_second_half_high_pct": 0.02361615870059482
+   },
+   "A5": {
+    "range_pct": 0.2479696663561561
+   },
+   "A6": {
+    "first15_high": 762.49,
+    "max_close_after_0945": 762.25,
+    "margin_pct": -0.031475822633741934
+   },
+   "A7": {
+    "peak_bar": 0,
+    "bars_at_peak": 1,
+    "peak_over_best_bar_in_other_blocks": 2.004113970186245
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "A5_within_0.03pp_of_threshold"
+  ]
+ },
+ "c_0072.png": {
+  "session": "X11",
+  "kind": "synthetic",
+  "symbol": "QQQ",
+  "date": "2026-08-31",
+  "post_cutoff": true,
+  "chart_type": "C",
+  "daily_source": "evals",
+  "matched_session": "R21",
+  "truth": {
+   "C1": "no",
+   "C2": "no",
+   "C3": "down",
+   "C4": {
+    "direction": "up",
+    "third": "first third"
+   },
+   "C5": null
+  },
+  "metrics": {
+   "C1": {
+    "close_vs_sma50_pct": -4.906400091121233
+   },
+   "C2": {
+    "sma20_vs_sma50_pct": -5.311338310682068
+   },
+   "C3": {
+    "net60_pct": -5.328786747644321
+   },
+   "C4": {
+    "gap_pct": 3.418187640089654,
+    "candle_number": 19,
+    "second_largest_abs_pct": 2.148513566143073,
+    "ratio_largest_to_second": 1.5909546460187587
+   }
+  },
+  "flags": [],
+  "soft_flags": [],
+  "note": "symbol/date are those of the matched real session; the price path itself is synthetic"
+ },
+ "c_0073.png": {
+  "session": "R24",
+  "kind": "real",
+  "symbol": "QQQ",
+  "date": "2026-09-16",
+  "post_cutoff": true,
+  "chart_type": "C",
+  "daily_source": "evals",
+  "matched_session": "X12",
+  "truth": {
+   "C1": "no",
+   "C2": "yes",
+   "C3": "down",
+   "C4": {
+    "direction": "down",
+    "third": "first third"
+   },
+   "C5": null
+  },
+  "metrics": {
+   "C1": {
+    "close_vs_sma50_pct": -0.7646288314277716
+   },
+   "C2": {
+    "sma20_vs_sma50_pct": 0.46952129977031465
+   },
+   "C3": {
+    "net60_pct": -5.050927487352452
+   },
+   "C4": {
+    "gap_pct": -3.010119645134157,
+    "candle_number": 2,
+    "second_largest_abs_pct": 2.1496590973122176,
+    "ratio_largest_to_second": 1.4002776760732893
+   }
+  },
+  "flags": [],
+  "soft_flags": []
+ },
+ "c_0074.png": {
+  "session": "R21",
+  "kind": "real",
+  "symbol": "QQQ",
+  "date": "2026-08-31",
+  "post_cutoff": true,
+  "chart_type": "C",
+  "daily_source": "evals",
+  "matched_session": "X11",
+  "truth": {
+   "C1": "yes",
+   "C2": "yes",
+   "C3": "flat",
+   "C4": {
+    "direction": "down",
+    "third": "first third"
+   },
+   "C5": null
+  },
+  "metrics": {
+   "C1": {
+    "close_vs_sma50_pct": 0.6148686416992843
+   },
+   "C2": {
+    "sma20_vs_sma50_pct": 0.8277867315688692
+   },
+   "C3": {
+    "net60_pct": -2.483955798394899
+   },
+   "C4": {
+    "gap_pct": -3.010119645134157,
+    "candle_number": 13,
+    "second_largest_abs_pct": 2.3228674631842194,
+    "ratio_largest_to_second": 1.295863708473424
+   }
+  },
+  "flags": [],
+  "soft_flags": []
+ },
+ "c_0075.png": {
+  "session": "X07",
+  "kind": "synthetic",
+  "symbol": "QQQ",
+  "date": "2026-08-07",
+  "post_cutoff": true,
+  "chart_type": "A",
+  "daily_source": "evals",
+  "matched_session": "R13",
+  "truth": {
+   "A1": "down",
+   "A2": "below",
+   "A3": "2-4",
+   "A4": "first",
+   "A5": ">0.50%",
+   "A6": "no",
+   "A7": "09:30-09:39",
+   "A8": null
+  },
+  "metrics": {
+   "A1": {
+    "chg_pct": -0.5532388101195496
+   },
+   "A2": {
+    "close_vs_vwap_pct": -0.5991736663272018
+   },
+   "A3": {
+    "crosses": 4
+   },
+   "A4": {
+    "highest_high_bar": 8,
+    "bars_at_that_high": 1,
+    "first_half_high_minus_second_half_high_pct": 0.08618293021962811
+   },
+   "A5": {
+    "range_pct": 1.1523491798721106
+   },
+   "A6": {
+    "first15_high": 723.29,
+    "max_close_after_0945": 722.96,
+    "margin_pct": -0.045624853101788876
+   },
+   "A7": {
+    "peak_bar": 0,
+    "bars_at_peak": 1,
+    "peak_over_best_bar_in_other_blocks": 1.571951057785595
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "A3_count_next_to_a_class_boundary"
+  ],
+  "note": "symbol/date are those of the matched real session; the price path itself is synthetic"
+ },
+ "c_0076.png": {
+  "session": "R10",
+  "kind": "real",
+  "symbol": "SPY",
+  "date": "2026-09-17",
+  "post_cutoff": true,
+  "chart_type": "C",
+  "daily_source": "evals",
+  "matched_session": null,
+  "truth": {
+   "C1": "no",
+   "C2": "yes",
+   "C3": "flat",
+   "C4": {
+    "direction": "down",
+    "third": "first third"
+   },
+   "C5": null
+  },
+  "metrics": {
+   "C1": {
+    "close_vs_sma50_pct": -0.6769254822090454
+   },
+   "C2": {
+    "sma20_vs_sma50_pct": 0.7223100187718101
+   },
+   "C3": {
+    "net60_pct": 2.7582344021093164
+   },
+   "C4": {
+    "gap_pct": -1.1510829794621147,
+    "candle_number": 18,
+    "second_largest_abs_pct": 1.0757014861312308,
+    "ratio_largest_to_second": 1.0700765912316381
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "C3_within_0.5pp_of_threshold",
+   "C4_runner_up_gap_within_15pct"
+  ]
+ },
+ "c_0077.png": {
+  "session": "X04",
+  "kind": "synthetic",
+  "symbol": "SPY",
+  "date": "2026-09-15",
+  "post_cutoff": true,
+  "chart_type": "A",
+  "daily_source": "evals",
+  "matched_session": "R09",
+  "truth": {
+   "A1": "down",
+   "A2": "below",
+   "A3": "0-1",
+   "A4": "first",
+   "A5": "0.25-0.50%",
+   "A6": "no",
+   "A7": "10:00-10:09",
+   "A8": null
+  },
+  "metrics": {
+   "A1": {
+    "chg_pct": -0.2809099901088019
+   },
+   "A2": {
+    "close_vs_vwap_pct": -0.21119059643157634
+   },
+   "A3": {
+    "crosses": 1
+   },
+   "A4": {
+    "highest_high_bar": 4,
+    "bars_at_that_high": 1,
+    "first_half_high_minus_second_half_high_pct": 0.1965051104516842
+   },
+   "A5": {
+    "range_pct": 0.4510385756676504
+   },
+   "A6": {
+    "first15_high": 759.43,
+    "max_close_after_0945": 758.18,
+    "margin_pct": -0.16459713205957405
+   },
+   "A7": {
+    "peak_bar": 31,
+    "bars_at_peak": 1,
+    "peak_over_best_bar_in_other_blocks": 2.2408619573650888
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "A3_count_next_to_a_class_boundary"
+  ],
+  "note": "symbol/date are those of the matched real session; the price path itself is synthetic"
+ },
+ "c_0078.png": {
+  "session": "R08",
+  "kind": "real",
+  "symbol": "SPY",
+  "date": "2026-09-10",
+  "post_cutoff": true,
+  "chart_type": "B",
+  "daily_source": "evals",
+  "matched_session": null,
+  "truth": {
+   "B1": "flat",
+   "B2": "range",
+   "B3": "up",
+   "B4": "above",
+   "B5": "yes",
+   "B6": null,
+   "B7": "down"
+  },
+  "metrics": {
+   "B1": {
+    "chg_pct": 0.06877033353611672
+   },
+   "B2": {
+    "net_over_range": 0.15028901734103361
+   },
+   "B3": {
+    "ema_last_minus_5_earlier_pct": 0.006820748555469436
+   },
+   "B4": {
+    "close_vs_vwap_pct": 0.011958069580852992
+   },
+   "B5": {
+    "range_0930_1029_pct": 0.4575872192980184,
+    "range_1100_1159_pct": 0.23143862247731903
+   },
+   "B7": {
+    "close_1159": 756.66,
+    "close_1229": 756.21,
+    "move_pct": -0.05947188962016625
+   }
+  },
+  "flags": [],
+  "soft_flags": []
+ },
+ "c_0079.png": {
+  "session": "R12",
+  "kind": "real",
+  "symbol": "SPY",
+  "date": "2026-09-25",
+  "post_cutoff": true,
+  "chart_type": "B",
+  "daily_source": "evals",
+  "matched_session": "X06",
+  "truth": {
+   "B1": "up",
+   "B2": "range",
+   "B3": "down",
+   "B4": "above",
+   "B5": "yes",
+   "B6": null,
+   "B7": "up"
+  },
+  "metrics": {
+   "B1": {
+    "chg_pct": 0.15349393829025004
+   },
+   "B2": {
+    "net_over_range": 0.29353233830847486
+   },
+   "B3": {
+    "ema_last_minus_5_earlier_pct": -0.002681322479347603
+   },
+   "B4": {
+    "close_vs_vwap_pct": 0.18947293769446816
+   },
+   "B5": {
+    "range_0930_1029_pct": 0.5229200270565563,
+    "range_1100_1159_pct": 0.3284510120193529
+   },
+   "B7": {
+    "close_1159": 769.94,
+    "close_1229": 771.541,
+    "move_pct": 0.20793828090499566
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "B1_within_0.03pp_of_threshold",
+   "B3_ema_change_below_0.005pct"
+  ]
+ },
+ "c_0080.png": {
+  "session": "R02",
+  "kind": "real",
+  "symbol": "SPY",
+  "date": "2026-08-06",
+  "post_cutoff": true,
+  "chart_type": "B",
+  "daily_source": "evals",
+  "matched_session": "X01",
+  "truth": {
+   "B1": "down",
+   "B2": "range",
+   "B3": "down",
+   "B4": "below",
+   "B5": "no",
+   "B6": null,
+   "B7": "up"
+  },
+  "metrics": {
+   "B1": {
+    "chg_pct": -0.2707275803722431
+   },
+   "B2": {
+    "net_over_range": 0.5388601036269223
+   },
+   "B3": {
+    "ema_last_minus_5_earlier_pct": -0.07527203748499689
+   },
+   "B4": {
+    "close_vs_vwap_pct": -0.2501008936311222
+   },
+   "B5": {
+    "range_0930_1029_pct": 0.359234673955485,
+    "range_1100_1159_pct": 0.4230118443316413
+   },
+   "B7": {
+    "close_1159": 766.22,
+    "close_1229": 766.36,
+    "move_pct": 0.018271514708567693
+   }
+  },
+  "flags": [],
+  "soft_flags": []
+ },
+ "c_0081.png": {
+  "session": "X02",
+  "kind": "synthetic",
+  "symbol": "SPY",
+  "date": "2026-08-11",
+  "post_cutoff": true,
+  "chart_type": "B",
+  "daily_source": "evals",
+  "matched_session": "R03",
+  "truth": {
+   "B1": "up",
+   "B2": "trend",
+   "B3": "up",
+   "B4": "above",
+   "B5": "yes",
+   "B6": null,
+   "B7": "down"
+  },
+  "metrics": {
+   "B1": {
+    "chg_pct": 0.2627457578856074
+   },
+   "B2": {
+    "net_over_range": 0.6041666666666765
+   },
+   "B3": {
+    "ema_last_minus_5_earlier_pct": 0.06840449899514489
+   },
+   "B4": {
+    "close_vs_vwap_pct": 0.24487884820847405
+   },
+   "B5": {
+    "range_0930_1029_pct": 0.28345478313766853,
+    "range_1100_1159_pct": 0.2459196748683006
+   },
+   "B7": {
+    "close_1159": 774.64,
+    "close_1229": 774.46,
+    "move_pct": -0.023236600227194426
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "B2_within_0.05_of_threshold"
+  ],
+  "note": "symbol/date are those of the matched real session; the price path itself is synthetic"
+ },
+ "c_0082.png": {
+  "session": "R23",
+  "kind": "real",
+  "symbol": "QQQ",
+  "date": "2026-09-14",
+  "post_cutoff": true,
+  "chart_type": "A",
+  "daily_source": "evals",
+  "matched_session": null,
+  "truth": {
+   "A1": "up",
+   "A2": "above",
+   "A3": "2-4",
+   "A4": "second",
+   "A5": ">0.50%",
+   "A6": "yes",
+   "A7": "09:30-09:39",
+   "A8": null
+  },
+  "metrics": {
+   "A1": {
+    "chg_pct": 0.3472815257614448
+   },
+   "A2": {
+    "close_vs_vwap_pct": 0.10252124614622549
+   },
+   "A3": {
+    "crosses": 3
+   },
+   "A4": {
+    "highest_high_bar": 40,
+    "bars_at_that_high": 1,
+    "first_half_high_minus_second_half_high_pct": -0.1465983489894638
+   },
+   "A5": {
+    "range_pct": 0.7144890407059467
+   },
+   "A6": {
+    "first15_high": 703.8,
+    "max_close_after_0945": 706.77,
+    "margin_pct": 0.42199488491048154
+   },
+   "A7": {
+    "peak_bar": 0,
+    "bars_at_peak": 1,
+    "peak_over_best_bar_in_other_blocks": 1.49684937303385
+   }
+  },
+  "flags": [],
+  "soft_flags": []
+ },
+ "c_0083.png": {
+  "session": "X06",
+  "kind": "synthetic",
+  "symbol": "SPY",
+  "date": "2026-09-25",
+  "post_cutoff": true,
+  "chart_type": "B",
+  "daily_source": "evals",
+  "matched_session": "R12",
+  "truth": {
+   "B1": "down",
+   "B2": "trend",
+   "B3": "down",
+   "B4": "below",
+   "B5": "yes",
+   "B6": null,
+   "B7": "up"
+  },
+  "metrics": {
+   "B1": {
+    "chg_pct": -0.4058483792080736
+   },
+   "B2": {
+    "net_over_range": 0.6948775055679284
+   },
+   "B3": {
+    "ema_last_minus_5_earlier_pct": -0.06402619133983878
+   },
+   "B4": {
+    "close_vs_vwap_pct": -0.2240636776686733
+   },
+   "B5": {
+    "range_0930_1029_pct": 0.36032051615588506,
+    "range_1100_1159_pct": 0.2562568291794614
+   },
+   "B7": {
+    "close_1159": 765.64,
+    "close_1229": 766.43,
+    "move_pct": 0.10318165195131179
+   }
+  },
+  "flags": [],
+  "soft_flags": [],
+  "note": "symbol/date are those of the matched real session; the price path itself is synthetic"
+ },
+ "c_0084.png": {
+  "session": "X02",
+  "kind": "synthetic",
+  "symbol": "SPY",
+  "date": "2026-08-11",
+  "post_cutoff": true,
+  "chart_type": "A",
+  "daily_source": "evals",
+  "matched_session": "R03",
+  "truth": {
+   "A1": "flat",
+   "A2": "below",
+   "A3": "5+",
+   "A4": "first",
+   "A5": "0.25-0.50%",
+   "A6": "no",
+   "A7": "09:30-09:39",
+   "A8": null
+  },
+  "metrics": {
+   "A1": {
+    "chg_pct": -0.054361191286667054
+   },
+   "A2": {
+    "close_vs_vwap_pct": -0.02132488227998275
+   },
+   "A3": {
+    "crosses": 5
+   },
+   "A4": {
+    "highest_high_bar": 1,
+    "bars_at_that_high": 1,
+    "first_half_high_minus_second_half_high_pct": 0.16955514425129697
+   },
+   "A5": {
+    "range_pct": 0.28345478313766853
+   },
+   "A6": {
+    "first15_high": 773.51,
+    "max_close_after_0945": 773.19,
+    "margin_pct": -0.041369859471751536
+   },
+   "A7": {
+    "peak_bar": 0,
+    "bars_at_peak": 1,
+    "peak_over_best_bar_in_other_blocks": 1.7132774357885798
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "A3_count_next_to_a_class_boundary"
+  ],
+  "note": "symbol/date are those of the matched real session; the price path itself is synthetic"
+ },
+ "c_0085.png": {
+  "session": "X01",
+  "kind": "synthetic",
+  "symbol": "SPY",
+  "date": "2026-08-06",
+  "post_cutoff": true,
+  "chart_type": "A",
+  "daily_source": "evals",
+  "matched_session": "R02",
+  "truth": {
+   "A1": "flat",
+   "A2": "above",
+   "A3": "5+",
+   "A4": "first",
+   "A5": "0.25-0.50%",
+   "A6": "no",
+   "A7": "09:30-09:39",
+   "A8": null
+  },
+  "metrics": {
+   "A1": {
+    "chg_pct": -0.023428348301435253
+   },
+   "A2": {
+    "close_vs_vwap_pct": 0.027831461564087334
+   },
+   "A3": {
+    "crosses": 13
+   },
+   "A4": {
+    "highest_high_bar": 0,
+    "bars_at_that_high": 1,
+    "first_half_high_minus_second_half_high_pct": 0.046856696602891275
+   },
+   "A5": {
+    "range_pct": 0.3201874267864163
+   },
+   "A6": {
+    "first15_high": 768.88,
+    "max_close_after_0945": 768.67,
+    "margin_pct": -0.027312454479244686
+   },
+   "A7": {
+    "peak_bar": 0,
+    "bars_at_peak": 1,
+    "peak_over_best_bar_in_other_blocks": 3.1906081742535486
+   }
+  },
+  "flags": [],
+  "soft_flags": [],
+  "note": "symbol/date are those of the matched real session; the price path itself is synthetic"
+ },
+ "c_0086.png": {
+  "session": "R10",
+  "kind": "real",
+  "symbol": "SPY",
+  "date": "2026-09-17",
+  "post_cutoff": true,
+  "chart_type": "B",
+  "daily_source": "evals",
+  "matched_session": null,
+  "truth": {
+   "B1": "flat",
+   "B2": "range",
+   "B3": "up",
+   "B4": "above",
+   "B5": "yes",
+   "B6": null,
+   "B7": "down"
+  },
+  "metrics": {
+   "B1": {
+    "chg_pct": -0.08013031027507278
+   },
+   "B2": {
+    "net_over_range": 0.17732558139535584
+   },
+   "B3": {
+    "ema_last_minus_5_earlier_pct": 0.0539468967943435
+   },
+   "B4": {
+    "close_vs_vwap_pct": 0.1474154859492094
+   },
+   "B5": {
+    "range_0930_1029_pct": 0.45188240548563446,
+    "range_1100_1159_pct": 0.28768095000393307
+   },
+   "B7": {
+    "close_1159": 760.65,
+    "close_1229": 760.64,
+    "move_pct": -0.0013146650890694112
+   }
+  },
+  "flags": [],
+  "soft_flags": []
+ },
+ "c_0087.png": {
+  "session": "R20",
+  "kind": "real",
+  "symbol": "QQQ",
+  "date": "2026-08-28",
+  "post_cutoff": true,
+  "chart_type": "C",
+  "daily_source": "evals",
+  "matched_session": "X10",
+  "truth": {
+   "C1": "yes",
+   "C2": "yes",
+   "C3": "down",
+   "C4": {
+    "direction": "down",
+    "third": "first third"
+   },
+   "C5": null
+  },
+  "metrics": {
+   "C1": {
+    "close_vs_sma50_pct": 1.2577803017098432
+   },
+   "C2": {
+    "sma20_vs_sma50_pct": 0.6131468122550832
+   },
+   "C3": {
+    "net60_pct": -3.3994448243955477
+   },
+   "C4": {
+    "gap_pct": -3.010119645134157,
+    "candle_number": 14,
+    "second_largest_abs_pct": 2.3228674631842194,
+    "ratio_largest_to_second": 1.295863708473424
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "C3_within_0.5pp_of_threshold"
+  ]
+ },
+ "c_0088.png": {
+  "session": "R21",
+  "kind": "real",
+  "symbol": "QQQ",
+  "date": "2026-08-31",
+  "post_cutoff": true,
+  "chart_type": "A",
+  "daily_source": "evals",
+  "matched_session": "X11",
+  "truth": {
+   "A1": "down",
+   "A2": "below",
+   "A3": "5+",
+   "A4": "first",
+   "A5": ">0.50%",
+   "A6": "no",
+   "A7": "09:30-09:39",
+   "A8": null
+  },
+  "metrics": {
+   "A1": {
+    "chg_pct": -0.21695617485267826
+   },
+   "A2": {
+    "close_vs_vwap_pct": -0.16547814235202685
+   },
+   "A3": {
+    "crosses": 7
+   },
+   "A4": {
+    "highest_high_bar": 1,
+    "bars_at_that_high": 1,
+    "first_half_high_minus_second_half_high_pct": 0.2211553266240277
+   },
+   "A5": {
+    "range_pct": 0.5360917094746919
+   },
+   "A6": {
+    "first15_high": 716.25,
+    "max_close_after_0945": 715.14,
+    "margin_pct": -0.1549738219895347
+   },
+   "A7": {
+    "peak_bar": 0,
+    "bars_at_peak": 1,
+    "peak_over_best_bar_in_other_blocks": 1.14459316369412
+   }
+  },
+  "flags": [],
+  "soft_flags": []
+ },
+ "c_0089.png": {
+  "session": "X01",
+  "kind": "synthetic",
+  "symbol": "SPY",
+  "date": "2026-08-06",
+  "post_cutoff": true,
+  "chart_type": "C",
+  "daily_source": "evals",
+  "matched_session": "R02",
+  "truth": {
+   "C1": "no",
+   "C2": "no",
+   "C3": "down",
+   "C4": {
+    "direction": "up",
+    "third": "first third"
+   },
+   "C5": null
+  },
+  "metrics": {
+   "C1": {
+    "close_vs_sma50_pct": -4.36929310486639
+   },
+   "C2": {
+    "sma20_vs_sma50_pct": -2.6098160438836615
+   },
+   "C3": {
+    "net60_pct": -5.70340547375765
+   },
+   "C4": {
+    "gap_pct": 1.176862279609736,
+    "candle_number": 15,
+    "second_largest_abs_pct": 1.1639617863720142,
+    "ratio_largest_to_second": 1.0110832618293526
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "C4_runner_up_gap_within_15pct"
+  ],
+  "note": "symbol/date are those of the matched real session; the price path itself is synthetic"
+ },
+ "c_0090.png": {
+  "session": "R17",
+  "kind": "real",
+  "symbol": "QQQ",
+  "date": "2026-08-20",
+  "post_cutoff": true,
+  "chart_type": "C",
+  "daily_source": "evals",
+  "matched_session": "X09",
+  "truth": {
+   "C1": "yes",
+   "C2": "no",
+   "C3": "flat",
+   "C4": {
+    "direction": "down",
+    "third": "first third"
+   },
+   "C5": null
+  },
+  "metrics": {
+   "C1": {
+    "close_vs_sma50_pct": 0.4513591750105794
+   },
+   "C2": {
+    "sma20_vs_sma50_pct": -0.8526422247617682
+   },
+   "C3": {
+    "net60_pct": -1.253433828909034
+   },
+   "C4": {
+    "gap_pct": -3.010119645134157,
+    "candle_number": 20,
+    "second_largest_abs_pct": 2.3228674631842194,
+    "ratio_largest_to_second": 1.295863708473424
+   }
+  },
+  "flags": [],
+  "soft_flags": []
+ },
+ "c_0091.png": {
+  "session": "R02",
+  "kind": "real",
+  "symbol": "SPY",
+  "date": "2026-08-06",
+  "post_cutoff": true,
+  "chart_type": "C",
+  "daily_source": "evals",
+  "matched_session": "X01",
+  "truth": {
+   "C1": "yes",
+   "C2": "yes",
+   "C3": "up",
+   "C4": {
+    "direction": "down",
+    "third": "middle third"
+   },
+   "C5": null
+  },
+  "metrics": {
+   "C1": {
+    "close_vs_sma50_pct": 3.2272427001691417
+   },
+   "C2": {
+    "sma20_vs_sma50_pct": 0.3612308223415628
+   },
+   "C3": {
+    "net60_pct": 4.795698337746002
+   },
+   "C4": {
+    "gap_pct": -1.42212645613089,
+    "candle_number": 30,
+    "second_largest_abs_pct": 1.3617701657159031,
+    "ratio_largest_to_second": 1.044321936208124
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "C4_runner_up_gap_within_15pct"
+  ]
+ },
+ "c_0092.png": {
+  "session": "R01",
+  "kind": "real",
+  "symbol": "SPY",
+  "date": "2026-08-03",
+  "post_cutoff": true,
+  "chart_type": "A",
+  "daily_source": "evals",
+  "matched_session": null,
+  "truth": {
+   "A1": "up",
+   "A2": "above",
+   "A3": "0-1",
+   "A4": "second",
+   "A5": ">0.50%",
+   "A6": "yes",
+   "A7": "09:30-09:39",
+   "A8": null
+  },
+  "metrics": {
+   "A1": {
+    "chg_pct": 0.6755129885764655
+   },
+   "A2": {
+    "close_vs_vwap_pct": 0.25036553872739287
+   },
+   "A3": {
+    "crosses": 0
+   },
+   "A4": {
+    "highest_high_bar": 54,
+    "bars_at_that_high": 1,
+    "first_half_high_minus_second_half_high_pct": -0.1524920409855783
+   },
+   "A5": {
+    "range_pct": 0.7972390914684612
+   },
+   "A6": {
+    "first15_high": 750.08,
+    "max_close_after_0945": 752.77,
+    "margin_pct": 0.35862841296927517
+   },
+   "A7": {
+    "peak_bar": 0,
+    "bars_at_peak": 1,
+    "peak_over_best_bar_in_other_blocks": 1.9946467847383378
+   }
+  },
+  "flags": [],
+  "soft_flags": []
+ },
+ "c_0093.png": {
+  "session": "R13",
+  "kind": "real",
+  "symbol": "QQQ",
+  "date": "2026-08-07",
+  "post_cutoff": true,
+  "chart_type": "A",
+  "daily_source": "evals",
+  "matched_session": "X07",
+  "truth": {
+   "A1": "up",
+   "A2": "above",
+   "A3": "5+",
+   "A4": "first",
+   "A5": ">0.50%",
+   "A6": "no",
+   "A7": "09:30-09:39",
+   "A8": null
+  },
+  "metrics": {
+   "A1": {
+    "chg_pct": 0.1584653878231812
+   },
+   "A2": {
+    "close_vs_vwap_pct": 0.1711489219276885
+   },
+   "A3": {
+    "crosses": 14
+   },
+   "A4": {
+    "highest_high_bar": 15,
+    "bars_at_that_high": 1,
+    "first_half_high_minus_second_half_high_pct": 0.14734500973033904
+   },
+   "A5": {
+    "range_pct": 0.8618293021962811
+   },
+   "A6": {
+    "first15_high": 721.79,
+    "max_close_after_0945": 721.06,
+    "margin_pct": -0.10113744995081664
+   },
+   "A7": {
+    "peak_bar": 0,
+    "bars_at_peak": 1,
+    "peak_over_best_bar_in_other_blocks": 1.571951057785595
+   }
+  },
+  "flags": [],
+  "soft_flags": []
+ },
+ "c_0094.png": {
+  "session": "X04",
+  "kind": "synthetic",
+  "symbol": "SPY",
+  "date": "2026-09-15",
+  "post_cutoff": true,
+  "chart_type": "C",
+  "daily_source": "evals",
+  "matched_session": "R09",
+  "truth": {
+   "C1": "yes",
+   "C2": "yes",
+   "C3": "up",
+   "C4": {
+    "direction": "up",
+    "third": "middle third"
+   },
+   "C5": null
+  },
+  "metrics": {
+   "C1": {
+    "close_vs_sma50_pct": 6.443721595826135
+   },
+   "C2": {
+    "sma20_vs_sma50_pct": 4.481116224184611
+   },
+   "C3": {
+    "net60_pct": 17.043262156240814
+   },
+   "C4": {
+    "gap_pct": 2.6042853021122747,
+    "candle_number": 33,
+    "second_largest_abs_pct": 1.1770683377085422,
+    "ratio_largest_to_second": 2.2125183548664364
+   }
+  },
+  "flags": [],
+  "soft_flags": [],
+  "note": "symbol/date are those of the matched real session; the price path itself is synthetic"
+ },
+ "c_0095.png": {
+  "session": "R05",
+  "kind": "real",
+  "symbol": "SPY",
+  "date": "2026-09-04",
+  "post_cutoff": true,
+  "chart_type": "C",
+  "daily_source": "evals",
+  "matched_session": "X03",
+  "truth": {
+   "C1": "yes",
+   "C2": "yes",
+   "C3": "up",
+   "C4": {
+    "direction": "down",
+    "third": "first third"
+   },
+   "C5": null
+  },
+  "metrics": {
+   "C1": {
+    "close_vs_sma50_pct": 2.251725518583636
+   },
+   "C2": {
+    "sma20_vs_sma50_pct": 1.7281038784725977
+   },
+   "C3": {
+    "net60_pct": 5.69556935136839
+   },
+   "C4": {
+    "gap_pct": -1.42212645613089,
+    "candle_number": 9,
+    "second_largest_abs_pct": 1.3617701657159031,
+    "ratio_largest_to_second": 1.044321936208124
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "C4_runner_up_gap_within_15pct"
+  ]
+ },
+ "c_0096.png": {
+  "session": "X05",
+  "kind": "synthetic",
+  "symbol": "SPY",
+  "date": "2026-09-21",
+  "post_cutoff": true,
+  "chart_type": "A",
+  "daily_source": "evals",
+  "matched_session": "R11",
+  "truth": {
+   "A1": "flat",
+   "A2": "below",
+   "A3": "2-4",
+   "A4": "second",
+   "A5": "0.25-0.50%",
+   "A6": "yes",
+   "A7": "10:20-10:29",
+   "A8": null
+  },
+  "metrics": {
+   "A1": {
+    "chg_pct": -0.06655443761499624
+   },
+   "A2": {
+    "close_vs_vwap_pct": -0.02084681274122646
+   },
+   "A3": {
+    "crosses": 4
+   },
+   "A4": {
+    "highest_high_bar": 50,
+    "bars_at_that_high": 1,
+    "first_half_high_minus_second_half_high_pct": -0.06916441556068495
+   },
+   "A5": {
+    "range_pct": 0.25969280559579394
+   },
+   "A6": {
+    "first15_high": 766.33,
+    "max_close_after_0945": 766.69,
+    "margin_pct": 0.04697715083581411
+   },
+   "A7": {
+    "peak_bar": 54,
+    "bars_at_peak": 1,
+    "peak_over_best_bar_in_other_blocks": 2.037405224533252
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "A3_count_next_to_a_class_boundary",
+   "A5_within_0.03pp_of_threshold"
+  ],
+  "note": "symbol/date are those of the matched real session; the price path itself is synthetic"
+ },
+ "c_0097.png": {
+  "session": "R11",
+  "kind": "real",
+  "symbol": "SPY",
+  "date": "2026-09-21",
+  "post_cutoff": true,
+  "chart_type": "C",
+  "daily_source": "evals",
+  "matched_session": "X05",
+  "truth": {
+   "C1": "yes",
+   "C2": "yes",
+   "C3": "up",
+   "C4": {
+    "direction": "up",
+    "third": "last third"
+   },
+   "C5": null
+  },
+  "metrics": {
+   "C1": {
+    "close_vs_sma50_pct": 0.5018694094524045
+   },
+   "C2": {
+    "sma20_vs_sma50_pct": 0.6091414227778591
+   },
+   "C3": {
+    "net60_pct": 3.3388505996635454
+   },
+   "C4": {
+    "gap_pct": 1.2071578611502654,
+    "candle_number": 59,
+    "second_largest_abs_pct": 1.1510829794621147,
+    "ratio_largest_to_second": 1.0487148908364137
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "C3_within_0.5pp_of_threshold",
+   "C4_runner_up_gap_within_15pct"
+  ]
+ },
+ "c_0098.png": {
+  "session": "R01",
+  "kind": "real",
+  "symbol": "SPY",
+  "date": "2026-08-03",
+  "post_cutoff": true,
+  "chart_type": "B",
+  "daily_source": "evals",
+  "matched_session": null,
+  "truth": {
+   "B1": "up",
+   "B2": "trend",
+   "B3": "up",
+   "B4": "above",
+   "B5": "yes",
+   "B6": null,
+   "B7": "up"
+  },
+  "metrics": {
+   "B1": {
+    "chg_pct": 0.8694721635142733
+   },
+   "B2": {
+    "net_over_range": 0.8795669824086619
+   },
+   "B3": {
+    "ema_last_minus_5_earlier_pct": 0.07495627672304828
+   },
+   "B4": {
+    "close_vs_vwap_pct": 0.262957609005543
+   },
+   "B5": {
+    "range_0930_1029_pct": 0.7972390914684612,
+    "range_1100_1159_pct": 0.18994622649082005
+   },
+   "B7": {
+    "close_1159": 754.08,
+    "close_1229": 754.7,
+    "move_pct": 0.08221939316783722
+   }
+  },
+  "flags": [],
+  "soft_flags": []
+ },
+ "c_0099.png": {
+  "session": "R15",
+  "kind": "real",
+  "symbol": "QQQ",
+  "date": "2026-08-14",
+  "post_cutoff": true,
+  "chart_type": "B",
+  "daily_source": "evals",
+  "matched_session": null,
+  "truth": {
+   "B1": "down",
+   "B2": "trend",
+   "B3": "down",
+   "B4": "below",
+   "B5": "yes",
+   "B6": null,
+   "B7": "up"
+  },
+  "metrics": {
+   "B1": {
+    "chg_pct": -0.5705316317477616
+   },
+   "B2": {
+    "net_over_range": 0.6886326194398543
+   },
+   "B3": {
+    "ema_last_minus_5_earlier_pct": -0.10111899303473226
+   },
+   "B4": {
+    "close_vs_vwap_pct": -0.2944807416648709
+   },
+   "B5": {
+    "range_0930_1029_pct": 0.48454241452261715,
+    "range_1100_1159_pct": 0.3726199413089495
+   },
+   "B7": {
+    "close_1159": 728.47,
+    "close_1229": 729.31,
+    "move_pct": 0.11531017063157734
+   }
+  },
+  "flags": [],
+  "soft_flags": []
+ },
+ "c_0100.png": {
+  "session": "R08",
+  "kind": "real",
+  "symbol": "SPY",
+  "date": "2026-09-10",
+  "post_cutoff": true,
+  "chart_type": "C",
+  "daily_source": "evals",
+  "matched_session": null,
+  "truth": {
+   "C1": "yes",
+   "C2": "yes",
+   "C3": "flat",
+   "C4": {
+    "direction": "down",
+    "third": "first third"
+   },
+   "C5": null
+  },
+  "metrics": {
+   "C1": {
+    "close_vs_sma50_pct": 0.5770574118828309
+   },
+   "C2": {
+    "sma20_vs_sma50_pct": 1.3543537721389054
+   },
+   "C3": {
+    "net60_pct": 1.664305002272548
+   },
+   "C4": {
+    "gap_pct": -1.42212645613089,
+    "candle_number": 6,
+    "second_largest_abs_pct": 1.177380193426747,
+    "ratio_largest_to_second": 1.2078736028264692
+   }
+  },
+  "flags": [],
+  "soft_flags": []
+ },
+ "c_0101.png": {
+  "session": "R16",
+  "kind": "real",
+  "symbol": "QQQ",
+  "date": "2026-08-17",
+  "post_cutoff": true,
+  "chart_type": "B",
+  "daily_source": "evals",
+  "matched_session": null,
+  "truth": {
+   "B1": "flat",
+   "B2": "range",
+   "B3": "down",
+   "B4": "above",
+   "B5": "yes",
+   "B6": null,
+   "B7": "down"
+  },
+  "metrics": {
+   "B1": {
+    "chg_pct": 0.07785077236162063
+   },
+   "B2": {
+    "net_over_range": 0.18627450980394122
+   },
+   "B3": {
+    "ema_last_minus_5_earlier_pct": -0.0035979372337680005
+   },
+   "B4": {
+    "close_vs_vwap_pct": 0.05203364735815175
+   },
+   "B5": {
+    "range_0930_1029_pct": 0.35101137713919583,
+    "range_1100_1159_pct": 0.2513077563953615
+   },
+   "B7": {
+    "close_1159": 732.74,
+    "close_1229": 731.94,
+    "move_pct": -0.10917924502551468
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "B3_ema_change_below_0.005pct"
+  ]
+ },
+ "c_0102.png": {
+  "session": "X09",
+  "kind": "synthetic",
+  "symbol": "QQQ",
+  "date": "2026-08-20",
+  "post_cutoff": true,
+  "chart_type": "B",
+  "daily_source": "evals",
+  "matched_session": "R17",
+  "truth": {
+   "B1": "up",
+   "B2": "range",
+   "B3": "down",
+   "B4": "below",
+   "B5": "yes",
+   "B6": null,
+   "B7": "up"
+  },
+  "metrics": {
+   "B1": {
+    "chg_pct": 0.54965909889646
+   },
+   "B2": {
+    "net_over_range": 0.506476683937818
+   },
+   "B3": {
+    "ema_last_minus_5_earlier_pct": -0.00014529713795452537
+   },
+   "B4": {
+    "close_vs_vwap_pct": -0.020279333198691685
+   },
+   "B5": {
+    "range_0930_1029_pct": 1.08526042032755,
+    "range_1100_1159_pct": 0.28959021578689237
+   },
+   "B7": {
+    "close_1159": 715.26,
+    "close_1229": 715.4,
+    "move_pct": 0.019573302016051564
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "B3_ema_change_below_0.005pct"
+  ],
+  "note": "symbol/date are those of the matched real session; the price path itself is synthetic"
+ },
+ "c_0103.png": {
+  "session": "R06",
+  "kind": "real",
+  "symbol": "SPY",
+  "date": "2026-09-08",
+  "post_cutoff": true,
+  "chart_type": "B",
+  "daily_source": "evals",
+  "matched_session": null,
+  "truth": {
+   "B1": "down",
+   "B2": "range",
+   "B3": "down",
+   "B4": "below",
+   "B5": "yes",
+   "B6": null,
+   "B7": "down"
+  },
+  "metrics": {
+   "B1": {
+    "chg_pct": -0.21768601074091398
+   },
+   "B2": {
+    "net_over_range": 0.45135135135134863
+   },
+   "B3": {
+    "ema_last_minus_5_earlier_pct": -0.004350553195031637
+   },
+   "B4": {
+    "close_vs_vwap_pct": -0.02277441882820863
+   },
+   "B5": {
+    "range_0930_1029_pct": 0.48229834715052033,
+    "range_1100_1159_pct": 0.13426143177433297
+   },
+   "B7": {
+    "close_1159": 765.49,
+    "close_1229": 765.2,
+    "move_pct": -0.03788423101542815
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "B3_ema_change_below_0.005pct"
+  ]
+ },
+ "c_0104.png": {
+  "session": "R11",
+  "kind": "real",
+  "symbol": "SPY",
+  "date": "2026-09-21",
+  "post_cutoff": true,
+  "chart_type": "A",
+  "daily_source": "evals",
+  "matched_session": "X05",
+  "truth": {
+   "A1": "up",
+   "A2": "above",
+   "A3": "2-4",
+   "A4": "second",
+   "A5": "0.25-0.50%",
+   "A6": "yes",
+   "A7": "10:20-10:29",
+   "A8": null
+  },
+  "metrics": {
+   "A1": {
+    "chg_pct": 0.35799762492008114
+   },
+   "A2": {
+    "close_vs_vwap_pct": 0.17974530013511458
+   },
+   "A3": {
+    "crosses": 2
+   },
+   "A4": {
+    "highest_high_bar": 58,
+    "bars_at_that_high": 1,
+    "first_half_high_minus_second_half_high_pct": -0.2048832687363709
+   },
+   "A5": {
+    "range_pct": 0.42542640514687535
+   },
+   "A6": {
+    "first15_high": 766.855,
+    "max_close_after_0945": 769.1399,
+    "margin_pct": 0.29795724093863996
+   },
+   "A7": {
+    "peak_bar": 57,
+    "bars_at_peak": 1,
+    "peak_over_best_bar_in_other_blocks": 2.037405224533252
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "A3_count_next_to_a_class_boundary"
+  ]
+ },
+ "c_0105.png": {
+  "session": "R09",
+  "kind": "real",
+  "symbol": "SPY",
+  "date": "2026-09-15",
+  "post_cutoff": true,
+  "chart_type": "C",
+  "daily_source": "evals",
+  "matched_session": "X04",
+  "truth": {
+   "C1": "yes",
+   "C2": "yes",
+   "C3": "flat",
+   "C4": {
+    "direction": "down",
+    "third": "first third"
+   },
+   "C5": null
+  },
+  "metrics": {
+   "C1": {
+    "close_vs_sma50_pct": 0.2564928297454472
+   },
+   "C2": {
+    "sma20_vs_sma50_pct": 0.9443527591405765
+   },
+   "C3": {
+    "net60_pct": 1.7549034065772018
+   },
+   "C4": {
+    "gap_pct": -1.42212645613089,
+    "candle_number": 3,
+    "second_largest_abs_pct": 1.1510829794621147,
+    "ratio_largest_to_second": 1.2354682342670293
+   }
+  },
+  "flags": [],
+  "soft_flags": []
+ },
+ "c_0106.png": {
+  "session": "R12",
+  "kind": "real",
+  "symbol": "SPY",
+  "date": "2026-09-25",
+  "post_cutoff": true,
+  "chart_type": "A",
+  "daily_source": "evals",
+  "matched_session": "X06",
+  "truth": {
+   "A1": "down",
+   "A2": "below",
+   "A3": "2-4",
+   "A4": "first",
+   "A5": ">0.50%",
+   "A6": "yes",
+   "A7": "09:30-09:39",
+   "A8": null
+  },
+  "metrics": {
+   "A1": {
+    "chg_pct": -0.17820906394713232
+   },
+   "A2": {
+    "close_vs_vwap_pct": -0.13425975676266688
+   },
+   "A3": {
+    "crosses": 4
+   },
+   "A4": {
+    "highest_high_bar": 26,
+    "bars_at_that_high": 1,
+    "first_half_high_minus_second_half_high_pct": 0.061137416098641144
+   },
+   "A5": {
+    "range_pct": 0.5229200270565563
+   },
+   "A6": {
+    "first15_high": 770.055,
+    "max_close_after_0945": 770.29,
+    "margin_pct": 0.030517300712284978
+   },
+   "A7": {
+    "peak_bar": 0,
+    "bars_at_peak": 1,
+    "peak_over_best_bar_in_other_blocks": 1.1271423330698205
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "A3_count_next_to_a_class_boundary",
+   "A5_within_0.03pp_of_threshold"
+  ]
+ },
+ "c_0107.png": {
+  "session": "R04",
+  "kind": "real",
+  "symbol": "SPY",
+  "date": "2026-08-19",
+  "post_cutoff": true,
+  "chart_type": "A",
+  "daily_source": "evals",
+  "matched_session": null,
+  "truth": {
+   "A1": "flat",
+   "A2": "above",
+   "A3": "5+",
+   "A4": "first",
+   "A5": "0.25-0.50%",
+   "A6": "no",
+   "A7": "09:30-09:39",
+   "A8": null
+  },
+  "metrics": {
+   "A1": {
+    "chg_pct": -0.04294358774156182
+   },
+   "A2": {
+    "close_vs_vwap_pct": 0.04482958389211422
+   },
+   "A3": {
+    "crosses": 13
+   },
+   "A4": {
+    "highest_high_bar": 0,
+    "bars_at_that_high": 1,
+    "first_half_high_minus_second_half_high_pct": 0.04814887110417132
+   },
+   "A5": {
+    "range_pct": 0.3279328518446199
+   },
+   "A6": {
+    "first15_high": 768.72,
+    "max_close_after_0945": 768.37,
+    "margin_pct": -0.04553023207409801
+   },
+   "A7": {
+    "peak_bar": 0,
+    "bars_at_peak": 1,
+    "peak_over_best_bar_in_other_blocks": 2.7182804342641096
+   }
+  },
+  "flags": [],
+  "soft_flags": []
+ },
+ "c_0108.png": {
+  "session": "R24",
+  "kind": "real",
+  "symbol": "QQQ",
+  "date": "2026-09-16",
+  "post_cutoff": true,
+  "chart_type": "B",
+  "daily_source": "evals",
+  "matched_session": "X12",
+  "truth": {
+   "B1": "up",
+   "B2": "trend",
+   "B3": "up",
+   "B4": "above",
+   "B5": "yes",
+   "B6": null,
+   "B7": "down"
+  },
+  "metrics": {
+   "B1": {
+    "chg_pct": 0.37185759126769913
+   },
+   "B2": {
+    "net_over_range": 0.6202830188679221
+   },
+   "B3": {
+    "ema_last_minus_5_earlier_pct": 0.0342749986368851
+   },
+   "B4": {
+    "close_vs_vwap_pct": 0.1242336034978031
+   },
+   "B5": {
+    "range_0930_1029_pct": 0.3760993128411006,
+    "range_1100_1159_pct": 0.22339733619885768
+   },
+   "B7": {
+    "close_1159": 709.89,
+    "close_1229": 709.6,
+    "move_pct": -0.040851399512598086
+   }
+  },
+  "flags": [],
+  "soft_flags": [
+   "B2_within_0.05_of_threshold"
+  ]
+ }
+}

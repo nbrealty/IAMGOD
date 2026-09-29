@@ -1,0 +1,58 @@
+# Skew table for book O's model prices (OPT-37 backtester, RPL method). Read by trader/options/pricing.py.
+# Code reads this; Claude never changes it. Re-run the calibration with:
+#   python -m trader.options.pricing calibrate --write
+#
+# Model: implied vol of an option = volatility index (VIX for SPY, as a fraction: 18.5 -> 0.185)
+#        x a ratio that depends on moneyness m = strike / spot, the DTE bucket, and the index level.
+#   - m below `call.start` (puts and at-the-money): the ratio is interpolated from `ratio_low` (index <= vix_low)
+#     and `ratio_high` (index >= vix_high), blended linearly in between. Below the lowest node the ratio rises
+#     by `put_wing_slope` per unit of moneyness (0.06 per 1% further out of the money).
+#   - m at or above `call.start`: ratio = max(call.floor, call.atm - call.slope x (m - call.start)).
+#   - The final IV is clipped to `iv_bounds`.
+#   - Known step (kept on purpose, it is exactly RPL's formula): at m >= call.start the ratio is call.atm whatever
+#     the index level, so above vix_low the ratio jumps at the money from the blended 1.00 node (0.82 at high VIX)
+#     up to call.atm (0.85). Calibration only refits the put nodes; it cannot remove this step.
+#
+# Provenance of the default table (RPL, reports/Options rulebook.md):
+#   Alpaca SPY option daily bars (trade closes), entries 2024-03-15 .. 2026-08-14, one entry per standard monthly
+#   expiry at 35 calendar days to expiry, 28 entry dates, 166 contracts at nominal moneyness 0.85/0.90/0.92/0.95/
+#   0.97/1.00. IV by Black-Scholes on raw SIP SPY closes (dividend yield 1.3%, 3-month T-bill rate from FRED DTB3),
+#   divided by the Cboe VIX close of the same day. Per moneyness, the ratio was regressed on VIX and read at
+#   VIX 15 and VIX 25. Only VIX 12-38 was seen (2 entry dates above 25), so the high-VIX column is weakly supported.
+#   Only one DTE (35) was calibrated, so a single bucket covers every DTE: exits at 7 DTE use the same table, as the
+#   RPL replay did. The call side was not calibrated (rule of thumb from the 2026-09-25 SPY chain snapshot).
+#   Checked against real 2024-26 option bars: model vs market spread R correlation 0.99, n = 27 (in sample).
+source: "alpaca option bars (SPY, trade closes) / cboe VIX; RPL calibration"
+calibrated:
+  first_entry: "2024-03-15"
+  last_entry: "2026-08-14"
+  entry_dates: 28
+  contracts: 166
+  underlying: SPY
+  dte: 35
+  rate: "3-month T-bill of each entry date (FRED DTB3); model_quote says rate_source=default_rate otherwise"
+  method: "linear fit of IV/VIX on VIX per moneyness node, read at vix_low and vix_high"
+vix_low: 0.15
+vix_high: 0.25
+put_wing_slope: 6.0
+iv_bounds: [0.01, 3.0]
+default_rate: 0.04          # used only when a caller gives no rate (RPL used the daily 3-month T-bill rate)
+dividend_yield:             # continuous yield used by Black-Scholes, per underlying
+  SPY: 0.013
+  QQQ: 0.006
+  IWM: 0.012
+  DIA: 0.017
+vol_index:                  # which Cboe index stands in for each underlying's volatility
+  SPY: VIX
+  QQQ: VXN
+  IWM: RVX
+  DIA: VXD
+buckets:
+  - name: all
+    dte_min: 0
+    dte_max: 10000
+    calibrated_dte: 35
+    moneyness: [0.85, 0.90, 0.92, 0.95, 0.97, 1.00]
+    ratio_low: [1.82, 1.44, 1.31, 1.12, 1.00, 0.85]
+    ratio_high: [1.48, 1.25, 1.16, 1.03, 0.96, 0.82]
+    call: {start: 1.0, atm: 0.85, slope: 0.8, floor: 0.70}

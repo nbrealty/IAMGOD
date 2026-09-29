@@ -1,0 +1,83 @@
+# Strategy playbook: four sleeves from reports/Trading strategy playbook.md.
+# Weights are shares of total equity. The rules book picks weights by inverse
+# volatility inside [min, max]. The Claude book picks its own inside [min, max].
+sleeves:
+  A:
+    name: trend_core
+    description: Faber GTAA-5 (price vs 10-month SMA), optional 50/50 blend with Antonacci GEM
+    min: 0.50
+    max: 0.60
+    default: 0.55
+    assets: [SPY, EFA, IEF, DBC, VNQ]
+    cash: BIL
+    gem_blend: false
+    gem: {us: SPY, intl: VEU, bonds: AGG, tbill: BIL}
+  B:
+    name: rsi2_dips
+    description: Connors RSI(2) dip-buying on index ETFs, long only
+    min: 0.15
+    max: 0.25
+    default: 0.20
+    symbols: [SPY, QQQ, IWM, DIA]
+    max_positions: 2
+    rsi_entry: 10
+  C:
+    name: breakouts
+    description: Minervini trend template + pivot breakout, gated by SPY > 200d (probation)
+    min: 0.10
+    max: 0.20
+    default: 0.15
+    max_positions: 5
+    pivot_lookback: 50
+    volume_multiple: 1.5
+    rs_min_percentile: 70
+    universe: [AAPL, MSFT, NVDA, AMZN, GOOGL, META, AVGO, TSLA, LLY, JPM,
+               V, MA, UNH, XOM, COST, HD, PG, NFLX, CRM, ORCL,
+               AMD, ADBE, PEP, KO, MRK, ABBV, TMO, WMT, BAC, CAT,
+               GE, ISRG, NOW, INTU, UBER, PANW, AMAT, BKNG, LIN, ANET]
+    # C-1: today's large caps, so results carry survivorship bias (C-20 point-in-time membership is LATER).
+    # C-9: at most policy portfolio.sector_max_positions open positions per group.
+    sectors:
+      semis_ai: [NVDA, AVGO, AMD, AMAT, ANET]
+      software: [MSFT, ORCL, CRM, ADBE, NOW, INTU, PANW]
+      platforms: [GOOGL, META, AMZN, NFLX, UBER, BKNG]
+      hardware_auto: [AAPL, TSLA]
+      health: [LLY, UNH, MRK, ABBV, TMO, ISRG]
+      financials: [JPM, V, MA, BAC]
+      staples_retail: [COST, HD, PG, PEP, KO, WMT]
+      industrial_energy: [XOM, CAT, GE, LIN]
+  D:
+    name: crypto_trend
+    description: BTC/ETH long/flat Donchian ensemble with volatility targeting (opt-in)
+    enabled: false            # D-1: only the owner may set true, and only after the phase 1 fixes are live
+    min: 0.0
+    max: 0.05                 # D-2
+    default: 0.03
+    symbols: [BTC/USD, ETH/USD]
+    lookbacks: [20, 30, 50, 80, 120, 180, 250]
+    vol_target_annual: 0.25
+regime:
+  benchmark: SPY
+  canaries: [VWO, BND]
+  credit: [HYG, IEF]          # REG-4 component 5 and REG-6 (fetched for data, never traded)
+  temperature_lookback: 1260  # REG-4: each component's percentile against its own last 1,260 sessions
+  hot: 0.80
+  cold: 0.20
+  stock_bond_corr_flag: 0.30  # REG-7
+data:
+  feed: sip                   # consolidated feed; free for bars older than 15 minutes (history from 2016)
+  fallback_feed: iex          # used automatically if the sip request fails
+  history_sessions: 1800      # REG-4 needs 504 + 1,260 sessions
+  # Fetched for shadow rules and benchmarks only; never traded (not on the allowlist).
+  extra_symbols: [HYG, VOO, VEU, AGG, GLD]
+claude:
+  model: claude-opus-5        # override with CLAUDE_MODEL (API path only)
+  effort: high
+  max_tokens: 32000           # guide rule 10
+  samples: 3                  # guide rule 8: 3 independent decisions, majority with median sizes
+  mode: session               # Option B: decisions come from a Claude Code session, not the API
+  pricing_per_mtok:           # M-9, USD per million tokens (input, output)
+    claude-opus-5: [5.0, 25.0]
+    claude-opus-5-5: [4.0, 20.0]
+simulation:
+  starting_cash: 100000       # the local simulated broker (the Claude book until its paper account exists)

@@ -1,0 +1,11 @@
+ADX(14) on a pure random walk, bars built from 5 sub-steps (e.g. 5-min bar from 1-min): share of bars with ADX>25 = mean 0.370 (p10 0.061, p90 0.707); ADX>20 = 0.580; ADX value p50/p90/p95/p99 = 21.8/37.4/42.5/53.1
+ADX(14) on a pure random walk, bars built from 30 sub-steps (close to continuous): share of bars with ADX>25 = mean 0.343 (p10 0.040, p90 0.667); ADX>20 = 0.551; ADX value p50/p90/p95/p99 = 21.1/36.4/41.7/51.8
+Naive R/S Hurst estimate of iid noise, n=78 returns: mean 0.597, 2.5%-97.5% range 0.357 to 0.816 (true value 0.5)
+Naive R/S Hurst estimate of iid noise, n=390 returns: mean 0.576, 2.5%-97.5% range 0.480 to 0.661 (true value 0.5)
+Naive R/S Hurst estimate of iid noise, n=1950 returns: mean 0.578, 2.5%-97.5% range 0.537 to 0.620 (true value 0.5)
+Variance ratio VR(5) of iid noise, n=78 returns: mean 0.940, 2.5%-97.5% range 0.529 to 1.477; LM asymptotic sd=0.248
+Variance ratio VR(10) of iid noise, n=78 returns: mean 0.879, 2.5%-97.5% range 0.338 to 1.716; LM asymptotic sd=0.382
+Variance ratio VR(5) of iid noise, n=390 returns: mean 0.986, 2.5%-97.5% range 0.780 to 1.207; LM asymptotic sd=0.111
+Variance ratio VR(10) of iid noise, n=390 returns: mean 0.973, 2.5%-97.5% range 0.685 to 1.332; LM asymptotic sd=0.171
+Variance ratio VR(5) of iid noise, n=1950 returns: mean 0.998, 2.5%-97.5% range 0.901 to 1.097; LM asymptotic sd=0.050
+Variance ratio VR(10) of iid noise, n=1950 returns: mean 0.995, 2.5%-97.5% range 0.851 to 1.152; LM asymptotic sd=0.076

@@ -1,0 +1,23 @@
+{
+  "_note": "Notes 1 Patch H (owner-approved 2026-09-28): the project's running costs, kept apart from trading P&L. The report prints trading P&L (honest) and an operating result = trading P&L - these costs, pro-rated by calendar days. usd_per_month null = not recorded (printed as 'not recorded', never counted as 0). Nothing in the bot reads this file to size or place a trade.",
+  "costs": [
+    {
+      "name": "Alpaca market data",
+      "usd_per_month": 0.0,
+      "source": "https://alpaca.markets/data (Basic plan: free real-time IEX feed; the bot uses the free plan)",
+      "note": "Free plan. A SIP subscription would change the feed (MT-G35) and this line."
+    },
+    {
+      "name": "LLM / API usage",
+      "usd_per_month": 0.0,
+      "source": "lab/scalp/live/DESIGN.md (no LLM is called anywhere in v1; a test asserts the package never imports anthropic)",
+      "note": "None used by the bot. The building sessions are the owner's own Claude plan, not a bot running cost."
+    },
+    {
+      "name": "Hosting and monitoring",
+      "usd_per_month": null,
+      "source": "unknown",
+      "note": "Not recorded: where the bot runs (and what that costs) has not been written down yet."
+    }
+  ]
+}
