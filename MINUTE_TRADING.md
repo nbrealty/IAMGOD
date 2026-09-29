@@ -52,10 +52,16 @@ same-day options on these signals lost about 4% to 38% of the premium per trade 
   (a start at 09:00-16:15 with changed code blocks entries for the day, MT-G27).
 - **Owner decisions of 28 Sept 2026:** first bot paper session approved for Tue 29 Sept (scheduled start 08:30 ET, before
   09:00; a wrap-up report at 16:20 ET); shorting off at Alpaca; the Notes_1 items approved. Those were built, reviewed
-  by two independent reviewers and pushed (2056 tests): event check over the whole holding period
+  by two independent reviewers and pushed: event check over the whole holding period
   (EVENT_HORIZON_OVERLAP, so ORB5 skips days with a 10:00 release or an FOMC afternoon), no new entries in a symbol after
   a seen or suspected halt, per-trade MFE/MAE diagnostics (measurement only), execution health kept apart from strategy
   performance in the report, operating costs (`operating_costs.json`, hosting "not recorded"), margin framework recorded.
+- **Handoff v4 (owner file, 29 Sept):** verdict and two independent capability reports in `reports/Owner notes 2 - ...`. No
+  blocker. Two gaps fixed and reviewed by two independent reviewers (full suite 2065 passed): a single-instance runner lock
+  (a second `run` of the same mode refuses to start) and engine alerts also written to `state/scalp/alerts.log`. Known and not
+  fixed: a full or unwritable state disk stops the bot at its first journal write (the outside watchdog then flattens); the
+  watchdog shares the bot's machine; no cash reservation for pending orders (safe with one slot). Owner decisions raised:
+  repository is public, key handling (G-1), data-rights conflict to clear with Alpaca.
 - **Open items:** MT-G5/G6/G7/G42 (validated lane) not built, so the validated lane is impossible; `backtest_mean_r` is null
   so the MT-G13 drift check is inactive until the 20-session review fills it; the lab backtester does not yet run the
   guard code (use `replay` for the 20/60-session reviews, MT-G37). **Corrections from the fact-checks:** the SEC
