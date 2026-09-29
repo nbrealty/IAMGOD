@@ -477,6 +477,15 @@ def make_engine(broker: Any, journal: Any, registry: C.Registry, counters: DayCo
         from .engine import Engine as engine_cls   # noqa: N813
     flags = {Reason(f) for f in flags}
     kw = {"history": history} if history else {}
+    import inspect
+    try:
+        takes_alert = "alert" in inspect.signature(engine_cls).parameters
+    except (TypeError, ValueError):              # an exotic callable: skip the alert channel rather than fail the start
+        takes_alert = False
+    if takes_alert:
+        # v4 gap: the engine's alerts (kill switch, halts, daily stop) reached only the journal file; also write them to
+        # the alerts file and stderr, where whoever watches the bot can see them
+        kw["alert"] = lambda msg, fields: S.alert(state_dir, clock(), msg)
     eng = engine_cls(broker, journal, registry, counters, session, events, ctx_by_symbol, mode, clock,
                      state_dir=state_dir, adopted=adopted, flags=set(flags), **kw)
     if not flags <= set(getattr(eng, "flags", None) or ()):
@@ -709,11 +718,52 @@ def _restore(broker: Any, session_date: date, e0: float, cash_prev_close: float 
 
 
 # ------------------------------------------------------------------------------------------ run (dry / paper)
+def acquire_runner_lock(state_dir: str | Path, mode: Mode) -> Any:
+    """One live runner per mode and state folder (a v4-handoff gap: a second runner could trade next to the first). A
+    non-blocking exclusive flock held for the life of the process; the OS frees it if the process dies. Returns the open
+    file (keep it open) or None if another runner holds it. The watchdog is started with close_fds, so it never holds it."""
+    import fcntl
+    path = Path(state_dir) / f"runner-{Mode(mode).value}.lock"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fh = open(path, "a+")
+    try:
+        fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:                      # held by another process (other OSErrors are real problems: let them raise)
+        fh.close()
+        return None
+    fh.seek(0)
+    fh.truncate()
+    fh.write(f"pid={os.getpid()}\n")
+    fh.flush()
+    return fh
+
+
 def run(mode: Mode | str, *, confirm_paper: bool = False, no_watchdog: bool = False,
         state_dir: str | Path | None = None, env: dict[str, str] | None = None,
         out: Callable[[str], None] = print) -> int:
-    """`python -m lab.scalp.live run --mode dry|paper`. Returns a process exit code."""
+    """`python -m lab.scalp.live run --mode dry|paper`. Returns a process exit code. Refuses (exit 2) when another runner
+    of the same mode already holds the state folder's runner lock."""
     mode = Mode(mode)
+    lock = acquire_runner_lock(state_dir or C.STATE_DIR, mode)
+    if lock is None:
+        holder = ""
+        try:
+            holder = (Path(state_dir or C.STATE_DIR) / f"runner-{mode.value}.lock").read_text().strip()
+        except OSError:
+            pass
+        out(f"Refused: another {mode.value} runner is already running on this state folder "
+            f"(runner-{mode.value}.lock is held{', ' + holder if holder else ''}). Two runners must never trade side by side; stop the other one first "
+            "(`python -m lab.scalp.live kill --reason ...` flattens and halts).")
+        return 2
+    try:
+        return _run(mode, confirm_paper=confirm_paper, no_watchdog=no_watchdog, state_dir=state_dir, env=env, out=out)
+    finally:
+        lock.close()
+
+
+def _run(mode: Mode, *, confirm_paper: bool = False, no_watchdog: bool = False,
+         state_dir: str | Path | None = None, env: dict[str, str] | None = None,
+         out: Callable[[str], None] = print) -> int:
     if mode is Mode.REPLAY:
         raise ValueError("use replay() for REPLAY mode")
     if mode is Mode.PAPER and not confirm_paper:
