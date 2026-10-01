@@ -1,43 +1,23 @@
-// Hollywood & Highland scene data — the NPC roster, building footprints, and the
-// shared constants the renderer and interaction layer both read from.
+// Hollywood & Highland scene GEOMETRY — building footprints, street layout, and the
+// shared spatial constants the renderer reads. NPC souls live in src/soul/.
 //
-// This is hand-authored stub data for the Day 1 / Phase 0 slice. In Phase 1 the
-// NPC souls become procedurally generated and driven by a utility-AI tick loop;
-// the shape below is the seam that engine will plug into.
-
-export type ChakraState = "blocked" | "imbalanced" | "open";
-
-export const CHAKRA_ORDER = [
-  "Root",
-  "Sacral",
-  "Solar Plexus",
-  "Heart",
-  "Throat",
-  "Third Eye",
-  "Crown",
-] as const;
-
-export type ChakraName = (typeof CHAKRA_ORDER)[number];
-
-export interface SoulProfile {
-  id: string;
-  name: string;
-  occupation: string;
-  archetype: string;
-  age: number;
-  maslow: string;
-  emotion: string;
-  aura: string;
-  narrative: string;
-  chakras: Record<ChakraName, ChakraState>;
-  row: "north" | "south";
-  xMin: number;
-  xMax: number;
-  speed: number;
-}
+// Phase 2b: the world is a walkable SQUARE. Hollywood Blvd runs E–W through the vertical
+// middle; Highland Ave runs N–S through it — a "+" of walkable street corridors.
+//
+// The 14 fictionalized landmarks are placed at their REAL Hollywood & Highland positions
+// (correct side of the boulevard + east/west of Highland) and spaced by their actual
+// rendered widths so nothing overlaps:
+//   NORTH, west of Highland: Madame Rousseau's (Tussauds), Jade Pagoda (Chinese)
+//   NORTH, at/east of Highland: Overture (Ovation), Vantage (Dolby), Thunderclap
+//     (Hard Rock), Crescendo (Loews), Meridian (W, far east)
+//   SOUTH, west of Highland: Sovereign (Roosevelt)
+//   SOUTH, east of Highland: Wonderland (El Capitan), Glamour (Hollywood Museum),
+//     Blackwood's (Ripley's), Apex (Guinness), Marchetti & Vane (Musso), Reel Page
+//     (Larry Edmunds)
+// Each slot carries a `ch` height and a `sprite` hook; the renderer sizes the facade to
+// ch × 84 units and composites public/buildings/<sprite>.png in place.
 
 export interface Building {
-  special?: "tcl";
   x: number;
   width?: number;
   height?: number;
@@ -49,274 +29,316 @@ export interface Building {
   marqueeColor?: string;
   depth?: number;
   skew?: number;
+  baseY?: number;
+  dim?: number;
+  ch?: number; // building height in character-heights (1 CH = 84 units)
+  sprite?: string; // public/buildings/<sprite>.png facade art
+  aspect?: number; // nominal w/h of the art (fallback until the image loads; live aspect wins)
+  // How the facade meets its ground line at baseY. true = feet ON the line, grows UP
+  // (far/north row + the residential houses). false = street-front (top) ON the line,
+  // hangs DOWN into the foreground (near/south row — the mirror). Defaults by side.
+  growUp?: boolean;
+  // Enterable storefront: the AREAS room id to crossfade into when the controlled player walks
+  // up to this building's door. Undefined = a normal (non-enterable) facade.
+  enter?: string;
 }
 
-// Virtual canvas size — the renderer draws to this coordinate space and scales.
-export const SCENE_W = 1600;
-export const SCENE_H = 900;
+// The whole DISTRICT — the real Hollywood Blvd Commercial & Entertainment District,
+// 6200–7000 (Sycamore → Gower), tiled as a grid of blocks. Far wider than any phone
+// viewport → the camera pans/zooms within it.
+export const WORLD_W = 17200;
+export const WORLD_H = 2200;
 
-export const ROAD_TOP = 420;
-export const ROAD_BOTTOM = 520;
-export const NORTH_SIDEWALK_TOP = 380;
-export const SOUTH_SIDEWALK_TOP = ROAD_BOTTOM;
-export const SOUTH_SIDEWALK_BOTTOM = 560;
-export const NORTH_BASELINE = NORTH_SIDEWALK_TOP;
-export const SOUTH_BASELINE = SOUTH_SIDEWALK_BOTTOM;
-export const HIGHLAND_LEFT = 480;
-export const HIGHLAND_RIGHT = 560;
+// ---- Hollywood Blvd (the horizontal spine through the vertical middle) ----
+export const ROAD_TOP = 1060;
+export const ROAD_BOTTOM = 1240; // 180u of asphalt
+export const NORTH_SIDEWALK_TOP = 1000; // north blvd sidewalk: [1000, ROAD_TOP]
+// The near (south) sidewalk is the FOREGROUND walkway the near row's bases sit on, below
+// the near buildings so they grow UP from it toward the road but stop at the asphalt.
+export const SOUTH_SIDEWALK_TOP = 1790;
+export const SOUTH_SIDEWALK_BOTTOM = 1850;
+export const NORTH_BASELINE = NORTH_SIDEWALK_TOP; // far row: base ON the north sidewalk (1000)
+export const SOUTH_BASELINE = SOUTH_SIDEWALK_TOP; // near row: base ON the foreground sidewalk (1790)
 
-function chakraSet(pattern: ChakraState[]): Record<ChakraName, ChakraState> {
-  const out = {} as Record<ChakraName, ChakraState>;
-  CHAKRA_ORDER.forEach((name, i) => {
-    out[name] = pattern[i];
-  });
-  return out;
+// ---- Cross streets (vertical N–S), west → east, at their real district order ----
+export interface CrossStreet { name: string; x: number; }
+export const CS_ROAD_HALF = 90; // half the asphalt width of a cross street
+export const CS_WALK = 60; // sidewalk flanking each side of a cross street
+export const CS_HALF = CS_ROAD_HALF + CS_WALK; // 150: centre → outer sidewalk edge
+// Real cross-street order W→E (addresses decrease eastward: 7000 → 6100). Positions are
+// roughly proportional to the real spacing; the Highland→McCadden block is widened to hold
+// the big Ovation complex. No streets that aren't actually in the district.
+export const CROSS_STREETS: CrossStreet[] = [
+  { name: "LA BREA", x: 700 },
+  { name: "ORANGE", x: 2200 },
+  { name: "HIGHLAND", x: 3700 },
+  { name: "McCADDEN", x: 6850 },
+  { name: "LAS PALMAS", x: 8050 },
+  { name: "CHEROKEE", x: 9150 },
+  { name: "WILCOX", x: 10150 },
+  { name: "CAHUENGA", x: 11150 },
+  { name: "IVAR", x: 12150 },
+  { name: "VINE", x: 13350 },
+  { name: "ARGYLE", x: 14550 },
+  { name: "EL CENTRO", x: 15550 },
+  { name: "GOWER", x: 16550 },
+];
+
+// ============================================================================
+// OVERTURE HOLLYWOOD — the first WALK-IN building. Not a flat facade: a monumental
+// gateway on the north side (block 2, Highland→McCadden) with a TRUE open archway you
+// walk through into a real 2.5D courtyard that lies NORTH of (behind) the gate, framed by
+// a back building + side terraces + elephant-column gateposts. No loading, no scene swap —
+// the court is just more walkable world behind a facade-with-a-hole, and the single foot-Y
+// depth sort makes the gate's lintel/wings occlude the player once they step through.
+//
+//   depth:  gate feet at y=gateFootY(1000). Court floor is y ∈ [courtBackY, gateFootY],
+//   i.e. SMALLER y = further north = drawn earlier = behind. Walk UP (north) through the
+//   arch and your footY drops below 1000 → you sort BEHIND the gate → seen through the arch.
+//
+// The plaza is pinned to fixed world constants (NOT the auto-layout) so canWalk and the
+// renderer agree without threading live layout through both. Block-2 north's other three
+// landmarks lay out EAST of the gate (see buildFace).
+// The court is drawn PARALLEL / axonometric — NO vanishing point (research: faking a 1-point VP
+// in a flat dimetric billboard scene makes the side walls converge to an ugly "X" funnel, à la the
+// old build). The seamless court is the sparse APPROACH: a symmetric-rectangle floor (constant
+// courtHalf front→back, so the sides can't pinch) + palms + fountain + the gate. Walk deep enough up
+// and the game CROSSFADES into the Overture Court "room" — one painted backdrop plate
+// (overture-court-interior.png), Gaia-style, where you browse the storefronts (see COURT_ROOM /
+// renderRoom in renderer.ts). Movement (canWalk) is flat WORLD space, as always.
+export const OVERTURE = {
+  cx: 4420, // gate + court centre x (world)
+  gateCH: 6, // gate height in character-heights
+  gateAspect: 1.625, // keyed gate art w/h (public/overture/overture-gate.png, 1396×859)
+  gateFootY: NORTH_SIDEWALK_TOP, // 1000 — gate feet on the north blvd sidewalk line
+  gateHalf: (6 * 84 * 1.625) / 2, // ≈410 — half the rendered gate width
+  archHalf: 100, // half-width of the see-through arch throat (art arch ≈0.128·W each side)
+  courtBackY: 220, // far (north) edge of the court = back edge of the floor rectangle
+  courtHalf: 430, // half-width of the court FLOOR rectangle (CONSTANT front→back → parallel, no funnel)
+  courtWalkHalf: 250, // half-width of the walkable lane (world space)
+  throatTopY: 958, // top of the narrow arch throat; court widens north of here
+  columnCH: 5, // elephant-column gatepost height
+};
+
+// ---- walkability: the Blvd (north sidewalk+road band and the foreground south walk, full
+// width) joined by every cross-street corridor (full height). A block's buildings sit in
+// the gaps between; the player walks the Blvd and turns down any cross street. Plus the
+// Overture courtyard pocket, reached through the gate's arch throat. ----
+export function canWalk(x: number, y: number): boolean {
+  if (x < 20 || x > WORLD_W - 20 || y < 20 || y > WORLD_H - 20) return false;
+  const onNorthBand = y >= NORTH_SIDEWALK_TOP && y <= ROAD_BOTTOM;
+  const onSouthWalk = y >= SOUTH_SIDEWALK_TOP && y <= SOUTH_SIDEWALK_BOTTOM;
+  if (onNorthBand || onSouthWalk) return true;
+  for (const cs of CROSS_STREETS) {
+    if (x >= cs.x - CS_HALF && x <= cs.x + CS_HALF) return true;
+  }
+  // Overture courtyard keyhole: a narrow arch throat (only under the arch opening) that
+  // widens into the court pocket, so the gate's solid wings can't be walked through.
+  const O = OVERTURE;
+  const inThroat = y >= O.throatTopY && y < O.gateFootY && x >= O.cx - O.archHalf && x <= O.cx + O.archHalf;
+  const inCourt = y >= O.courtBackY + 26 && y < O.throatTopY && x >= O.cx - O.courtWalkHalf && x <= O.cx + O.courtWalkHalf;
+  if (inThroat || inCourt) return true;
+  return false;
 }
 
-export const NPCS: SoulProfile[] = [
-  {
-    id: "danny",
-    name: "Danny Rios",
-    occupation: 'Costumed Character Performer ("Robo-Hero")',
-    archetype: "Costumed Street Performer",
-    age: 34,
-    maslow: "Level 1 — Physiological (fighting for basic survival)",
-    emotion: "Grim determination behind a painted-on smile",
-    aura: "#d98a3a",
-    narrative:
-      "Three failed auditions this year. The suit pays the rent the way the craft never did. He tells himself it's temporary, the way he has for six years.",
-    chakras: chakraSet([
-      "blocked",
-      "imbalanced",
-      "blocked",
-      "imbalanced",
-      "blocked",
-      "imbalanced",
-      "blocked",
-    ]),
-    row: "north",
-    xMin: 100,
-    xMax: 320,
-    speed: 26,
-  },
-  {
-    id: "trish",
-    name: "Trish Anderson",
-    occupation: "Tourist, Dayton, Ohio",
-    archetype: "Tourist",
-    age: 29,
-    maslow: "Level 3 — Belonging (craving connection, on the trip of a lifetime)",
-    emotion: "Wide-eyed wonder, edging toward a peak experience",
-    aura: "#eaf3ff",
-    narrative:
-      "She has wanted to stand on this sidewalk since she was eleven. For a few seconds outside the Chinese Theatre, her whole chest went quiet.",
-    chakras: chakraSet([
-      "open",
-      "open",
-      "imbalanced",
-      "open",
-      "imbalanced",
-      "imbalanced",
-      "imbalanced",
-    ]),
-    row: "north",
-    xMin: 640,
-    xMax: 1050,
-    speed: 18,
-  },
-  {
-    id: "frank",
-    name: "Frank Castellano",
-    occupation: "Freelance Photographer",
-    archetype: "Paparazzi",
-    age: 47,
-    maslow: "Level 4 — Esteem (chasing recognition through someone else's fame)",
-    emotion: "Predatory anticipation",
-    aura: "#c94d2c",
-    narrative:
-      "He hasn't sold a real cover shot in eight months. He's stopped calling it stalking, even in his own head.",
-    chakras: chakraSet([
-      "imbalanced",
-      "blocked",
-      "imbalanced",
-      "blocked",
-      "imbalanced",
-      "open",
-      "blocked",
-    ]),
-    row: "south",
-    xMin: 250,
-    xMax: 560,
-    speed: 22,
-  },
-  {
-    id: "vivian",
-    name: "Vivian Laurent",
-    occupation: "Former Screen Actress (credits: 1990s)",
-    archetype: "Faded Star",
-    age: 61,
-    maslow: "Level 2 — Safety (stable, but consumed by fear of being forgotten)",
-    emotion: "Grief wearing a practiced smile",
-    aura: "#8a8a8a",
-    narrative:
-      "People still recognize her, less every year. She still walks this block every afternoon, in case someone does.",
-    chakras: chakraSet([
-      "open",
-      "imbalanced",
-      "imbalanced",
-      "blocked",
-      "imbalanced",
-      "imbalanced",
-      "blocked",
-    ]),
-    row: "north",
-    xMin: 1080,
-    xMax: 1500,
-    speed: 14,
-  },
-  {
-    id: "bailey",
-    name: "Bailey Okafor",
-    occupation: "Server, Auditioning Nights",
-    archetype: "Industry Aspirant",
-    age: 24,
-    maslow: "Level 4 — Esteem (esteem-starved, performing confidence she doesn't feel)",
-    emotion: "Anxious optimism",
-    aura: "#d9762e",
-    narrative:
-      "Her agent hasn't called back in nine days. She rehearses the callback she hasn't gotten yet, out loud, on her walk to work.",
-    chakras: chakraSet([
-      "open",
-      "open",
-      "imbalanced",
-      "open",
-      "blocked",
-      "imbalanced",
-      "imbalanced",
-    ]),
-    row: "south",
-    xMin: 650,
-    xMax: 980,
-    speed: 24,
-  },
-  {
-    id: "marcus",
-    name: "Marcus Webb",
-    occupation: "Rideshare Driver",
-    archetype: "Local Commuter",
-    age: 39,
-    maslow: "Level 2 — Safety",
-    emotion: "Tired, steady",
-    aura: "#a9c7e8",
-    narrative:
-      "Just passing through this block on the way to the next fare. Nothing dramatic today.",
-    chakras: chakraSet([
-      "open",
-      "open",
-      "open",
-      "imbalanced",
-      "open",
-      "open",
-      "imbalanced",
-    ]),
-    row: "south",
-    xMin: 60,
-    xMax: 240,
-    speed: 30,
-  },
-  {
-    id: "priya",
-    name: "Priya Chandra",
-    occupation: "Souvenir Shop Clerk",
-    archetype: "Local Worker",
-    age: 21,
-    maslow: "Level 3 — Belonging",
-    emotion: "Bored contentment",
-    aura: "#b7d8c2",
-    narrative:
-      "Another shift, another thousand tourists asking where the stars are. She still likes the job, mostly.",
-    chakras: chakraSet([
-      "open",
-      "open",
-      "open",
-      "open",
-      "imbalanced",
-      "open",
-      "imbalanced",
-    ]),
-    row: "north",
-    xMin: 360,
-    xMax: 560,
-    speed: 16,
-  },
-  {
-    id: "hank",
-    name: "Hank Torres",
-    occupation: "Walking Tour Guide",
-    archetype: "Local Worker",
-    age: 52,
-    maslow: "Level 4 — Esteem",
-    emotion: "Performing enthusiasm on autopilot",
-    aura: "#e0c96a",
-    narrative:
-      "Twelve tours a week, same jokes, same facts. He still means it when he points out the stars, mostly.",
-    chakras: chakraSet([
-      "open",
-      "open",
-      "imbalanced",
-      "open",
-      "open",
-      "imbalanced",
-      "imbalanced",
-    ]),
-    row: "north",
-    xMin: 1120,
-    xMax: 1480,
-    speed: 20,
-  },
+// Frontage sidewalk lines the cast stands/patrols on.
+export const NORTH_FRONTAGE_Y = NORTH_SIDEWALK_TOP + 28; // 1028
+export const SOUTH_FRONTAGE_Y = SOUTH_SIDEWALK_TOP + 28; // 1818 — foreground walk at the near bases
+
+// ============================================================================
+// REAL-ESTATE LAYOUT — a frontage is one block face (the buildable land between two cross
+// streets, one side of the Blvd). Its buildings are an ordered west→east list; layoutFrontage
+// assigns each x + width so the row centres in the face with a gap between neighbours.
+// Rendered width = ch·84·aspect, so swapping a facade re-flows its block automatically.
+// ============================================================================
+
+export interface Frontage {
+  key: string;
+  x0: number; // west edge of the block face
+  x1: number; // east edge of the block face
+  side: "north" | "south";
+  baseY?: number; // overrides the side's default baseline (the back-street row)
+  align?: "center" | "left"; // where the leftover land goes
+  gap: number; // seam between neighbours
+  buildings: Building[]; // ordered west→east; x + width assigned by layoutFrontage
+}
+
+// Rendered width of a building for a given art aspect (w/h).
+export function buildingWidth(b: Building, aspect: number): number {
+  return (b.ch ?? (b.height ?? 90) / 84) * 84 * aspect;
+}
+
+// Assign each building's x (left edge) + width so the row fills its block face.
+export function layoutFrontage(f: Frontage, aspectOf: (b: Building) => number): void {
+  const n = f.buildings.length;
+  if (n === 0) return;
+  const ws = f.buildings.map((b) => buildingWidth(b, aspectOf(b)));
+  const total = ws.reduce((a, c) => a + c, 0);
+  const span = f.x1 - f.x0;
+  let gap = f.gap;
+  const usedAt = (g: number) => total + g * (n - 1);
+  if (usedAt(gap) > span && n > 1) gap = (span - total) / (n - 1); // too wide → shrink seam
+  const usedFinal = usedAt(gap);
+  let x = f.align === "left" ? f.x0 : f.x0 + (span - usedFinal) / 2;
+  for (let i = 0; i < n; i++) {
+    f.buildings[i].width = ws[i];
+    f.buildings[i].x = x;
+    x += ws[i] + gap;
+  }
+}
+
+// A landmark lot: art + fictional signage + character-height scale + nominal aspect. `enter`
+// (optional) marks it as an enterable storefront and names the AREAS room to load.
+function lot(sprite: string, ch: number, aspect: number, label: string, marquee: string, marqueeColor: string, side: "north" | "south", enter?: string): Building {
+  return { x: 0, ch, aspect, side, sprite, label, marquee, marqueeColor, enter };
+}
+// A plain filler lot (shop / apartment / parking): art + scale + aspect only.
+function fill(sprite: string, ch: number, aspect: number, side: "north" | "south", baseY?: number, growUp?: boolean): Building {
+  return { x: 0, ch, aspect, side, sprite, baseY, growUp };
+}
+
+// ---- the 14 keyed landmark facades, keyed by sprite stem (ch / aspect / signage) ----
+type LmSpec = { ch: number; aspect: number; label: string; marquee: string; mc: string; enter?: string };
+const LANDMARKS: Record<string, LmSpec> = {
+  // Yara's botanica — the first enterable regular shop (walk to its door → interior scene-swap).
+  "aguas-douradas": { ch: 3.9, aspect: 0.804, label: "ÁGUAS DOURADAS", marquee: "CONSULTORA ESPIRITUAL", mc: "#c9a34a", enter: "aguas-front" },
+  "sovereign-hotel": { ch: 7, aspect: 0.728, label: "SOVEREIGN", marquee: "HOTEL", mc: "#d8b25a" },
+  "madame-rousseau": { ch: 5, aspect: 0.918, label: "MADAME ROUSSEAU'S", marquee: "WAX MUSEUM", mc: "#c9962c" },
+  "jade-pagoda": { ch: 7, aspect: 1.159, label: "JADE PAGODA", marquee: "THEATRE", mc: "#c9a34a" },
+  "overture-hollywood": { ch: 6, aspect: 2.004, label: "OVERTURE HOLLYWOOD", marquee: "SHOPS · DINE", mc: "#c9962c" },
+  "vantage-theatre": { ch: 6, aspect: 0.979, label: "VANTAGE", marquee: "THEATRE", mc: "#c9a34a" },
+  "wonderland-theatre": { ch: 6.5, aspect: 0.832, label: "WONDERLAND", marquee: "THEATRE", mc: "#e0b23a" },
+  "glamour-archive": { ch: 5, aspect: 0.891, label: "GLAMOUR ARCHIVE", marquee: "MUSEUM", mc: "#d8b25a" },
+  "thunderclap-cafe": { ch: 4.5, aspect: 1.148, label: "THUNDERCLAP", marquee: "ROCK CAFE", mc: "#e0b23a" },
+  "blackwood-odditorium": { ch: 5, aspect: 1.2, label: "BLACKWOOD'S", marquee: "ODDITORIUM", mc: "#b06fd8" },
+  "apex-records": { ch: 5, aspect: 0.668, label: "APEX WORLD RECORDS", marquee: "MUSEUM", mc: "#e0b23a" },
+  "marchetti-vane-grill": { ch: 4, aspect: 0.737, label: "MARCHETTI & VANE", marquee: "GRILL · 1919", mc: "#d8b25a" },
+  "reel-page-bookshop": { ch: 3.5, aspect: 0.797, label: "THE REEL PAGE", marquee: "BOOKS", mc: "#e0b23a" },
+  "crescendo-hotel": { ch: 11, aspect: 0.628, label: "CRESCENDO", marquee: "HOTEL", mc: "#d8b25a" },
+  "meridian-hotel": { ch: 10, aspect: 0.304, label: "MERIDIAN", marquee: "HOTEL", mc: "#d8a24a" },
+};
+
+// The named fake businesses — the only storefront fillers (the old sheet-sliced shops were
+// chipped/broken and were removed). Ordered so visually-distinct fronts sit adjacent. A
+// single continuous cursor walks this list across the WHOLE district so the same store is
+// never placed twice in a row (see buildFace).
+const SHOP_FILL: [string, number, number][] = [
+  ["shop-salon", 3.8, 0.867],
+  ["shop-cameras", 3.8, 0.797],
+  ["shop-boutique", 3.8, 0.803],
+  ["shop-records", 3.8, 0.885],
+  ["shop-tacos", 3.8, 0.815],
+  ["shop-tattoo", 3.8, 0.814],
+];
+// a mid-rise apartment tower — only on north faces (headroom to grow up; on the south row
+// it would poke into the road).
+const TOWER_FILL: [string, number, number] = ["apt-tower", 9, 0.361];
+// the one clean house — the residential back-street scatters it with wide yards between.
+const HOUSE_FILL: [string, number, number] = ["house-casa", 3.0, 1.631];
+
+// Continuous cursor into SHOP_FILL, shared across every block face so consecutive
+// storefronts (within a block and across block edges) are always different stores.
+let shopCursor = 0;
+
+// ---- which landmarks sit on which block (index = gap between CROSS_STREETS[i], [i+1]) ----
+// Positions verified against real Hollywood Blvd addresses (odd = which side varies; sides
+// are the documented ones). Empty faces fill with storefronts.
+const PLACEMENT: { n?: string[]; s?: string[] }[] = [
+  // 0  La Brea→Orange (7000–6900): Roosevelt 7000 S · Chinese 6925 + Tussauds 6933 N
+  { n: ["madame-rousseau", "jade-pagoda"], s: ["sovereign-hotel"] },
+  // 1  Orange→Highland (6900–6800): El Capitan 6838 N · Hollywood Museum (Max Factor) S
+  { n: ["wonderland-theatre"], s: ["glamour-archive"] },
+  // 2  Highland→McCadden (6800–6770): Ovation complex 6801 N (Dolby/Loews/Hard Rock) ·
+  //    Ripley's 6780 + Guinness 6764 S. Overture is NOT in this list — it's the walk-in
+  //    plaza (see OVERTURE), rendered separately and pinned to the block's west end; these
+  //    three lay out EAST of the gate.
+  { n: ["vantage-theatre", "crescendo-hotel", "thunderclap-cafe"], s: ["blackwood-odditorium", "apex-records"] },
+  {}, // 3  McCadden→Las Palmas (6770–6720): Egyptian 6712 S (no asset yet) → storefronts
+  { s: ["marchetti-vane-grill"] }, // 4  Las Palmas→Cherokee (6720–6660): Musso & Frank 6667 S
+  { s: ["reel-page-bookshop"] }, //   5  Cherokee→Wilcox (6660–6600): Larry Edmunds 6644 S
+  { n: ["aguas-douradas"] }, // 6  Wilcox→Cahuenga (6600–6500): Yara's botanica (enterable) — the player spawns here
+  {}, // 7  Cahuenga→Ivar (6500–6420)
+  {}, // 8  Ivar→Vine (6420–6300)
+  { n: ["meridian-hotel"] }, // 9  Vine→Argyle (6300–6250): W Hollywood 6250 N (Pantages 6233, no asset)
+  {}, // 10 Argyle→El Centro (6250–6200)
+  {}, // 11 El Centro→Gower (6200–6100)
 ];
 
-export const NORTH_BUILDINGS: Building[] = [
-  { special: "tcl", x: 60 },
-  { x: 350, width: 100, height: 74, side: "north", facadeColor: "#8a6a44", label: "SOUVENIRS" },
-  {
-    x: 600,
-    width: 250,
-    height: 150,
-    side: "north",
-    facadeColor: "#5b6b7a",
-    label: "OVATION HOLLYWOOD",
-    marquee: "DOLBY THEATRE",
-    marqueeColor: "#c9962c",
-  },
-  { x: 900, width: 90, height: 80, side: "north", facadeColor: "#7a5b6a", label: "CANDY CO." },
-  {
-    x: 1030,
-    width: 210,
-    height: 140,
-    side: "north",
-    facadeColor: "#7a3b2e",
-    label: "EL CAPITAN",
-    marquee: "NOW PLAYING",
-    marqueeColor: "#2e8f6b",
-  },
-  {
-    x: 1290,
-    width: 240,
-    height: 110,
-    side: "north",
-    facadeColor: "#3c3c46",
-    label: "MADAME TUSSAUDS",
-    marquee: "WAX MUSEUM",
-    marqueeColor: "#c9962c",
-  },
-];
+const BLOCK_COUNT = CROSS_STREETS.length - 1;
+const blockX0 = (i: number) => CROSS_STREETS[i].x + CS_HALF + 24;
+const blockX1 = (i: number) => CROSS_STREETS[i + 1].x - CS_HALF - 24;
 
-export const SOUTH_BUILDINGS: Building[] = [
-  { x: 60, width: 130, height: 90, side: "south", facadeColor: "#6a5a44", label: "T-SHIRTS" },
-  { x: 220, width: 120, height: 80, side: "south", facadeColor: "#4a5a6a", label: "PIZZA" },
-  { x: 600, width: 170, height: 100, side: "south", facadeColor: "#5c4a63", label: "TOUR TICKETS" },
-  { x: 810, width: 130, height: 82, side: "south", facadeColor: "#6a4a4a", label: "GIFT SHOP" },
-  { x: 1000, width: 150, height: 92, side: "south", facadeColor: "#4a6a52", label: "CAFE" },
-  { x: 1220, width: 250, height: 100, side: "south", facadeColor: "#5a5040", label: "PARKING STRUCTURE" },
-];
+// Build one block face: place its landmarks (if any), then pad with storefronts until the
+// face is roughly full, so the block reads as a continuous street with no dead lots.
+function buildFace(i: number, side: "north" | "south", lmKeys: string[]): Frontage {
+  // Block-2 north's west end is reserved for the Overture walk-in gate + court, so its
+  // three remaining landmarks start east of the gate rather than at the block edge.
+  const x0 = i === 2 && side === "north" ? OVERTURE.cx + OVERTURE.gateHalf + 80 : blockX0(i);
+  const x1 = blockX1(i);
+  const target = x1 - x0;
+  // Tight seam so the row reads as one continuous streetwall (like the reference). The art is
+  // isolated-on-magenta with its own margin, so a small seam already gives visible separation —
+  // 34px read as vacant lots between every building.
+  const gap = 12;
+  const out: Building[] = [];
+  let used = -gap;
+  const push = (b: Building, w: number) => { out.push(b); used += w + gap; };
+  for (const k of lmKeys) {
+    const s = LANDMARKS[k];
+    push(lot(k, s.ch, s.aspect, s.label, s.marquee, s.mc, side, s.enter), s.ch * 84 * s.aspect);
+  }
+  let towerPlaced = false;
+  // Fill closer to the block edge so the frontage doesn't leave a wide dead margin at each
+  // cross-street corner (was -260, which left ~one storefront of empty land per block end).
+  while (used < target - 130) {
+    // scatter one mid-rise tower onto some north blocks for skyline variety
+    if (side === "north" && !towerPlaced && i % 3 === 1 && out.length > lmKeys.length) {
+      towerPlaced = true;
+      const [sp, ch, asp] = TOWER_FILL;
+      push(fill(sp, ch, asp, side), ch * 84 * asp);
+      continue;
+    }
+    const [sp, ch, asp] = SHOP_FILL[shopCursor++ % SHOP_FILL.length];
+    push(fill(sp, ch, asp, side), ch * 84 * asp);
+  }
+  return { key: `b${i}-${side}`, x0, x1, side, align: "center", gap, buildings: out };
+}
+
+export const NORTH_FRONTAGES: Frontage[] = Array.from({ length: BLOCK_COUNT }, (_, i) =>
+  buildFace(i, "north", PLACEMENT[i]?.n ?? []),
+);
+export const SOUTH_FRONTAGES: Frontage[] = Array.from({ length: BLOCK_COUNT }, (_, i) =>
+  buildFace(i, "south", PLACEMENT[i]?.s ?? []),
+);
+
+// ---- Residential back-street below the boulevard (apartments, one face per block) ----
+const BACK_Y = 2140;
+function buildResFace(i: number): Frontage {
+  const x0 = blockX0(i), x1 = blockX1(i);
+  const target = x1 - x0;
+  const [sp, ch, asp] = HOUSE_FILL;
+  const w = ch * 84 * asp;
+  const gap = 340; // wide yards between houses → a scattered residential street, not a wall (was 150,
+  // which read as nearly touching once the sprites' transparent padding + tint bands overlapped)
+  const out: Building[] = [];
+  let used = -gap;
+  while (used < target - 300) {
+    out.push(fill(sp, ch, asp, "south", BACK_Y, true));
+    used += w + gap;
+  }
+  return { key: `res${i}`, x0, x1, side: "south", baseY: BACK_Y, align: "center", gap, buildings: out };
+}
+export const RES_FRONTAGES: Frontage[] = Array.from({ length: BLOCK_COUNT }, (_, i) => buildResFace(i));
+
+export const ALL_FRONTAGES: Frontage[] = [...NORTH_FRONTAGES, ...SOUTH_FRONTAGES, ...RES_FRONTAGES];
+
+// ---- backdrop + residential rows ----
+
+// The procedural silhouette skyline (genRow-generated dim boxes) was KILLED — it will be replaced
+// with real asset filler buildings. Kept as an empty export so the renderer's backdrop pass is a
+// harmless no-op until the replacement art is wired in.
+export const BACKDROP_BUILDINGS: Building[] = [];
+
+// Removed: the old code-drawn dark placeholder row behind the residential back-street. The real
+// house-casa sprites (RES_FRONTAGES) fill this row, so the placeholders only showed as dark boxes.
+export const RESIDENTIAL_BUILDINGS: Building[] = [];

@@ -1,7 +1,8 @@
 .app {
   display: flex;
   flex-direction: column;
-  min-height: 100%;
+  height: 100%;
+  overflow: hidden;
 }
 
 /* ---------- HUD ---------- */
@@ -108,35 +109,363 @@
   background: #6b6252;
 }
 
-/* ---------- Stage / canvas ---------- */
+/* ---------- Stage / canvas (full-bleed, fills the screen) ---------- */
 .stage {
   flex: 1;
+  min-height: 0;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 10px;
 }
 .scene-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
   width: 100%;
-  max-width: 1400px;
+  overflow: hidden;
 }
 .scene-canvas {
+  position: absolute;
+  inset: 0;
   width: 100%;
-  height: auto;
+  height: 100%;
   display: block;
-  background: #6b8fae;
-  border-radius: 6px;
-  box-shadow:
-    0 0 0 1px #33291b,
-    0 10px 30px rgba(0, 0, 0, 0.5);
+  background: #1a1610;
+  touch-action: none; /* we handle pan/zoom ourselves */
+  cursor: grab;
+}
+.scene-canvas:active {
+  cursor: grabbing;
+}
+.zoom-controls {
+  position: absolute;
+  right: 10px;
+  bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 5;
+}
+.zoom-controls button {
+  width: 40px;
+  height: 40px;
+  font-size: 20px;
+  line-height: 1;
+  background: rgba(20, 17, 12, 0.82);
+  border: 1px solid #4a3a22;
+  color: #e8d9ae;
+  border-radius: 8px;
   cursor: pointer;
+}
+.zoom-controls button:active {
+  background: rgba(58, 47, 30, 0.95);
+}
+
+/* ---------- on-screen D-pad (drive the controllable character) ---------- */
+.dpad {
+  position: absolute;
+  left: 12px;
+  bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  z-index: 5;
+  touch-action: none;
+  user-select: none;
+}
+.dpad-row {
+  display: flex;
+  gap: 4px;
+}
+.dpad-btn {
+  width: 46px;
+  height: 46px;
+  font-size: 18px;
+  line-height: 1;
+  color: #e8d9ae;
+  background: rgba(20, 17, 12, 0.72);
+  border: 1px solid #4a3a22;
+  border-radius: 10px;
+  cursor: pointer;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.dpad-btn:active {
+  background: rgba(201, 150, 44, 0.9);
+  color: #1a1206;
+}
+
+/* ---------- character switcher (play a soul, or observe freely) ----------
+   The full roster is ~24 souls, so the strip scrolls horizontally instead of
+   overflowing. "Observe" is pinned to the left so it's always reachable. */
+.char-switcher {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  display: flex;
+  gap: 6px;
+  z-index: 5;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 2px 6px;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(201, 150, 44, 0.5) transparent;
+  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 26px), transparent 100%);
+  mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 26px), transparent 100%);
+}
+.char-switcher::-webkit-scrollbar {
+  height: 5px;
+}
+.char-switcher::-webkit-scrollbar-thumb {
+  background: rgba(201, 150, 44, 0.5);
+  border-radius: 3px;
+}
+.char-chip {
+  font-size: 11.5px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  background: rgba(20, 17, 12, 0.72);
+  border: 1px solid #4a3a22;
+  color: #cbb98f;
+  cursor: pointer;
+  white-space: nowrap;
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+}
+/* Pin "Observe" (always the first chip) to the left edge while scrolling. */
+.char-chip:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  box-shadow: 8px 0 10px -6px rgba(6, 5, 4, 0.9);
+}
+.char-chip.active {
+  background: #c9962c;
+  border-color: #e6c266;
+  color: #1a1206;
+  font-weight: 700;
+}
+
+/* ---------- inventory (wardrobe) ----------
+   A touch-friendly button opens a 4×5 grid of slots. Tap an outfit to wear it;
+   the worn slot is highlighted, empty slots are dim placeholders. Used both for
+   the controlled character and inside any soul's profile. */
+.inv-open-btn {
+  position: absolute;
+  top: 46px;
+  left: 10px;
+  z-index: 5;
+  font-size: 12px;
+  padding: 6px 13px;
+  border-radius: 20px;
+  background: rgba(20, 17, 12, 0.82);
+  border: 1px solid #6b4ea6;
+  color: #e8def7;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+/* Controlled character's wallet, just under the Inventory button. */
+.wallet-chip {
+  position: absolute;
+  top: 78px;
+  left: 10px;
+  z-index: 5;
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  background: rgba(18, 24, 14, 0.86);
+  border: 1px solid #4e8a3a;
+  color: #d8f0c4;
+  font-weight: 800;
+  pointer-events: none;
+}
+.chip.money { background: rgba(30, 46, 22, 0.9); color: #d8f0c4; }
+.leave-room-btn {
+  position: absolute;
+  top: 44px;
+  right: 10px;
+  z-index: 12;
+  font-size: 16px;
+  padding: 12px 20px;
+  border-radius: 22px;
+  background: rgba(30, 20, 10, 0.94);
+  border: 2px solid #e8b45a;
+  color: #ffe6ad;
+  cursor: pointer;
+  font-weight: 800;
+  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.5);
+  touch-action: manipulation;
+}
+.leave-room-btn:active {
+  transform: scale(0.95);
+  background: rgba(60, 42, 18, 0.98);
+}
+
+/* Búzios consult button — offered in Yara's back consultation room, below the Leave button. */
+.buzios-btn {
+  position: absolute;
+  top: 96px;
+  right: 10px;
+  z-index: 12;
+  font-size: 15px;
+  padding: 11px 18px;
+  border-radius: 22px;
+  background: rgba(24, 12, 30, 0.94);
+  border: 2px solid #d8a63a;
+  color: #ffe6ad;
+  cursor: pointer;
+  font-weight: 800;
+  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.5);
+  touch-action: manipulation;
+}
+.buzios-btn:active { transform: scale(0.95); background: rgba(52, 26, 60, 0.98); }
+
+/* Búzios reading panel. */
+.buzios-card { max-width: 460px; text-align: left; }
+.buzios-yara { color: #c9b48c; font-style: italic; margin: 2px 0 6px; }
+.buzios-cast { color: #e8d6a8; font-size: 13px; opacity: 0.8; margin: 0 0 10px; }
+.buzios-odu {
+  border-radius: 12px; padding: 10px 12px; margin: 6px 0 10px;
+  border: 1px solid rgba(216, 166, 58, 0.5);
+}
+.buzios-odu.ire { background: linear-gradient(180deg, rgba(60, 44, 12, 0.6), rgba(30, 22, 8, 0.6)); }
+.buzios-odu.osogbo { background: linear-gradient(180deg, rgba(52, 22, 40, 0.6), rgba(24, 14, 22, 0.6)); }
+.buzios-odu-name { font-weight: 800; color: #ffe6ad; font-size: 17px; }
+.buzios-orixa { color: #d8b877; font-weight: 600; }
+.buzios-tag { font-size: 11px; letter-spacing: 1px; margin-top: 3px; color: #d8a63a; font-weight: 700; }
+.buzios-present, .buzios-future { margin: 8px 0; line-height: 1.4; color: #ece2cc; }
+.buzios-future { color: #ffe6ad; font-weight: 600; }
+.buzios-effect {
+  margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(216, 166, 58, 0.28);
+  font-size: 13px; color: #cbe0c0; display: flex; flex-direction: column; gap: 4px;
+}
+.buzios-power { color: #7fe0d0; font-weight: 600; }
+
+/* Front-desk conversation with Yara. */
+.yara-desk { max-width: 440px; text-align: left; }
+.yara-line { color: #ece2cc; line-height: 1.5; margin: 8px 0 14px; font-size: 15px; }
+.yara-wallet { color: #c9b48c; font-size: 12px; margin: -6px 0 12px; opacity: 0.85; }
+.yara-choices { display: flex; flex-direction: column; gap: 8px; }
+.yara-choices button {
+  text-align: left; padding: 12px 16px; border-radius: 12px; cursor: pointer;
+  font-size: 15px; font-weight: 700; color: #ece2cc;
+  background: rgba(40, 24, 20, 0.7); border: 1px solid rgba(216, 166, 58, 0.35);
+  touch-action: manipulation;
+}
+.yara-choices button:active { transform: scale(0.98); }
+.yara-choices button.primary { background: rgba(24, 12, 30, 0.94); border-color: #d8a63a; color: #ffe6ad; }
+.yara-choices button.ghost { background: transparent; border-color: rgba(216, 166, 58, 0.2); color: #b7a988; font-weight: 600; }
+.yara-choices button.disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* "Follow Yara to the back" nudge after paying. */
+.follow-hint {
+  position: absolute; top: 96px; right: 10px; z-index: 12; max-width: 260px;
+  padding: 11px 16px; border-radius: 16px; font-size: 14px; font-weight: 700;
+  background: rgba(24, 12, 30, 0.9); border: 1px solid rgba(216, 166, 58, 0.5); color: #ffe6ad;
+  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.5); text-align: right;
+}
+
+/* First-person búzios reading scene (full-bleed; sits above the world/buttons, below the panel). */
+.buzios-scene { position: absolute; inset: 0; z-index: 15; background: #000; touch-action: manipulation; cursor: pointer; }
+.buzios-scene-canvas { width: 100%; height: 100%; display: block; }
+.buzios-prompt {
+  position: absolute; left: 0; right: 0; bottom: 13%; text-align: center;
+  color: #ffe6ad; font-size: 18px; font-weight: 800; letter-spacing: 0.4px;
+  text-shadow: 0 2px 10px #000, 0 0 20px rgba(0,0,0,0.7); pointer-events: none;
+  animation: buzios-pulse 1.5s ease-in-out infinite;
+}
+@keyframes buzios-pulse { 0%,100% { opacity: 0.55; } 50% { opacity: 1; } }
+.buzios-exit {
+  position: absolute; top: 12px; left: 12px; z-index: 16; font-size: 15px;
+  padding: 10px 16px; border-radius: 20px; background: rgba(24, 12, 30, 0.9);
+  border: 2px solid #d8a63a; color: #ffe6ad; font-weight: 800; touch-action: manipulation;
+}
+.build-stamp {
+  opacity: 0.5;
+  font-size: 10px;
+}
+.inv-card {
+  max-width: 440px;
+}
+.inv-hint {
+  margin: 2px 0 12px;
+  font-size: 12px;
+  color: #9a8a63;
+}
+.inv-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 7px;
+  margin: 6px 0 4px;
+}
+.inv-slot {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  border-radius: 10px;
+  border: 1px solid #3a3323;
+  background: rgba(12, 10, 7, 0.6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 4px;
+  cursor: pointer;
+  overflow: hidden;
+}
+.inv-slot.empty {
+  border-style: dashed;
+  border-color: #2c2618;
+  background: rgba(12, 10, 7, 0.3);
+  cursor: default;
+}
+.inv-slot.active {
+  border-color: #c9962c;
+  box-shadow: 0 0 0 1px #c9962c inset, 0 0 10px -2px rgba(201, 150, 44, 0.7);
+}
+.inv-thumb {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center top;
+  pointer-events: none;
+}
+.inv-label {
+  position: relative;
+  font-size: 9.5px;
+  line-height: 1.1;
+  color: #e6dcc4;
+  text-align: center;
+  background: rgba(8, 6, 4, 0.72);
+  border-radius: 5px;
+  padding: 2px 4px;
+  max-width: 100%;
+  z-index: 1;
+}
+.inv-worn {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  font-size: 8.5px;
+  font-weight: 700;
+  color: #1a1206;
+  background: #c9962c;
+  border-radius: 4px;
+  padding: 1px 4px;
+  z-index: 1;
 }
 
 .footnote {
   text-align: center;
-  font-size: 10.5px;
+  font-size: 10px;
   color: #5c5442;
-  padding: 6px 10px 12px 10px;
+  padding: 4px 10px;
+  flex-shrink: 0;
 }
 
 /* ---------- Soul Profile panel ---------- */
@@ -167,10 +496,21 @@
   color: #f4e6c1;
 }
 .panel-occ {
-  margin: 0 0 14px 0;
+  margin: 0 0 6px 0;
   font-size: 12.5px;
   color: #b7a67f;
   font-style: italic;
+}
+.panel-faction {
+  margin: 0 0 14px 0;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: #c98a6a;
+  display: inline-block;
+  padding: 2px 9px;
+  border: 1px solid #6a4230;
+  border-radius: 20px;
+  background: #221512;
 }
 .stat-row {
   display: flex;
@@ -245,4 +585,197 @@
 }
 .panel-close:active {
   background: #3a2f1e;
+}
+
+/* ---------- HUD center: clock + speed controls ---------- */
+.hud-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.speed-controls {
+  display: flex;
+  gap: 4px;
+}
+.speed-btn {
+  min-width: 30px;
+  padding: 2px 7px;
+  font-size: 11px;
+  background: #241d14;
+  border: 1px solid #4a3a22;
+  color: #cbb98f;
+  border-radius: 5px;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.speed-btn.active {
+  background: #c9962c;
+  border-color: #e6c266;
+  color: #1a1206;
+  font-weight: 700;
+}
+
+/* ---------- live panel additions ---------- */
+.dim {
+  color: #8a7d63;
+  font-weight: 400;
+}
+.panel-live {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.chip {
+  font-size: 11px;
+  padding: 2px 9px;
+  border-radius: 20px;
+  background: #2c2418;
+  border: 1px solid #5a4a2e;
+  color: #f0e0b6;
+}
+.chip.subtle {
+  background: #191512;
+  color: #b7a67f;
+}
+.maslow-label {
+  margin: 2px 0 10px 0;
+  font-size: 12px;
+  color: #b7a67f;
+  font-style: italic;
+}
+.section-title {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #9c8c6c;
+  margin: 14px 0 6px 0;
+  border-bottom: 1px solid #2e2517;
+  padding-bottom: 3px;
+}
+.metric {
+  display: grid;
+  grid-template-columns: 92px 1fr 26px;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+}
+.metric.small {
+  grid-template-columns: 92px 1fr;
+}
+.metric-label {
+  font-size: 11px;
+  color: #a99d80;
+}
+.metric-num {
+  font-size: 11px;
+  color: #e8d9ae;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.bar-track {
+  position: relative;
+  height: 8px;
+  background: #241d14;
+  border: 1px solid #3a2f1c;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+.bar-fill.need-survival {
+  background: #c9622c;
+}
+.bar-fill.need-safety {
+  background: #c9962c;
+}
+.bar-fill.need-belonging {
+  background: #4fae6a;
+}
+.bar-fill.need-esteem {
+  background: #3a7bd5;
+}
+.bar-fill.need-actualization {
+  background: #8a6ad0;
+}
+.bar-fill.emotion {
+  background: linear-gradient(90deg, #a05a6a, #d0607a);
+}
+.bar-fill.trait {
+  background: #9a5646;
+}
+.bar-ceiling {
+  position: absolute;
+  top: -1px;
+  width: 2px;
+  height: 10px;
+  background: #f0ead6;
+  opacity: 0.5;
+}
+.trait-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 14px;
+}
+.aspiration {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.asp-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.asp-label {
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #8a7d63;
+}
+.asp-label.soul {
+  color: #d9b25a;
+}
+.asp-text {
+  font-size: 12.5px;
+  color: #d8c8a4;
+}
+.asp-text.soul {
+  color: #f0d89a;
+  font-style: italic;
+}
+.appearance-tags {
+  display: flex;
+  gap: 6px;
+  margin-top: 12px;
+}
+.tag {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: #191512;
+  border: 1px solid #3a2f1c;
+  color: #a99d80;
+}
+
+/* ---------- phone: slim the HUD so the map dominates the screen ---------- */
+@media (max-width: 600px) {
+  .hud {
+    padding: 5px 10px;
+    gap: 8px 12px;
+  }
+  .hud-breadcrumb {
+    font-size: 12px;
+  }
+  .faith {
+    display: none; /* placeholder gauges — reclaim vertical space on phones */
+  }
+  .hud-clock {
+    font-size: 12px;
+  }
 }
